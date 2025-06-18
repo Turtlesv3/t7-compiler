@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{A45BC8F5-CB13-4006-9EAE-A07CA7CC091C}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <RootNamespace>DebugCompiler</RootNamespace>
     <AssemblyName>DebugCompiler</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
@@ -13,6 +13,21 @@
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
     <TargetFrameworkProfile />
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -20,13 +35,14 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;X86</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;x86</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -43,7 +59,7 @@
     <OutputPath>bin\x64\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
@@ -55,7 +71,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
@@ -64,19 +80,21 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
+    <Reference Include="System.Buffers, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Buffers.4.6.1\lib\net462\System.Buffers.dll</HintPath>
     </Reference>
     <Reference Include="System.Core" />
-    <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Memory.4.5.5\lib\net461\System.Memory.dll</HintPath>
+    <Reference Include="System.Design" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Memory, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Memory.4.6.3\lib\net462\System.Memory.dll</HintPath>
     </Reference>
     <Reference Include="System.Numerics" />
-    <Reference Include="System.Numerics.Vectors, Version=4.1.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+    <Reference Include="System.Numerics.Vectors, Version=4.1.6.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Numerics.Vectors.4.6.1\lib\net462\System.Numerics.Vectors.dll</HintPath>
     </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.1.2\lib\net462\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
     </Reference>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
@@ -95,13 +113,80 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConditionalBlocks.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="UI\Core\Controls\CBorderedForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CBorderedForm.Designer.cs">
+      <DependentUpon>CBorderedForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CComboBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CComboDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CComboDialog.Designer.cs">
+      <DependentUpon>CComboDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CErrorDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CErrorDialog.Designer.cs">
+      <DependentUpon>CErrorDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CThemedTextbox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CThemedTextbox.Designer.cs">
+      <DependentUpon>CThemedTextbox.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CTitleBar.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CTitleBar.Designer.cs">
+      <DependentUpon>CTitleBar.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Interfaces\IResizableForm.cs" />
+    <Compile Include="UI\Core\Interfaces\IThemeableControl.cs" />
+    <Compile Include="UI\Core\Singletons\UIThemeManager.cs" />
+    <Compile Include="UI\GUI\ImportDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\GUI\ImportDialog.Designer.cs">
+      <DependentUpon>ImportDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\GUI\MainForm1.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\GUI\MainForm1.Designer.cs">
+      <DependentUpon>MainForm1.cs</DependentUpon>
+    </Compile>
     <Compile Include="Root.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="packages.config" />
+    <EmbeddedResource Include="UI\Core\Controls\CBorderedForm.resx">
+      <DependentUpon>CBorderedForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Core\Controls\CComboDialog.resx">
+      <DependentUpon>CComboDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Core\Controls\CErrorDialog.resx">
+      <DependentUpon>CErrorDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Core\Controls\CTitleBar.resx">
+      <DependentUpon>CTitleBar.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\GUI\ImportDialog.resx">
+      <DependentUpon>ImportDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\GUI\MainForm1.resx">
+      <DependentUpon>MainForm1.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="version" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\External\External.csproj">
@@ -121,9 +206,28 @@
       <Name>TreyarchCompiler</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="lib\" />
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.8 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy /y "$(SolutionDir)$(PlatformName)\Release\t7cinternal.dll" "$(TargetDir)"
-xcopy /y "$(SolutionDir)$(PlatformName)\Release\t8cinternal.dll" "$(TargetDir)"</PostBuildEvent>
+    <PostBuildEvent>if exist "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t7cinternal.dll" (
+    copy /Y "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t7cinternal.dll" "$(TargetDir)"
+)
+if exist "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t8cinternal.dll" (
+    copy /Y "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t8cinternal.dll" "$(TargetDir)"
+)</PostBuildEvent>
   </PropertyGroup>
 </Project>
