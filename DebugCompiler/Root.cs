@@ -82,6 +82,79 @@ namespace DebugCompiler
         {
             FreeActiveScript();
         }
+        public static int RunCommandLine(string[] args)
+        {
+            // Create instance for command execution
+            Root rootInstance = new Root();
+
+            ParseCmdArgs(args, out string[] arguments, out string[] options);
+
+            // Only show version if we have actual commands
+            bool hasCommands = options.Contains("--build") ||
+                              options.Contains("--compile") ||
+                              options.Contains("--inject");
+
+            if (hasCommands)
+            {
+                string lv = GetEmbeddedVersion();
+                Console.WriteLine($"T7/T8 Compiler version {lv}, by Serious\n");
+
+                // Handle update check unless --noupdate is specified
+                if (!options.Contains("--noupdate"))
+                {
+                    try
+                    {
+                        motd();
+                        ulong local_version = ParseVersion(lv);
+                        ulong remote_version = 0;
+                        Console.WriteLine($"Checking client version... (our version is {local_version:X})");
+                        using (WebClient client = new WebClient())
+                        {
+                            string downloadString = client.DownloadString(UpdatesURL);
+                            remote_version = ParseVersion(downloadString.ToLower().Trim());
+                        }
+                        if (local_version < remote_version)
+                        {
+                            Console.WriteLine("Client out of date, downloading installer...");
+                            string filename = Path.Combine(Path.GetTempPath(), "t7c_installer.exe");
+                            if (File.Exists(filename)) File.Delete(filename);
+                            using (WebClient client = new WebClient())
+                            {
+                                client.DownloadFile(UpdaterURL, filename);
+                            }
+                            Console.WriteLine("Installing update... Please wait for a confirmation window to pop up before attempting to inject again...");
+                            Process.Start(filename, "--install_silent");
+                            return 0;
+                        }
+                    }
+                    catch
+                    {
+                        Console.WriteLine($"Error updating client... ignoring update");
+                    }
+                }
+
+                // Handle process name overrides
+                if (options.Contains("--boiii")) T7ProcessName = "boiii";
+                if (options.Contains("--t7x")) T7ProcessName = "t7x";
+
+                // Execute commands
+                if (options.Contains("--build") || options.Contains("--compile"))
+                    return rootInstance.cmd_Compile(arguments, options);
+
+                if (arguments.Length > 1 && options.Contains("--inject"))
+                    return rootInstance.cmd_Inject(arguments, options);
+            }
+
+            // If no valid commands, show help
+            Console.WriteLine("Available commands:");
+            Console.WriteLine("--compile [path] <T7|T8> - Compile a script");
+            Console.WriteLine("--inject [path] <T7|T8> <inject path> - Inject a compiled script");
+            Console.WriteLine("--noupdate - Skip version check");
+            Console.WriteLine("--boiii - Use boiii process name");
+            Console.WriteLine("--t7x - Use t7x process name");
+            Console.WriteLine("\nFor GUI mode, run without --console flag");
+            return 1;
+        }
 
         static void motd()
         {
@@ -98,82 +171,6 @@ namespace DebugCompiler
             fi.LastWriteTimeUtc = DateTime.Now;
             Console.WriteLine($"Message of the Day:\n\tEver wanted to shoot your friend with a thundergun?\n\tEver wondered what would happen if you could 1v1 with the origins staffs?\n\tNow you can! Zombie Blood Rush is a Black Ops III zombies mod that lets you kill other players.\n\tYour points are your health. Kill other players and zombies to race to 100K points. Play now: https://steamcommunity.com/sharedfiles/filedetails/?id=2696008055\n\n");
             System.Threading.Thread.Sleep(4000);
-        }
-        static int Main(string[] args)
-        {
-            ParseCmdArgs(args, out string[] arguments, out string[] options);
-
-            string lv = GetEmbeddedVersion();
-            Console.WriteLine($"T7/T8 Compiler version {lv}, by Serious\n");
-
-            if (!options.Contains("--noupdate"))
-            {
-                try
-                {
-                    motd();
-                    ulong local_version = ParseVersion(lv);
-                    ulong remote_version = 0;
-                    Console.WriteLine($"Checking client version... (our version is {local_version:X})");
-                    using (WebClient client = new WebClient())
-                    {
-                        string downloadString = client.DownloadString(UpdatesURL);
-                        remote_version = ParseVersion(downloadString.ToLower().Trim());
-                    }
-                    if (local_version < remote_version)
-                    {
-                        Console.WriteLine("Client out of date, downloading installer...");
-                        string filename = Path.Combine(Path.GetTempPath(), "t7c_installer.exe");
-                        if (File.Exists(filename)) File.Delete(filename);
-                        using (WebClient client = new WebClient())
-                        {
-                            client.DownloadFile(UpdaterURL, filename);
-                        }
-                        Console.WriteLine("Installing update... Please wait for a confirmation window to pop up before attempting to inject again...");
-                        Process.Start(filename, "--install_silent");
-                        return 0;
-                    }
-                }
-                catch
-                {
-                    // we dont care if we cant update tbf
-                    Console.WriteLine($"Error updating client... ignoring update");
-                }
-            }
-
-            if (options.Contains("--boiii"))
-            {
-                T7ProcessName = "boiii";
-            }
-
-            if (options.Contains("--t7x"))
-            {
-                T7ProcessName = "t7x";
-            }
-
-            Root root = new Root();
-            if (options.Contains("--build") || options.Contains("--compile"))
-            {
-                return root.cmd_Compile(arguments, options);
-            }
-
-            if (args.Length > 2 && options.Contains("--inject"))
-            {
-                return root.cmd_Inject(arguments, options);
-            }
-
-            root.AddCommand(ConsoleKey.Q, "Quit Program", root.cmd_Exit);
-            root.AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", root.cmd_HashString);
-            root.AddCommand(ConsoleKey.T, "Toggle Text History", root.cmd_ToggleNoClear);
-            root.AddCommand(ConsoleKey.C, "Compile Script [path] <T7|T8>", root.cmd_Compile);
-            root.AddCommand(ConsoleKey.I, "Inject Script [path] <T7|T8> <inject path>", root.cmd_Inject);
-            while (true)
-            {
-                try { root.Exec(root.PrintOptions()); }
-                catch (Exception e)
-                {
-                    root.Error(e.ToString());
-                }
-            }
         }
 
         static ulong ParseVersion(string vstr)
@@ -204,7 +201,7 @@ namespace DebugCompiler
 
         private ConsoleKey PrintOptions()
         {
-            if (ClearHistory)
+            if (ClearHistory && !IsConsoleApp())
                 Console.Clear();
 
             foreach (var kvp in CommandTable)
@@ -212,7 +209,14 @@ namespace DebugCompiler
                 Console.WriteLine($"{kvp.Key}: {kvp.Value.CommandName}");
             }
 
-            return Console.ReadKey(true).Key;
+            return IsConsoleApp() ? Console.ReadKey(true).Key : ConsoleKey.Escape;
+        }
+
+        private static bool IsConsoleApp()
+        {
+            return Environment.UserInteractive
+                   && Console.OpenStandardInput(1) != Stream.Null
+                   && !Console.IsInputRedirected;
         }
 
         public static IEnumerable<String> ParseArgs(String line, Char delimiter, Char textQualifier)
@@ -360,7 +364,7 @@ namespace DebugCompiler
 
             if (!File.Exists(args[0]))
             {
-                return Error("Invalid arguments. Specified file does not exist.");
+                return Error("Specified file does not exist.");
             }
 
             Games game = Games.T7;
@@ -372,34 +376,42 @@ namespace DebugCompiler
                 }
             }
 
-            byte[] buffer = null;
             try
             {
-                buffer = File.ReadAllBytes(args[0]);
-            }
-            catch
-            {
-                return Error("Failed to read the file specified");
-            }
-            var path = args.Length > 2 ? args[2] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
-            PointerEx injresult = InjectScript(path, buffer, game, hotmode.none, false);
-            Console.WriteLine();
-            Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
-            Console.WriteLine($"\t[{path}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+                byte[] buffer = File.ReadAllBytes(args[0]);
+                var path = args.Length > 2 ? args[2] :
+                          (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" :
+                                              @"scripts/zm_common/load.gsc");
 
-            if (!injresult)
-            {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
-                Console.ForegroundColor = ConsoleColor.Yellow;
+                PointerEx injresult = InjectScript(path, buffer, game, hotmode.none, false);
 
-                Console.ReadKey(true);
-                NoExcept(FreeActiveScript);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("\tScript parsetree has been reset\n");
-                Console.ForegroundColor = ConsoleColor.White;
+                // Modified output handling
+                string resultMessage = !injresult ?
+                    $"\t[{path}]: Injected" :
+                    $"\t[{path}]: Failed to Inject ({injresult:X})";
+
+                OnLogMessage?.Invoke(resultMessage);
+                Console.WriteLine(resultMessage);
+
+                if (!injresult)
+                {
+                    string resetMessage = "Press any key to reset gsc parsetree... If in game, you may crash.";
+                    OnLogMessage?.Invoke(resetMessage);
+
+                    // Only wait for key press in console mode
+                    if (Environment.UserInteractive && Console.OpenStandardInput(1) != Stream.Null)
+                    {
+                        Console.ReadKey(true);
+                        NoExcept(FreeActiveScript);
+                        OnLogMessage?.Invoke("\tScript parsetree has been reset");
+                    }
+                }
+                return 0;
             }
-            return 0;
+            catch (Exception ex)
+            {
+                return Error($"Failed to inject: {ex.Message}");
+            }
         }
 
         private int cmd_DumpEmptySlots(string[] args, string[] opts)

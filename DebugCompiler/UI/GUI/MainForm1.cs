@@ -191,25 +191,45 @@ namespace DebugCompiler
 
             try
             {
-                Cursor.Current = Cursors.WaitCursor;
                 btnResetParseTree.Enabled = false;
-
+                Cursor = Cursors.WaitCursor;
                 SafeAppendText($"[{DateTime.Now:HH:mm:ss}] Resetting GSC parse tree...\n");
 
                 await Task.Run(() => compilerRoot.PublicFreeActiveScript(true));
 
                 SafeAppendText($"[{DateTime.Now:HH:mm:ss}] Reset completed. Reload map for full cleanup.\n");
-                btnResetParseTree.Visible = false;
             }
             catch (Exception ex)
             {
                 SafeAppendText($"[ERROR] {ex.Message}\n");
-                MessageBox.Show(ex.Message, "Reset Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.Message, "Reset Error",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
-                Cursor.Current = Cursors.Default;
-                btnResetParseTree.Enabled = true;
+                UpdateResetButton(false); // Hide after reset
+                Cursor = Cursors.Default;
+            }
+        }
+
+        private void UpdateResetButton(bool visible)
+        {
+            if (btnResetParseTree.InvokeRequired)
+            {
+                btnResetParseTree.Invoke(new Action<bool>(UpdateResetButton), visible);
+            }
+            else
+            {
+                btnResetParseTree.Visible = visible;
+                btnResetParseTree.Enabled = visible;
+
+                if (visible)
+                {
+                    resetToolTip.SetToolTip(btnResetParseTree,
+                        $"Last Injected: {_lastInjectedScript}\n" +
+                        $"Game: {_lastGameMode}\n" +
+                        $"Time: {_lastInjectionTime:HH:mm:ss}");
+                }
             }
         }
 
@@ -270,14 +290,15 @@ namespace DebugCompiler
         {
             if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
             {
-                MessageBox.Show("Please select a script file first", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please select a script file first", "Error",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             try
             {
-                Cursor.Current = Cursors.WaitCursor;
                 btnInject.Enabled = false;
+                Cursor = Cursors.WaitCursor;
 
                 _lastInjectedScript = Path.GetFileName(txtScriptPath.Text);
                 _lastGameMode = cmbGame.Text;
@@ -293,38 +314,29 @@ namespace DebugCompiler
                 }
                 if (chkNoRuntime.Checked) opts.Add("--noruntime");
 
-                SafeAppendText($"[{DateTime.Now:HH:mm:ss}] Injection started...\n");
-
-                int result = 1;
-                await Task.Run(() =>
-                {
-                    result = compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray());
-                });
+                int result = await Task.Run(() => compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
 
                 if (result == 0)
                 {
                     SafeAppendText("\nINJECTION SUCCESSFUL\n");
-                    btnResetParseTree.Visible = true;
-
-                    resetToolTip.SetToolTip(btnResetParseTree,
-                        $"Last Injected: {_lastInjectedScript}\n" +
-                        $"Game: {cmbGame.Text}\n" +
-                        $"Time: {_lastInjectionTime:HH:mm:ss}");
+                    UpdateResetButton(true); // New method to handle button state
                 }
                 else
                 {
                     SafeAppendText("\nINJECTION FAILED\n");
+                    UpdateResetButton(false);
                 }
             }
             catch (Exception ex)
             {
                 SafeAppendText($"[ERROR] {ex.Message}\n");
-                MessageBox.Show(ex.Message, "Injection Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.Message, "Injection Error",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
-                Cursor.Current = Cursors.Default;
                 btnInject.Enabled = true;
+                Cursor = Cursors.Default;
             }
         }
 
