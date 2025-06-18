@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using TreyarchCompiler;
 using T7CompilerLib;
 using TreyarchCompiler.Enums;
+using Games = TreyarchCompiler.Enums.Games;
 using T7CompilerLib.OpCodes;
 using XDevkit;
 using Microsoft.Test.Xbox.XDRPC;
@@ -22,27 +23,72 @@ using T89CompilerLib;
 
 namespace DebugCompiler
 {
-    class Root
+    public class Root
     {
+        // Events for logging
+        public delegate void LogHandler(string message);
+        public event LogHandler OnLogMessage;
+        public event LogHandler OnError;
+
         private struct CommandInfo
         {
             internal string CommandName;
             internal CommandHandler Exec;
         }
         private delegate int CommandHandler(string[] args, string[] opts);
-        private Dictionary<ConsoleKey, CommandInfo> CommandTable = new Dictionary<ConsoleKey, CommandInfo>();
+        private Dictionary<ConsoleKey, CommandInfo> CommandTable;
         private bool ClearHistory = false;
         private static string UpdatesURL = "https://gsc.dev/t7c_version";
         private static string UpdaterURL = "https://gsc.dev/t7c_updater";
         private static string motdpath => Path.Combine(Application.StartupPath, "motd");
-        private const int motdHrsRemindClear = 4; // number of hours between reminding users about the message of the day.
+        private const int motdHrsRemindClear = 4;
         private static string T7ProcessName = "blackops3";
+
+        // Hash tables - ONLY DECLARE THESE ONCE
+        private static Dictionary<uint, string> t8_dword;
+        private static Dictionary<uint, string> t7_dword;
+        private static Dictionary<ulong, string> t8_qword;
+
+        public Root()
+        {
+            CommandTable = new Dictionary<ConsoleKey, CommandInfo>();
+            AddCommand(ConsoleKey.Q, "Quit Program", cmd_Exit);
+            AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", cmd_HashString);
+            AddCommand(ConsoleKey.T, "Toggle Text History", cmd_ToggleNoClear);
+            AddCommand(ConsoleKey.C, "Compile Script [path] <T7|T8>", cmd_Compile);
+            AddCommand(ConsoleKey.I, "Inject Script [path] <T7|T8> <inject path>", cmd_Inject);
+
+            // Initialize hash tables
+            t8_dword = new Dictionary<uint, string>();
+            t7_dword = new Dictionary<uint, string>();
+            t8_qword = new Dictionary<ulong, string>();
+
+            LoadHashTable();
+        }
+        public int ExecuteCommandLine(string[] args)
+        {
+            ParseCmdArgs(args, out string[] arguments, out string[] options);
+
+            if (options.Contains("--build") || options.Contains("--compile"))
+                return cmd_Compile(arguments, options);
+
+            if (arguments.Length > 1 && options.Contains("--inject"))
+                return cmd_Inject(arguments, options);
+
+            return 0;
+        }
+
+        public void PublicFreeActiveScript(bool forceReset)
+        {
+            FreeActiveScript();
+        }
+
         static void motd()
         {
             var fi = new FileInfo(motdpath);
             if (fi.Exists)
             {
-                if((DateTime.Now - fi.LastWriteTimeUtc).TotalMinutes <= (60 * motdHrsRemindClear))
+                if ((DateTime.Now - fi.LastWriteTimeUtc).TotalMinutes <= (60 * motdHrsRemindClear))
                 {
                     return; // we dont want to spam users with artificial delays in the program. Lets be nice and only show the motd once every 4 hours.
                 }
@@ -86,15 +132,16 @@ namespace DebugCompiler
                         Process.Start(filename, "--install_silent");
                         return 0;
                     }
-                } catch
+                }
+                catch
                 {
                     // we dont care if we cant update tbf
                     Console.WriteLine($"Error updating client... ignoring update");
                 }
             }
 
-            if(options.Contains("--boiii"))
-            { 
+            if (options.Contains("--boiii"))
+            {
                 T7ProcessName = "boiii";
             }
 
@@ -122,7 +169,7 @@ namespace DebugCompiler
             while (true)
             {
                 try { root.Exec(root.PrintOptions()); }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     root.Error(e.ToString());
                 }
@@ -134,7 +181,7 @@ namespace DebugCompiler
             ulong result = 0;
             string[] numbers = vstr.Split('.');
             int index = 0;
-            for(int i = 0; i < numbers.Length; i++, index++)
+            for (int i = 0; i < numbers.Length; i++, index++)
             {
                 int real_index = numbers.Length - 1 - i;
                 ulong num = ushort.Parse(numbers[real_index]);
@@ -241,7 +288,8 @@ namespace DebugCompiler
                 if (arg[0] != '-')
                 {
                     args.Add(arg);
-                } else
+                }
+                else
                 {
                     opts.Add(arg);
                 }
@@ -280,9 +328,9 @@ namespace DebugCompiler
         {
             var old = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Red;
+            OnError?.Invoke(msg);  // Changed from Error(msg) to OnError?.Invoke(msg)
             Console.WriteLine(msg);
             Console.ForegroundColor = old;
-            Console.WriteLine();
             return 1;
         }
 
@@ -290,30 +338,27 @@ namespace DebugCompiler
         {
             var old = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Green;
+            OnLogMessage?.Invoke(msg);  // Changed from Log(msg) to OnLogMessage?.Invoke(msg)
             Console.WriteLine(msg);
             Console.ForegroundColor = old;
-            Console.WriteLine();
             return 0;
         }
 
         #region commands
 
-        private static Dictionary<uint, string> t8_dword;
-        private static Dictionary<uint, string> t7_dword;
-        private static Dictionary<ulong, string> t8_qword;
         private static void LoadHashTable(bool force = false)
         {
-           
+
         }
 
         private int cmd_Inject(string[] args, string[] opts)
         {
-            if(args.Length < 1)
+            if (args.Length < 1)
             {
                 return Error("Invalid arguments. Please specify a file to inject.");
             }
 
-            if(!File.Exists(args[0]))
+            if (!File.Exists(args[0]))
             {
                 return Error("Invalid arguments. Specified file does not exist.");
             }
@@ -637,7 +682,7 @@ namespace DebugCompiler
                 // Console.WriteLine($"{CurrentSource.FilePath} start {CurrentSource.LineStart} end {CurrentSource.LineEnd}");
                 SourceTokens.Add(CurrentSource);
                 sb.Append("\n"); // remember that this is here because its going to fuck up irony
-                end_loop:;
+            end_loop:;
             }
 
             replaceScript = replaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
@@ -645,29 +690,29 @@ namespace DebugCompiler
             var ppc = new ConditionalBlocks();
             conditionalSymbols.Add(isT7 ? "BO3" : "BO4");
             ppc.LoadConditionalTokens(conditionalSymbols);
-            
+
             try
             {
                 source = ppc.ParseSource(source);
             }
-            catch(CBSyntaxException e)
+            catch (CBSyntaxException e)
             {
                 int errorCharPos = e.ErrorPosition;
                 int numLineBreaks = 0;
-                foreach(var stok in SourceTokens)
+                foreach (var stok in SourceTokens)
                 {
                     do
                     {
-                        if(errorCharPos < stok.CharStart || errorCharPos > stok.CharEnd)
+                        if (errorCharPos < stok.CharStart || errorCharPos > stok.CharEnd)
                         {
                             break; // havent reached the target index set yet
                         }
                         // now we have the source file we want
                         errorCharPos -= numLineBreaks; // adjust for inserted linebreaks between files
-                        foreach(var line in stok.LineMappings)
+                        foreach (var line in stok.LineMappings)
                         {
                             var constraints = line.Value;
-                            if(errorCharPos < constraints.CStart || errorCharPos > constraints.CEnd)
+                            if (errorCharPos < constraints.CStart || errorCharPos > constraints.CEnd)
                             {
                                 continue; // havent found the index we want yet
                             }
@@ -684,7 +729,7 @@ namespace DebugCompiler
             code = Compiler.Compile(platform, game, Modes.MP, false, source);
             if (code.Error != null && code.Error.Length > 0)
             {
-                if(code.Error.LastIndexOf("line=") < 0)
+                if (code.Error.LastIndexOf("line=") < 0)
                 {
                     return Error(code.Error);
                 }
@@ -696,7 +741,7 @@ namespace DebugCompiler
                 {
                     do
                     {
-                        if(stok.LineStart <= line && stok.LineEnd >= line)
+                        if (stok.LineStart <= line && stok.LineEnd >= line)
                         {
                             return Error($"Syntax error in scripts/{stok.FilePath} around line {line - stok.LineStart + 1}");
                         }
@@ -707,7 +752,7 @@ namespace DebugCompiler
                 return Error(code.Error);
             }
 
-            if(code.StubbedScript != null)
+            if (code.StubbedScript != null)
             {
                 File.WriteAllBytes($"{outName}.stub.gscc", code.StubScriptData);
             }
@@ -716,22 +761,22 @@ namespace DebugCompiler
             File.WriteAllBytes(cpath, code.CompiledScript);
             string hpath = "hashes.txt";
             StringBuilder hashes = new StringBuilder();
-            foreach(var kvp in code.HashMap)
+            foreach (var kvp in code.HashMap)
             {
                 hashes.AppendLine($"0x{kvp.Key:X}, {kvp.Value}");
             }
             File.WriteAllText(hpath, hashes.ToString());
 
-            if(code.OpcodeEmissions != null)
+            if (code.OpcodeEmissions != null)
             {
                 byte[] opsRaw = new byte[code.OpcodeEmissions.Count * 4];
-                for(int i = 0; i < code.OpcodeEmissions.Count; i++)
+                for (int i = 0; i < code.OpcodeEmissions.Count; i++)
                 {
                     BitConverter.GetBytes(code.OpcodeEmissions[i]).CopyTo(opsRaw, i * 4);
                 }
                 File.WriteAllBytes($"{outName}.omap", opsRaw);
             }
-     
+
             Success(cpath);
             if (compileOnly)
             {
@@ -774,7 +819,7 @@ namespace DebugCompiler
 
         private void FreeActiveScript()
         {
-            switch(LastGameInjected)
+            switch (LastGameInjected)
             {
                 case Games.T7:
                     NoExcept(FreeT7Script);
@@ -809,7 +854,7 @@ namespace DebugCompiler
                 case Games.T7: return InjectT7(replacePath, buffer, hot, noruntime);
                 case Games.T8: return InjectT8(replacePath, buffer);
             }
-            return Error("Invalid game provided to inject.");
+            return 1;
         }
 
         private class GSICInfo
@@ -819,7 +864,7 @@ namespace DebugCompiler
             public byte[] PackDetours()
             {
                 List<byte> data = new List<byte>();
-                foreach(var detour in Detours)
+                foreach (var detour in Detours)
                 {
                     data.AddRange(detour.Serialize());
                 }
@@ -842,12 +887,7 @@ namespace DebugCompiler
             }
         }
 
-        private enum hotmode
-        {
-            none,
-            csc,
-            gsc
-        }
+        public enum hotmode { none, csc, gsc }
 
         private int InjectT7(string replacePath, byte[] buffer, hotmode hot, bool noruntime)
         {
@@ -856,24 +896,24 @@ namespace DebugCompiler
             if (BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
             {
                 string preamble = Encoding.ASCII.GetString(buffer.Take(4).ToArray());
-                if(preamble != "GSIC")
+                if (preamble != "GSIC")
                 {
                     return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
                 }
-                using(MemoryStream ms = new MemoryStream(buffer))
+                using (MemoryStream ms = new MemoryStream(buffer))
                 using (BinaryReader reader = new BinaryReader(ms))
                 {
                     T7ScriptObject.GSIFields currentField = T7ScriptObject.GSIFields.Detours;
                     reader.BaseStream.Position += 4;
                     gsi = new GSICInfo();
-                    for(int numFields = reader.ReadInt32(); numFields > 0; numFields--)
+                    for (int numFields = reader.ReadInt32(); numFields > 0; numFields--)
                     {
                         currentField = (T7ScriptObject.GSIFields)reader.ReadInt32();
-                        switch(currentField)
+                        switch (currentField)
                         {
                             case T7ScriptObject.GSIFields.Detours:
                                 int numdetours = reader.ReadInt32();
-                                for(int j = 0; j < numdetours; j++)
+                                for (int j = 0; j < numdetours; j++)
                                 {
                                     T7ScriptObject.ScriptDetour detour = new T7ScriptObject.ScriptDetour();
                                     detour.Deserialize(reader);
@@ -884,7 +924,7 @@ namespace DebugCompiler
                     }
                     buffer = buffer.Skip((int)reader.BaseStream.Position).ToArray();
                 }
-                if(BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
+                if (BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
                 {
                     return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
                 }
@@ -914,13 +954,13 @@ namespace DebugCompiler
                     if (hot != hotmode.none || name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
                     {
                         // cache target info
-                        if(hot == hotmode.none)
+                        if (hot == hotmode.none)
                         {
                             llpModifiedSPTStruct = (ulong)(i * Marshal.SizeOf(typeof(T7SPT))) + sptGlob;
                             llpOriginalBuffer = entry.lpBuffer;
                             OriginalSourceChecksum = bo3.GetValue<int>(llpOriginalBuffer + 0x8);
                         }
-                        
+
 
                         // patch script into memory
                         entry.lpBuffer = bo3.QuickAlloc(buffer.Length);
@@ -928,7 +968,7 @@ namespace DebugCompiler
                         bo3.SetBytes(entry.lpBuffer, buffer);
 
                         // patch spt struct
-                        if(hot == hotmode.none)
+                        if (hot == hotmode.none)
                         {
                             bo3.SetStruct(llpModifiedSPTStruct, entry);
 
@@ -936,8 +976,8 @@ namespace DebugCompiler
                             InjectedScript = entry;
                             InjectedBuffSize = buffer.Length;
                         }
-                        
-                        if(!noruntime)
+
+                        if (!noruntime)
                         {
                             try
                             {
@@ -967,8 +1007,8 @@ namespace DebugCompiler
                                 return 3;
                             }
                         }
-                        
-                        if(hot != hotmode.none)
+
+                        if (hot != hotmode.none)
                         {
                             string exeFilePath = Assembly.GetExecutingAssembly().Location;
                             var pe = new System.PEStructures.PEImage(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll")));
@@ -1005,7 +1045,7 @@ namespace DebugCompiler
                                     Console.WriteLine("Successfully hotloaded script!");
                                 }
                             }
-                            catch(Exception e)
+                            catch (Exception e)
                             {
                                 Console.WriteLine(e.ToString());
                             }
@@ -1097,7 +1137,7 @@ namespace DebugCompiler
                     InjectCache.Target = spt;
                     InjectCache.hTarget = sptGlob + (ulong)(i * Marshal.SizeOf(typeof(T8SPT)));
                 }
-                if(InjectCache.hSurrogate && InjectCache.hTarget)
+                if (InjectCache.hSurrogate && InjectCache.hTarget)
                 {
                     break;
                 }
@@ -1126,7 +1166,7 @@ namespace DebugCompiler
                 bo4.SetValue(includeTable + (includeCount * 8), targetScript);
                 bo4.SetValue(InjectCache.Surrogate.Buffer + includeOff, (byte)(includeCount + 1));
 
-                patchBuff:
+            patchBuff:
                 bo4.GetBytes(InjectCache.Target.Buffer + 0x8, 8).CopyTo(buffer, 0x8); // crc32
                 InjectCache.hBuffer = bo4.QuickAlloc(buffer.Length); // space
                 bo4.SetBytes(InjectCache.hBuffer, buffer); // write to proc
@@ -1325,6 +1365,30 @@ namespace DebugCompiler
         }
 
         private static Dictionary<byte, ScriptOpCode> XboxCodes = null;
-        
+
+        // Helper classes for GUI interaction
+        public class T7CompileOptions
+        {
+            public bool NoUpdate { get; set; }
+            public bool Build { get; set; }
+            public bool CompileOnly { get; set; }
+            public bool HotLoad { get; set; }
+            public bool NoRuntime { get; set; }
+            public Games Game { get; set; } = Games.T7;
+        }
+
+        public class T7InjectOptions
+        {
+            public bool HotLoad { get; set; }
+            public bool NoRuntime { get; set; }
+        }
+
+        public class CompileResult
+        {
+            public bool Success { get; set; }
+            public string Output { get; set; }
+        }
+
+
     }
 }
