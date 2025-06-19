@@ -514,7 +514,6 @@ namespace DebugCompiler
             }
         }
 
-
         private int cmd_GenerateHashMap(string[] args, string[] opts)
         {
             return -1;
@@ -1377,30 +1376,6 @@ namespace DebugCompiler
         }
 
         private static Dictionary<byte, ScriptOpCode> XboxCodes = null;
-
-        // Helper classes for GUI interaction
-        public class T7CompileOptions
-        {
-            public bool NoUpdate { get; set; }
-            public bool Build { get; set; }
-            public bool CompileOnly { get; set; }
-            public bool HotLoad { get; set; }
-            public bool NoRuntime { get; set; }
-            public Games Game { get; set; } = Games.T7;
-        }
-
-        public class T7InjectOptions
-        {
-            public bool HotLoad { get; set; }
-            public bool NoRuntime { get; set; }
-        }
-
-        public class CompileResult
-        {
-            public bool Success { get; set; }
-            public string Output { get; set; }
-        }
-
 
     }
 }

@@ -4,6 +4,7 @@ using Refract.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -11,6 +12,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TreyarchCompiler.Enums;
+using SMC.UI.Core.Controls; // Add this line
 
 namespace DebugCompiler
 {
@@ -30,7 +32,8 @@ namespace DebugCompiler
         private string _lastInjectedScript;
         private string _lastGameMode;
         private UIThemeInfo _currentTheme;
-        private TextWriter _originalOut = Console.Out;
+        private readonly TextWriter _originalOut = Console.Out;
+        private readonly object _outputLock = new object();
 
         public MainForm1()
         {
@@ -42,7 +45,7 @@ namespace DebugCompiler
             compilerRoot.OnLogMessage += (msg) => SafeAppendText(msg + "\n");
             compilerRoot.OnError += (err) => SafeAppendText("[ERROR] " + err + "\n");
             CheckRequiredFiles();
-            this.Text = $"T7/T8 Debug Compiler v{GetVersion()} - by Serious";
+            this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
         }
 
         private void SafeAppendText(string text)
@@ -53,7 +56,29 @@ namespace DebugCompiler
             }
             else
             {
-                txtOutput.AppendText(text);
+                lock (_outputLock)
+                {
+                    txtOutput.SuspendLayout();
+                    try
+                    {
+                        txtOutput.AppendText(text);
+                        txtOutput.ScrollToCaret();
+                    }
+                    finally
+                    {
+                        txtOutput.ResumeLayout();
+                    }
+
+                    if (text.Contains("[ERROR]"))
+                    {
+                        Color original = txtOutput.ForeColor;
+                        txtOutput.ForeColor = Color.Red;
+                        Task.Delay(500).ContinueWith(_ =>
+                        {
+                            txtOutput.Invoke((Action)(() => txtOutput.ForeColor = original));
+                        });
+                    }
+                }
             }
         }
 
@@ -94,15 +119,29 @@ namespace DebugCompiler
 
         private void InitializeCustomComponents()
         {
-            // Initialize combo boxes
-            cmbGame.Items.AddRange(Enum.GetNames(typeof(Games)));
-            cmbGame.SelectedIndex = 0;
+            var gameDisplayNames = new Dictionary<string, string>
+    {
+        {"t6", "Call of Duty: Black Ops 2"},
+        {"t7", "Call of Duty: Black Ops 3"},
+        {"t8", "Call of Duty: Black Ops 4"}
+    };
 
+            // Get all enum names and map them to display names
+            var gameNames = Enum.GetNames(typeof(Games))
+                               .Select(name => gameDisplayNames.TryGetValue(name.ToLower(), out var displayName)
+                                              ? displayName
+                                              : name)
+                               .ToArray();
+
+            cmbGame.Items.AddRange(gameNames);
+            cmbGame.SelectedIndex = 1;
+
+            // Rest of the method remains the same...
             cmbHotMode.Items.AddRange(new[] { "GSC", "CSC" });
             cmbHotMode.SelectedIndex = 0;
             cmbHotMode.Enabled = false;
 
-            // Tooltips
+            // Tooltips for buttons
             resetToolTip.SetToolTip(btnResetParseTree,
                 "Reset GSC Parse Tree\n\n" +
                 $"Last Injection: {_lastInjectedScript ?? "None"}\n" +
@@ -113,16 +152,50 @@ namespace DebugCompiler
             resetToolTip.SetToolTip(btnInject,
                 "Inject Compiled Script\n\n" +
                 "Requirements:\n" +
-                "- Valid .gsc file selected\n" +
+                "- Valid .gsc/gscc file selected\n" +
                 "- Game process running\n" +
                 "- Proper compiler setup");
 
-            // Event handlers
-            chkHotLoad.CheckedChanged += (s, e) => cmbHotMode.Enabled = chkHotLoad.Checked;
-            btnBrowse.Click += BtnBrowse_Click;
-            btnCompile.Click += BtnCompile_Click;
-            btnInject.Click += BtnInject_Click;
-            btnResetParseTree.Click += BtnResetParseTree_Click;
+            // New comprehensive tooltip for compile button
+            resetToolTip.SetToolTip(btnCompile,
+                "Compile Script\n\n" +
+                "Requirements:\n" +
+                "- Select a .gsc file or folder first\n\n" +
+                "Compile Options:\n" +
+                "- Full Build: Complete Build+Inject\n" +
+                "- Compile Only: Skip injection");
+
+            // Tooltips for checkboxes
+            resetToolTip.SetToolTip(chkNoUpdate,
+                "No Update\n\n" +
+                "Skips all program version update checks\n" +
+                "Faster compilation but may miss important updates");
+
+            resetToolTip.SetToolTip(chkBuild,
+                "Full Build\n\n" +
+                "Performs a complete rebuild of all scripts\n" +
+                "Slower but ensures everything is fresh");
+
+            resetToolTip.SetToolTip(chkCompileOnly,
+                "Compile Only\n\n" +
+                "Compiles without injecting into the game\n" +
+                "Useful for testing compilation only");
+
+            resetToolTip.SetToolTip(chkHotLoad,
+                "Hot Load\n\n" +
+                "Enables runtime script reloading\n" +
+                "Requires game support for hot loading");
+
+            resetToolTip.SetToolTip(chkNoRuntime,
+                "No Runtime\n\n" +
+                "Disables runtime type checking\n" +
+                "Faster but less safe compilation");
+
+            resetToolTip.SetToolTip(cmbHotMode,
+                "Hot Load Mode\n\n" +
+                "GSC: Standard script hot loading\n" +
+                "CSC: Client-side script hot loading");
+
         }
 
         private string GetVersion()
@@ -180,6 +253,8 @@ namespace DebugCompiler
 
         private async void BtnResetParseTree_Click(object sender, EventArgs e)
         {
+            await Task.Run(() => ClearOutput());
+
             var confirm = MessageBox.Show(
                 "WARNING: Resetting parse tree while in-game may cause crashes!\n\n" +
                 "Are you sure you want to reset the GSC parse tree?",
@@ -202,12 +277,11 @@ namespace DebugCompiler
             catch (Exception ex)
             {
                 SafeAppendText($"[ERROR] {ex.Message}\n");
-                MessageBox.Show(ex.Message, "Reset Error",
-                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.Message, "Reset Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
-                UpdateResetButton(false); // Hide after reset
+                UpdateResetButton(false);
                 Cursor = Cursors.Default;
             }
         }
@@ -235,22 +309,63 @@ namespace DebugCompiler
 
         private void BtnBrowse_Click(object sender, EventArgs e)
         {
-            using (var openDialog = new OpenFileDialog())
-            {
-                openDialog.Filter = "GSC Files (*.gsc, *.gscc)|*.gsc;*.gscc|All Files (*.*)|*.*";
-                if (openDialog.ShowDialog() == DialogResult.OK)
+            // Create a context menu for the button
+            var menu = new ContextMenuStrip();
+
+            // Add file selection option
+            var fileItem = new ToolStripMenuItem("Select File...");
+            fileItem.Click += (s, args) => {
+                using (var openDialog = new OpenFileDialog())
                 {
-                    txtScriptPath.Text = openDialog.FileName;
-                    btnResetParseTree.Visible = false;
+                    openDialog.Filter = "GSC Files (*.gsc, *.gscc)|*.gsc;*.gscc|All Files (*.*)|*.*";
+                    if (openDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        txtScriptPath.Text = openDialog.FileName;
+                        btnResetParseTree.Visible = false;
+                    }
                 }
-            }
+            };
+            menu.Items.Add(fileItem);
+
+            // Add folder selection option
+            var folderItem = new ToolStripMenuItem("Select Folder...");
+            folderItem.Click += (s, args) => {
+                using (var folderDialog = new FolderBrowserDialog())
+                {
+                    folderDialog.Description = "Select folder containing GSC scripts";
+                    folderDialog.ShowNewFolderButton = false;
+
+                    if (folderDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        txtScriptPath.Text = folderDialog.SelectedPath;
+                        btnResetParseTree.Visible = false;
+                    }
+                }
+            };
+            menu.Items.Add(folderItem);
+
+            // Show the menu below the button
+            menu.Show(btnBrowse, new Point(0, btnBrowse.Height));
         }
 
         private async void BtnCompile_Click(object sender, EventArgs e)
         {
+            ClearOutput();
+
+            // Enhanced input validation
             if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
             {
-                MessageBox.Show("Please select a script file first", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                CErrorDialog.Show("Error", "Please select a script file or folder first", true);
+                return;
+            }
+
+            // Verify the path exists
+            bool isFile = File.Exists(txtScriptPath.Text);
+            bool isDir = Directory.Exists(txtScriptPath.Text);
+
+            if (!isFile && !isDir)
+            {
+                SafeAppendText($"[ERROR] Path does not exist: {txtScriptPath.Text}\n");
                 return;
             }
 
@@ -259,25 +374,92 @@ namespace DebugCompiler
                 Cursor.Current = Cursors.WaitCursor;
                 btnCompile.Enabled = false;
 
+                // Debug logging
+                SafeAppendText($"[DEBUG] Starting compilation...\n");
+                SafeAppendText($"[DEBUG] Target: {(isFile ? "File" : "Folder")} {txtScriptPath.Text}\n");
+                SafeAppendText($"[DEBUG] Game: {cmbGame.Text}\n");
+
                 var args = new List<string> { txtScriptPath.Text, cmbGame.Text };
                 var opts = new List<string>();
 
+                if (chkBuild.Checked)
+                {
+                    opts.Add("--build");
+                    SafeAppendText("[FULL BUILD] Enabled\n");
+                }
+
+                if (isDir)
+                {
+                    opts.Add("--batch");
+                    SafeAppendText("[BATCH MODE] Compiling all scripts in folder\n");
+                }
+
+                // Add other options...
                 if (chkNoUpdate.Checked) opts.Add("--noupdate");
-                if (chkBuild.Checked) opts.Add("--build");
                 if (chkCompileOnly.Checked) opts.Add("--compile");
-                if (chkHotLoad.Checked) opts.Add("--hot");
+                if (chkHotLoad.Checked)
+                {
+                    opts.Add("--hot");
+                    opts.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
+                }
                 if (chkNoRuntime.Checked) opts.Add("--noruntime");
 
-                await Task.Run(() =>
+                // Log final command
+                SafeAppendText($"[DEBUG] Command: compilerRoot {string.Join(" ", args.Concat(opts))}\n");
+
+                int result = await Task.Run(() =>
                 {
-                    int result = compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray());
-                    SafeAppendText(result == 0 ? "\nCOMPILATION SUCCESSFUL\n" : "\nCOMPILATION FAILED\n");
+                    try
+                    {
+                        return compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray());
+                    }
+                    catch (Exception ex)
+                    {
+                        SafeAppendText($"[COMPILER ERROR] {ex.Message}\n");
+                        return -1;
+                    }
                 });
+
+                if (result == 0)
+                {
+                    SafeAppendText("\nCOMPILATION SUCCESSFUL\n");
+
+                    // Handle output path
+                    string outputPath;
+                    if (isDir)
+                    {
+                        outputPath = Path.Combine(txtScriptPath.Text, "bin", "compiled.gscc");
+                    }
+                    else
+                    {
+                        outputPath = Path.ChangeExtension(txtScriptPath.Text, ".gscc");
+                    }
+
+                    if (File.Exists(outputPath))
+                    {
+                        SafeAppendText($"Output file: {outputPath}\n");
+
+                        if (!chkCompileOnly.Checked && !chkBuild.Checked)
+                        {
+                            await Task.Delay(300);
+                            await InjectCompiledScript(outputPath);
+                        }
+                    }
+                    else
+                    {
+                        SafeAppendText("[WARNING] No output file was generated\n");
+                    }
+                }
+                else
+                {
+                    SafeAppendText("\nCOMPILATION FAILED\n");
+                    SafeAppendText($"[ERROR] Exit code: {result}\n");
+                }
             }
             catch (Exception ex)
             {
-                SafeAppendText($"[ERROR] {ex.Message}\n");
-                MessageBox.Show(ex.Message, "Compilation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                SafeAppendText($"[SYSTEM ERROR] {ex.Message}\n");
+                SafeAppendText($"[STACK TRACE] {ex.StackTrace}\n");
             }
             finally
             {
@@ -286,12 +468,93 @@ namespace DebugCompiler
             }
         }
 
+        private async Task InjectCompiledScript(string outputFile)
+        {
+            try
+            {
+                if (!IsGameRunning())
+                {
+                    SafeAppendText("[INFO] Game not running - injection skipped\n");
+                    return;
+                }
+
+                SafeAppendText($"Injecting {Path.GetFileName(outputFile)}...\n");
+
+                var args = new List<string> { outputFile, cmbGame.Text };
+                var opts = new List<string> { "--inject" };
+
+                if (chkHotLoad.Checked)
+                {
+                    opts.Add("--hot");
+                    opts.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
+                }
+                if (chkNoRuntime.Checked) opts.Add("--noruntime");
+
+                // Save original console streams
+                TextReader originalInput = Console.In;
+                TextWriter originalOutput = Console.Out;
+                TextWriter originalError = Console.Error;
+
+                try
+                {
+                    // Redirect all console streams
+                    Console.SetIn(new StreamReader(Stream.Null));
+                    Console.SetOut(TextWriter.Null);
+                    Console.SetError(TextWriter.Null);
+
+                    int result = await Task.Run(() =>
+                        compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
+
+                    if (result == 0)
+                    {
+                        SafeAppendText("\nINJECTION SUCCESSFUL\n");
+                        _lastInjectedScript = Path.GetFileName(outputFile);
+                        _lastGameMode = cmbGame.Text;
+                        _lastInjectionTime = DateTime.Now;
+                        UpdateResetButton(true);
+                    }
+                    else
+                    {
+                        SafeAppendText("\nINJECTION FAILED\n");
+                    }
+                }
+                finally
+                {
+                    // Restore original console streams
+                    Console.SetIn(originalInput);
+                    Console.SetOut(originalOutput);
+                    Console.SetError(originalError);
+                }
+            }
+            catch (Exception ex)
+            {
+                SafeAppendText($"[INJECTION ERROR] {ex.Message}\n");
+            }
+        }
+
         private async void BtnInject_Click(object sender, EventArgs e)
         {
+            await Task.Run(() => ClearOutput());
+
             if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
             {
-                MessageBox.Show("Please select a script file first", "Error",
-                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+                resetToolTip.SetToolTip(btnInject,
+            "Please select a script file first!\n\n" +
+            "Use the Browse button to select a .gsc/.gscc file");
+                return;
+            }
+
+            if (Directory.Exists(txtScriptPath.Text))
+            {
+                CErrorDialog.Show("Error", "Cannot inject a folder. Please select a single script file.", true);
+                return;
+            }
+
+            if (!IsGameRunning())
+            {
+                CErrorDialog.Show("Game Not Running",
+                                $"{cmbGame.Text} is not running. Please start the game first.",
+                                true);
                 return;
             }
 
@@ -299,6 +562,7 @@ namespace DebugCompiler
             {
                 btnInject.Enabled = false;
                 Cursor = Cursors.WaitCursor;
+                SafeAppendText($"[{DateTime.Now:HH:mm:ss}] Starting injection...\n");
 
                 _lastInjectedScript = Path.GetFileName(txtScriptPath.Text);
                 _lastGameMode = cmbGame.Text;
@@ -316,22 +580,21 @@ namespace DebugCompiler
 
                 int result = await Task.Run(() => compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
 
-                if (result == 0)
-                {
-                    SafeAppendText("\nINJECTION SUCCESSFUL\n");
-                    UpdateResetButton(true); // New method to handle button state
-                }
-                else
+                if (result != 0 || txtOutput.Text.Contains("[ERROR] No game process found"))
                 {
                     SafeAppendText("\nINJECTION FAILED\n");
                     UpdateResetButton(false);
+                }
+                else
+                {
+                    SafeAppendText("\nINJECTION SUCCESSFUL\n");
+                    UpdateResetButton(true);
                 }
             }
             catch (Exception ex)
             {
                 SafeAppendText($"[ERROR] {ex.Message}\n");
-                MessageBox.Show(ex.Message, "Injection Error",
-                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+                CErrorDialog.Show("Injection Error", $"An error occurred during injection:\n{ex.Message}", true);
             }
             finally
             {
@@ -353,5 +616,70 @@ namespace DebugCompiler
         {
             // Optional: Add any specific handling for hot mode changes
         }
+
+        private void chkHotLoad_CheckedChanged(object sender, EventArgs e)
+        {
+            cmbHotMode.Enabled = chkHotLoad.Checked;
+
+            if (chkHotLoad.Checked)
+            {
+                SafeAppendText("Hot Load enabled. Mode: " + cmbHotMode.Text + "\n");
+            }
+            else
+            {
+                SafeAppendText("Hot Load disabled\n");
+            }
+        }
+
+        private void ClearOutput()
+        {
+            if (txtOutput.InvokeRequired)
+            {
+                txtOutput.Invoke(new Action(ClearOutput));
+            }
+            else
+            {
+                lock (_outputLock)
+                {
+                    txtOutput.SuspendLayout();
+                    txtOutput.Clear();
+                    txtOutput.ResumeLayout();
+                }
+            }
+        }
+
+        private bool IsGameRunning()
+        {
+            try
+            {
+                string processName;
+                string gameText = cmbGame.Text;
+
+                // Map display names back to process names
+                var gameProcessMap = new Dictionary<string, string>
+                {
+                    {"Call of Duty: Black Ops 2", "t6"},
+                    {"Call of Duty: Black Ops 3", "blackops3"},
+                    {"Call of Duty: Black OPs 4", "t8"}
+                };
+
+                if (gameProcessMap.TryGetValue(gameText, out string gameCode))
+                {
+                    processName = gameCode;
+                }
+                else
+                {
+                    // Fallback for direct code entry
+                    processName = gameText.ToLower().Replace(" ", "");
+                }
+
+                return Process.GetProcessesByName(processName).Length > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
     }
 }
