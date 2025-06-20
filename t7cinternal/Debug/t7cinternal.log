@@ -1,0 +1,139 @@
+﻿  builtins.cpp
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.h(21,9): warning C4005: 'NT_SUCCESS': macro redefinition
+  (compiling source file 'builtins.cpp')
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\Winternl.h(902,9):
+      see previous definition of 'NT_SUCCESS'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(87,13): warning C4244: 'initializing': conversion from 'INT64' to 'INT32', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(113,13): warning C4101: 'v2': unreferenced local variable
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(115,14): warning C4101: 'v5': unreferenced local variable
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(205,15): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(206,14): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(232,18): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(233,13): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(354,15): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(361,15): warning C4018: '<': signed/unsigned mismatch
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(368,20): error C7664: '<=': ordered comparison of pointer and integer zero ('char *' and 'int')
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(399,19): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(413,18): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(414,13): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\builtins.cpp(483,2): error C4996: 'vsprintf': This function or variable may be unsafe. Consider using vsprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  detours.cpp
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.h(21,9): warning C4005: 'NT_SUCCESS': macro redefinition
+  (compiling source file 'detours.cpp')
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\Winternl.h(902,9):
+      see previous definition of 'NT_SUCCESS'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(184,19): error C2440: '=': cannot convert from 'INT64 (__cdecl *)(INT32,INT32 *,INT32 *,INT32 *)' to 'tScr_GetMethod'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(184,19):
+      This conversion requires a reinterpret_cast, a C-style cast or parenthesized function-style cast
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(185,21): error C2440: '=': cannot convert from 'INT64 (__cdecl *)(INT32,INT32 *,INT32 *,INT32 *)' to 'tScr_GetFunction'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(185,21):
+      This conversion requires a reinterpret_cast, a C-style cast or parenthesized function-style cast
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(197,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(197,42):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(197,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(198,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(198,39):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(198,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(199,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(199,46):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(199,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(200,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(200,44):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(200,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(201,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(201,44):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(201,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(202,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(202,50):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(202,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(203,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(203,39):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(203,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(204,2): error C2664: 'void ScriptDetours::VTableReplace(INT64,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(204,45):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.h(59,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\detours.cpp(204,2):
+      while trying to match the argument list '(uint64_t, overloaded-function, tVM_Opcode *)'
+  
+  dllmain.cpp
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.h(21,9): warning C4005: 'NT_SUCCESS': macro redefinition
+  (compiling source file 'dllmain.cpp')
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\Winternl.h(902,9):
+      see previous definition of 'NT_SUCCESS'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(30,23): warning C4081: expected ','; found ')'
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(101,9): warning C4005: '_GscObjResolve': macro redefinition
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(37,9):
+      see previous definition of '_GscObjResolve'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(102,9): warning C4005: '_Scr_ExecThread': macro redefinition
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(38,9):
+      see previous definition of '_Scr_ExecThread'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(103,9): warning C4005: '_Scr_FreeThread': macro redefinition
+      C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(39,9):
+      see previous definition of '_Scr_FreeThread'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\dllmain.cpp(165,22): warning C4081: expected ','; found ')'
+  framework.cpp
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.h(21,9): warning C4005: 'NT_SUCCESS': macro redefinition
+  (compiling source file 'framework.cpp')
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\Winternl.h(902,9):
+      see previous definition of 'NT_SUCCESS'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(11,8): warning C4838: conversion from 'int' to 'const char' requires a narrowing conversion
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(11,8): warning C4309: 'initializing': truncation of constant value
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(11,14): warning C4838: conversion from 'int' to 'const char' requires a narrowing conversion
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(11,14): warning C4309: 'initializing': truncation of constant value
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(12,14): warning C4838: conversion from 'int' to 'const char' requires a narrowing conversion
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(12,14): warning C4309: 'initializing': truncation of constant value
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(13,2): warning C4838: conversion from 'int' to 'const char' requires a narrowing conversion
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.cpp(13,2): warning C4309: 'initializing': truncation of constant value
+  Opcodes.cpp
+C:\Users\golia\Source\Repos\t7-compiler\t7cinternal\framework.h(21,9): warning C4005: 'NT_SUCCESS': macro redefinition
+  (compiling source file 'Opcodes.cpp')
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\Winternl.h(902,9):
+      see previous definition of 'NT_SUCCESS'
+  
+  Generating Code...

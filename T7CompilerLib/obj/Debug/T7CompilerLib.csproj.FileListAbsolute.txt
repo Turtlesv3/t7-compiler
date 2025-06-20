@@ -1,0 +1,8 @@
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\bin\Debug\T7PCV2.db
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\bin\Debug\T7CompilerLib.dll.config
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\bin\Debug\T7CompilerLib.dll
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\bin\Debug\T7CompilerLib.pdb
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\obj\Debug\T7CompilerLib.csproj.AssemblyReference.cache
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\obj\Debug\T7CompilerLib.csproj.CoreCompileInputs.cache
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\obj\Debug\T7CompilerLib.dll
+C:\Users\golia\Source\Repos\t7-compiler\T7CompilerLib\obj\Debug\T7CompilerLib.pdb

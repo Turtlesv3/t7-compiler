@@ -1,0 +1,71 @@
+﻿  builtins.cpp
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\builtins.cpp(66,13): warning C4244: 'initializing': conversion from 'INT64' to 'INT32', possible loss of data
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\builtins.cpp(135,2): error C4996: 'vsprintf': This function or variable may be unsafe. Consider using vsprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  detours.cpp
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(122,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(122,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(122,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(123,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(123,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(123,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(124,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(124,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(124,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(125,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(125,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(125,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(126,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(126,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(126,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(127,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(127,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(127,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(128,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(128,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(128,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(129,2): error C2664: 'void ScriptDetours::VTableReplace(INT32,tVM_Opcode,tVM_Opcode *)': cannot convert argument 2 from 'void (__cdecl *)(INT32,INT64 *,INT64,bool *)' to 'tVM_Opcode'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(129,23):
+      None of the functions with this name in scope match the target type
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.h(58,14):
+      see declaration of 'ScriptDetours::VTableReplace'
+      C:\Users\golia\Source\Repos\t7-compiler\t8cinternal\detours.cpp(129,2):
+      while trying to match the argument list '(int, overloaded-function, tVM_Opcode *)'
+  
+  dllmain.cpp
+  LazyLink.cpp
+  Generating Code...
