@@ -1,6 +1,6 @@
 is_global = true
 build_property.RootNamespace = DebugCompiler
-build_property.ProjectDir = C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\
+build_property.ProjectDir = C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.CsWinRTUseWindowsUIXamlProjections = false
