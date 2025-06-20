@@ -1,0 +1,8 @@
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\bin\x64\Debug\vm_codes.db2
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\bin\x64\Debug\T89CompilerLib.dll.config
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\bin\x64\Debug\T89CompilerLib.dll
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\bin\x64\Debug\T89CompilerLib.pdb
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\obj\x64\Debug\T89CompilerLib.csproj.AssemblyReference.cache
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\obj\x64\Debug\T89CompilerLib.csproj.CoreCompileInputs.cache
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\obj\x64\Debug\T89CompilerLib.dll
+C:\Users\golia\Source\Repos\t7-compiler\T8CompilerLib\obj\x64\Debug\T89CompilerLib.pdb
