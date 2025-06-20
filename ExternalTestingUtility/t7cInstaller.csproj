@@ -158,6 +158,9 @@
   <ItemGroup>
     <Folder Include="Cheats\" />
   </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>"$(TargetPath)" "--deploy" "$(SolutionDir)DebugCompiler\$(OutDir)\" "$(SolutionDir)Default Project" "$(SolutionDir)\"</PostBuildEvent>

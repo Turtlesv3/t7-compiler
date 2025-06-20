@@ -1,0 +1,13 @@
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\bin\Debug\t7c_installer.exe.config
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\bin\Debug\t7c_installer.exe
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7cInstaller.csproj.AssemblyReference.cache
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7c_installer.ImportDialog.resources
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7c_installer.MainForm.resources
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7mpforcehost.Properties.Resources.resources
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7mpforcehost.UI.Core.Controls.CBorderedForm.resources
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\SMC.UI.Core.Controls.CComboDialog.resources
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\SMC.UI.Core.Controls.CErrorDialog.resources
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7mpforcehost.UI.Core.Controls.CTitleBar.resources
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7cInstaller.csproj.GenerateResource.cache
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7cInstaller.csproj.CoreCompileInputs.cache
+C:\Users\golia\Source\Repos\t7-compiler\ExternalTestingUtility\obj\Debug\t7c_installer.exe

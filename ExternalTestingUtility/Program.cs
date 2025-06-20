@@ -78,6 +78,47 @@ namespace t7c_installer
             Application.Run(new MainForm());
         }
 
+        // Add this method to Program.cs
+        public static void InstallUpdateFromLocal(string zipPath)
+        {
+            if (IsUpdating) return;
+            IsUpdating = true;
+
+            try
+            {
+                // Kill running processes (same as original)
+                foreach (var proc in Process.GetProcessesByName("debugcompiler"))
+                {
+                    proc.Kill();
+                    Thread.Sleep(100);
+                }
+
+                // Use the provided zip file instead of downloading
+                if (Directory.Exists(UpdateTempDirname))
+                    Directory.Delete(UpdateTempDirname, true);
+
+                ZipFile.ExtractToDirectory(zipPath, UpdateTempDirname);
+
+                // Rest of the installation process (same as original)
+                if (Directory.Exists(Path.Combine(InstallRoot, "t7compiler")))
+                {
+                    Directory.Delete(Path.Combine(InstallRoot, "t7compiler"), true);
+                }
+
+                DirectoryCopy(Path.Combine(UpdateTempDirname, "t7compiler"),
+                             Path.Combine(InstallRoot, "t7compiler"), true);
+
+                DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject"),
+                             Path.Combine(InstallRoot, "t7compiler", "defaultproject"), true);
+
+                NoExcept(InstallVSCExtensionsCached);
+            }
+            finally
+            {
+                IsUpdating = false;
+            }
+        }
+
         static void DeployCompiler(string compilerDirectory, string defaultProjectDirectory, string solutionDirectory)
         {
             string installer = Assembly.GetEntryAssembly().Location;

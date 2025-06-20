@@ -1,16 +1,17 @@
 ﻿using Refract.UI.Core.Interfaces;
 using Refract.UI.Core.Singletons;
+using SMC.UI.Core.Controls;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Diagnostics;
-using SMC.UI.Core.Controls;
 
 namespace t7c_installer
 {
@@ -68,8 +69,43 @@ namespace t7c_installer
 
         private void UpdateButton_Click(object sender, EventArgs e)
         {
-            Program.InstallUpdate();
-            CErrorDialog.Show("Success!", "Compiler installed successfully", true);
+            // First try to find update.zip in the same directory
+            string localUpdate = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "update.zip");
+
+            if (File.Exists(localUpdate))
+            {
+                try
+                {
+                    Program.InstallUpdateFromLocal(localUpdate);
+                    CErrorDialog.Show("Success!", "Compiler installed successfully from local update.zip", true);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    // Fall through to manual selection if automatic fails
+                }
+            }
+
+            // If not found, prompt user to select it
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                Filter = "Update Package|update.zip",
+                Title = "Select update.zip file",
+                InitialDirectory = Path.GetDirectoryName(Application.ExecutablePath)
+            };
+
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    Program.InstallUpdateFromLocal(openFileDialog.FileName);
+                    CErrorDialog.Show("Success!", "Compiler installed successfully", true);
+                }
+                catch (Exception ex)
+                {
+                    CErrorDialog.Show("Error", $"Failed to install: {ex.Message}", true);
+                }
+            }
         }
 
         private void InstallVSCExt_Click(object sender, EventArgs e)
