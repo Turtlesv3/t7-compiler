@@ -40,11 +40,11 @@ namespace Refract.UI.Core.Controls
             this.TitleLabel.AutoSize = true;
             this.TitleLabel.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.TitleLabel.ForeColor = System.Drawing.Color.WhiteSmoke;
-            this.TitleLabel.Location = new System.Drawing.Point(4, 4);
+            this.TitleLabel.Location = new System.Drawing.Point(3, 3);
             this.TitleLabel.Name = "TitleLabel";
-            this.TitleLabel.Size = new System.Drawing.Size(39, 21);
+            this.TitleLabel.Size = new System.Drawing.Size(133, 21);
             this.TitleLabel.TabIndex = 0;
-            this.TitleLabel.Text = "Title";
+            this.TitleLabel.Text = "DoubleG\'s T7 GUI";
             // 
             // ExitButton
             // 
@@ -55,10 +55,10 @@ namespace Refract.UI.Core.Controls
             this.ExitButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.ExitButton.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.ExitButton.ForeColor = System.Drawing.Color.WhiteSmoke;
-            this.ExitButton.Location = new System.Drawing.Point(268, 0);
+            this.ExitButton.Location = new System.Drawing.Point(179, -3);
             this.ExitButton.Margin = new System.Windows.Forms.Padding(0);
             this.ExitButton.Name = "ExitButton";
-            this.ExitButton.Size = new System.Drawing.Size(32, 32);
+            this.ExitButton.Size = new System.Drawing.Size(32, 24);
             this.ExitButton.TabIndex = 1;
             this.ExitButton.Text = "x";
             this.ExitButton.UseVisualStyleBackColor = true;
@@ -72,7 +72,7 @@ namespace Refract.UI.Core.Controls
             this.Controls.Add(this.ExitButton);
             this.Controls.Add(this.TitleLabel);
             this.Name = "CTitleBar";
-            this.Size = new System.Drawing.Size(300, 32);
+            this.Size = new System.Drawing.Size(211, 24);
             this.ResumeLayout(false);
             this.PerformLayout();
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Refract.UI.Core.Singletons;
+using System;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -18,6 +19,10 @@ namespace DebugCompiler
             {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+
+                // Initialize theme before creating main form
+                UIThemeManager.SetTheme("Dark"); // Or "Light" if you prefer
+
                 Application.Run(new MainForm1());
             }
         }

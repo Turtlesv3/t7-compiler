@@ -169,6 +169,16 @@ namespace Refract.UI.Core.Singletons
                         uControl.BackColor = CurrentTheme.BackColor;
                         uControl.ForeColor = CurrentTheme.TextColor;
                         break;
+                    case MenuStrip menuStrip:
+                        menuStrip.BackColor = CurrentTheme.TitleBarColor;
+                        menuStrip.ForeColor = CurrentTheme.TextColor;
+                        menuStrip.Renderer = new ToolStripProfessionalRenderer(new MenuStripColorTable(CurrentTheme));
+                        break;
+
+                    case StatusStrip statusStrip:
+                        statusStrip.BackColor = CurrentTheme.TitleBarColor;
+                        statusStrip.ForeColor = CurrentTheme.TextColor;
+                        break;
                     default:
                         // Don't throw exception for unknown controls
                         break;
@@ -215,6 +225,45 @@ namespace Refract.UI.Core.Singletons
                 g.DrawLine(borderPen, new Point(rect.X, rect.Y), new Point(rect.X + box.Padding.Left, rect.Y));
                 g.DrawLine(borderPen, new Point(rect.X + box.Padding.Left + (int)(strSize.Width), rect.Y), new Point(rect.X + rect.Width, rect.Y));
             }
+        }
+
+        private class MenuStripColorTable : ProfessionalColorTable
+        {
+            private readonly UIThemeInfo _theme;
+
+            public MenuStripColorTable(UIThemeInfo theme)
+            {
+                _theme = theme;
+            }
+
+            public override Color MenuStripGradientBegin => _theme.TitleBarColor;
+            public override Color MenuStripGradientEnd => _theme.TitleBarColor;
+            public override Color MenuItemSelected => _theme.ButtonHoverColor;
+            public override Color MenuItemBorder => _theme.AccentColor;
+            public override Color MenuItemSelectedGradientBegin => _theme.ButtonHoverColor;
+            public override Color MenuItemSelectedGradientEnd => _theme.ButtonHoverColor;
+            public override Color MenuItemPressedGradientBegin => _theme.ButtonActive;
+            public override Color MenuItemPressedGradientEnd => _theme.ButtonActive;
+        }
+
+        public static void SetTheme(string themeName)
+        {
+            CurrentTheme = themeName.Equals("Dark", StringComparison.OrdinalIgnoreCase)
+                ? UIThemeInfo.Default()
+                : new UIThemeInfo
+                {
+                    BackColor = SystemColors.Control,
+                    AccentColor = SystemColors.Highlight,
+                    TextColor = SystemColors.ControlText,
+                    TitleBarColor = SystemColors.MenuBar,
+                    ButtonFlatStyle = FlatStyle.Standard,
+                    ButtonHoverColor = SystemColors.ControlLight,
+                    LightBackColor = SystemColors.ControlLight,
+                    ButtonActive = SystemColors.Highlight,
+                    TextInactive = SystemColors.GrayText
+                };
+
+            ApplyTheme(CurrentTheme);
         }
     }
 }

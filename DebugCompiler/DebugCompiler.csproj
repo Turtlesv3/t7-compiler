@@ -1,6 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -8,28 +7,30 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>DebugCompiler</RootNamespace>
     <AssemblyName>DebugCompiler</AssemblyName>
+    <TargetFramework>net48</TargetFramework>
+    <TargetFrameworks>net48</TargetFrameworks>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x86;win-x64</RuntimeIdentifiers>
+    <PlatformTarget>x86</PlatformTarget>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
-    <TargetFrameworkProfile />
-    <PublishUrl>publish\</PublishUrl>
-    <Install>true</Install>
-    <InstallFrom>Disk</InstallFrom>
-    <UpdateEnabled>false</UpdateEnabled>
-    <UpdateMode>Foreground</UpdateMode>
-    <UpdateInterval>7</UpdateInterval>
-    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
-    <UpdatePeriodically>false</UpdatePeriodically>
-    <UpdateRequired>false</UpdateRequired>
-    <MapFileExtensions>true</MapFileExtensions>
+    <LangVersion>9.0</LangVersion>
     <ApplicationRevision>0</ApplicationRevision>
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
-    <UseApplicationTrust>false</UseApplicationTrust>
-    <BootstrapperEnabled>true</BootstrapperEnabled>
+    <StartupObject>DebugCompiler.Program</StartupObject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <Platforms>AnyCPU;x64;x86</Platforms>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+
+  <!-- Debug Configurations -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
@@ -38,65 +39,75 @@
     <DefineConstants>TRACE;DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <PlatformTarget>x86</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\x86\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+
+  <!-- Release Configurations -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
-  <PropertyGroup>
-    <StartupObject>DebugCompiler.Program</StartupObject>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\x64\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DebugType>full</DebugType>
-    <PlatformTarget>x86</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <Prefer32Bit>true</Prefer32Bit>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
     <OutputPath>bin\x64\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x86</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <Prefer32Bit>true</Prefer32Bit>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
+    <PlatformTarget>x86</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\x86\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+
   <ItemGroup>
+    <!-- System References -->
     <Reference Include="System" />
-    <Reference Include="System.Buffers, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Buffers.4.6.1\lib\net462\System.Buffers.dll</HintPath>
-    </Reference>
     <Reference Include="System.Core" />
     <Reference Include="System.Data.Linq" />
     <Reference Include="System.Design" />
     <Reference Include="System.Drawing" />
-    <Reference Include="System.Memory, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Memory.4.6.3\lib\net462\System.Memory.dll</HintPath>
-    </Reference>
     <Reference Include="System.Numerics" />
-    <Reference Include="System.Numerics.Vectors, Version=4.1.6.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Numerics.Vectors.4.6.1\lib\net462\System.Numerics.Vectors.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.1.2\lib\net462\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
-    </Reference>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -104,70 +115,80 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+
+    <!-- NuGet Package References -->
+    <PackageReference Include="System.Buffers" Version="4.6.1" />
+    <PackageReference Include="System.Memory" Version="4.6.3" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Game Development References -->
     <Reference Include="xdevkit">
-      <HintPath>.\xdevkit.dll</HintPath>
+      <HintPath>$(SolutionDir)ThirdParty\xdevkit.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="xdrpc">
-      <HintPath>.\xdrpc.dll</HintPath>
+      <HintPath>$(SolutionDir)ThirdParty\xdrpc.dll</HintPath>
     </Reference>
   </ItemGroup>
+
   <ItemGroup>
+    <!-- Main source files -->
     <Compile Include="ConditionalBlocks.cs" />
-    <Compile Include="UI\GUI\MainForm1.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\GUI\MainForm1.Designer.cs">
-      <DependentUpon>MainForm1.cs</DependentUpon>
-    </Compile>
     <Compile Include="Program.cs" />
-    <Compile Include="UI\Core\Controls\CBorderedForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CBorderedForm.Designer.cs">
-      <DependentUpon>CBorderedForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CComboBox.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CComboDialog.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CComboDialog.Designer.cs">
-      <DependentUpon>CComboDialog.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CErrorDialog.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CErrorDialog.Designer.cs">
-      <DependentUpon>CErrorDialog.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CThemedTextbox.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CThemedTextbox.Designer.cs">
-      <DependentUpon>CThemedTextbox.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CTitleBar.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="UI\Core\Controls\CTitleBar.Designer.cs">
-      <DependentUpon>CTitleBar.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UI\Core\Interfaces\IResizableForm.cs" />
-    <Compile Include="UI\Core\Interfaces\IThemeableControl.cs" />
-    <Compile Include="UI\Core\Singletons\UIThemeManager.cs" />
-    <Compile Include="UI\GUI\ImportDialog.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\GUI\ImportDialog.Designer.cs">
-      <DependentUpon>ImportDialog.cs</DependentUpon>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="Root.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UI\Core\Controls\CBFInnerPanelDesigner.cs" />
+    <Compile Include="UI\Core\Controls\CBorderedFormDesigner.cs" />
+
+    <!-- Forms with designer files -->
+    <Compile Include="UI\GUI\MainForm1.cs" />
+    <Compile Include="UI\GUI\MainForm1.Designer.cs">
+      <DependentUpon>MainForm1.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\GUI\ImportDialog.cs" />
+    <Compile Include="UI\GUI\ImportDialog.Designer.cs">
+      <DependentUpon>ImportDialog.cs</DependentUpon>
+    </Compile>
+
+    <!-- Core controls with designer files -->
+    <Compile Include="UI\Core\Controls\CBorderedForm.cs" />
+    <Compile Include="UI\Core\Controls\CBorderedForm.Designer.cs">
+      <DependentUpon>CBorderedForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CComboBox.cs" />
+    <Compile Include="UI\Core\Controls\CComboDialog.cs" />
+    <Compile Include="UI\Core\Controls\CComboDialog.Designer.cs">
+      <DependentUpon>CComboDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CErrorDialog.cs" />
+    <Compile Include="UI\Core\Controls\CErrorDialog.Designer.cs">
+      <DependentUpon>CErrorDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CThemedTextbox.cs" />
+    <Compile Include="UI\Core\Controls\CThemedTextbox.Designer.cs">
+      <DependentUpon>CThemedTextbox.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CTitleBar.cs" />
+    <Compile Include="UI\Core\Controls\CTitleBar.Designer.cs">
+      <DependentUpon>CTitleBar.cs</DependentUpon>
+    </Compile>
+
+    <!-- Interfaces and other files -->
+    <Compile Include="UI\Core\Interfaces\IResizableForm.cs" />
+    <Compile Include="UI\Core\Interfaces\IThemeableControl.cs" />
+    <Compile Include="UI\Core\Singletons\UIThemeManager.cs" />
   </ItemGroup>
+
   <ItemGroup>
-    <None Include="App.config" />
+    <!-- Resource files -->
     <EmbeddedResource Include="UI\GUI\MainForm1.resx">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </EmbeddedResource>
@@ -187,48 +208,49 @@
       <DependentUpon>ImportDialog.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="version" />
-    <None Include="packages.config" />
+    
+    <!-- Configuration files -->
+    <None Include="App.config" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
   </ItemGroup>
+
   <ItemGroup>
-    <ProjectReference Include="..\External\External.csproj">
-      <Project>{810bdf68-87bb-45a2-ac4f-87643045bf4c}</Project>
-      <Name>External</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\T7CompilerLib\T7CompilerLib.csproj">
-      <Project>{7527fb74-e8ac-43f1-9e48-e9d4d2b5d5b3}</Project>
-      <Name>T7CompilerLib</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\T8CompilerLib\T89CompilerLib.csproj">
-      <Project>{C630E36A-4A4C-4F14-AA8B-AE80F592DAAD}</Project>
-      <Name>T89CompilerLib</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\TreyarchCompiler\TreyarchCompiler.csproj">
-      <Project>{2cdefd40-3952-44a7-b69e-711fbacac869}</Project>
-      <Name>TreyarchCompiler</Name>
-    </ProjectReference>
+    <!-- Project References -->
+    <ProjectReference Include="..\External\External.csproj" />
+    <ProjectReference Include="..\T7CompilerLib\T7CompilerLib.csproj" />
+    <ProjectReference Include="..\T8CompilerLib\T89CompilerLib.csproj" />
+    <ProjectReference Include="..\TreyarchCompiler\TreyarchCompiler.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="lib\" />
-  </ItemGroup>
-  <ItemGroup>
-    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
-      <Visible>False</Visible>
-      <ProductName>Microsoft .NET Framework 4.8 %28x86 and x64%29</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
-    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1</ProductName>
-      <Install>false</Install>
-    </BootstrapperPackage>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  
   <PropertyGroup>
-    <PostBuildEvent>if exist "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t7cinternal.dll" (
-    copy /Y "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t7cinternal.dll" "$(TargetDir)"
+    <PostBuildEvent>
+if "$(PlatformName)" == "x64" (
+  if exist "$(SolutionDir)t7cinternal\x64\$(Configuration)\t7cinternal.dll" (
+    xcopy /Y /R "$(SolutionDir)t7cinternal\x64\$(Configuration)\t7cinternal.dll" "$(TargetDir)"
+  ) else (
+    echo t7cinternal.dll not found at: $(SolutionDir)t7cinternal\x64\$(Configuration)\
+  )
+  if exist "$(SolutionDir)t8cinternal\x64\$(Configuration)\t8cinternal.dll" (
+    xcopy /Y /R "$(SolutionDir)t8cinternal\x64\$(Configuration)\t8cinternal.dll" "$(TargetDir)"
+  ) else (
+    echo t8cinternal.dll not found at: $(SolutionDir)t8cinternal\x64\$(Configuration)\
+  )
+) else (
+  if exist "$(SolutionDir)t7cinternal\$(PlatformName)\$(Configuration)\t7cinternal.dll" (
+    xcopy /Y /R "$(SolutionDir)t7cinternal\$(PlatformName)\$(Configuration)\t7cinternal.dll" "$(TargetDir)"
+  ) else (
+    echo t7cinternal.dll not found at: $(SolutionDir)t7cinternal\$(PlatformName)\$(Configuration)\
+  )
+  if exist "$(SolutionDir)t8cinternal\$(PlatformName)\$(Configuration)\t8cinternal.dll" (
+    xcopy /Y /R "$(SolutionDir)t8cinternal\$(PlatformName)\$(Configuration)\t8cinternal.dll" "$(TargetDir)"
+  ) else (
+    echo t8cinternal.dll not found at: $(SolutionDir)t8cinternal\$(PlatformName)\$(Configuration)\
+  )
 )
-if exist "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t8cinternal.dll" (
-    copy /Y "$(SolutionDir)$(PlatformName)\$(ConfigurationName)\t8cinternal.dll" "$(TargetDir)"
-)</PostBuildEvent>
+</PostBuildEvent>
+    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
   </PropertyGroup>
 </Project>

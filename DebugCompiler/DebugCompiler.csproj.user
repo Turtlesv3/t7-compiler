@@ -10,4 +10,30 @@
     <FallbackCulture>en-US</FallbackCulture>
     <VerifyUploadedFiles>false</VerifyUploadedFiles>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Update="UI\Core\Controls\CBorderedForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="UI\Core\Controls\CComboBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="UI\Core\Controls\CComboDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="UI\Core\Controls\CErrorDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="UI\Core\Controls\CThemedTextbox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Update="UI\Core\Controls\CTitleBar.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="UI\GUI\ImportDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="UI\GUI\MainForm1.cs">
+      <SubType>Form</SubType>
+    </Compile>
+  </ItemGroup>
 </Project>

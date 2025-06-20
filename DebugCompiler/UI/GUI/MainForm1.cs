@@ -1,6 +1,7 @@
 ﻿// MainForm1.cs
 using Refract.UI.Core.Interfaces;
 using Refract.UI.Core.Singletons;
+using Refract.UI.Core.Controls;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -16,7 +17,7 @@ using SMC.UI.Core.Controls; // Add this line
 
 namespace DebugCompiler
 {
-    public partial class MainForm1 : Form, IThemeableControl, IResizableForm
+    public partial class MainForm1 : CBorderedForm, IThemeableControl, IResizableForm
     {
         private readonly Root compilerRoot;
         private readonly ToolTip resetToolTip = new ToolTip
@@ -37,13 +38,47 @@ namespace DebugCompiler
 
         public MainForm1()
         {
+            // InitializeComponent must be first to create all controls
             InitializeComponent();
+
+            // Initialize ControlContents if null (shouldn't be needed if designer is set up properly)
+            if (ControlContents == null)
+            {
+                ControlContents = new Panel();
+                ControlContents.Dock = DockStyle.Fill;
+                this.Controls.Add(ControlContents);
+            }
+
+            // Add MainContainer to ControlContents if not already added
+            if (!ControlContents.Controls.Contains(MainContainer))
+            {
+                MainContainer.Dock = DockStyle.Fill;
+                ControlContents.Controls.Add(MainContainer);
+            }
+
+            // Add menu items
+            var fileMenu = new ToolStripMenuItem("File");
+            var exitItem = new ToolStripMenuItem("Exit");
+            exitItem.Click += (s, e) => this.Close();
+            fileMenu.DropDownItems.Add(exitItem);
+
+            // Add status label
+            var statusLabel = new ToolStripStatusLabel();
+            statusLabel.Text = "Ready";
+
+            // Theme setup
             UIThemeManager.OnThemeChanged(this, OnThemeChanged_Implementation);
             this.SetThemeAware();
+            UIThemeManager.SetTheme("Dark"); // Force initial theme
+
+            // Initialize custom components after all controls are ready
             InitializeCustomComponents();
+
+            // Compiler setup
             compilerRoot = new Root();
             compilerRoot.OnLogMessage += (msg) => SafeAppendText(msg + "\n");
             compilerRoot.OnError += (err) => SafeAppendText("[ERROR] " + err + "\n");
+
             CheckRequiredFiles();
             this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
         }
@@ -82,8 +117,15 @@ namespace DebugCompiler
             }
         }
 
-        public IEnumerable<Control> GetThemedControls()
+        public override IEnumerable<Control> GetThemedControls()
         {
+            // First return controls from base class
+            foreach (var control in base.GetThemedControls())
+            {
+                yield return control;
+            }
+
+            // Then return your additional controls
             yield return MainContainer;
             yield return txtOutput;
             yield return btnResetParseTree;
@@ -103,10 +145,16 @@ namespace DebugCompiler
         private void OnThemeChanged_Implementation(UIThemeInfo currentTheme)
         {
             _currentTheme = currentTheme;
+
+            // Apply theme to all controls
+            this.BackColor = currentTheme.BackColor;
+            this.ForeColor = currentTheme.TextColor;
+
+            // Custom control theming
             txtOutput.BackColor = Color.Black;
             txtOutput.ForeColor = Color.Lime;
 
-            // Enhanced theming for reset button
+            // Special button theming
             btnResetParseTree.BackColor = currentTheme.ButtonActive;
             btnResetParseTree.FlatAppearance.BorderColor = currentTheme.AccentColor;
             btnResetParseTree.ForeColor = currentTheme.TextColor;
@@ -119,6 +167,16 @@ namespace DebugCompiler
 
         private void InitializeCustomComponents()
         {
+            // Add null check at start
+            if (cmbGame == null)
+            {
+                cmbGame = new ComboBox();
+                cmbGame.BackColor = Color.FromArgb(50, 50, 50);
+                cmbGame.ForeColor = Color.White;
+                cmbGame.FlatStyle = FlatStyle.Flat;
+                OptionsPanel.Controls.Add(cmbGame);
+            }
+
             var gameDisplayNames = new Dictionary<string, string>
     {
         {"t6", "Call of Duty: Black Ops 2"},
@@ -129,14 +187,14 @@ namespace DebugCompiler
             // Get all enum names and map them to display names
             var gameNames = Enum.GetNames(typeof(Games))
                                .Select(name => gameDisplayNames.TryGetValue(name.ToLower(), out var displayName)
-                                              ? displayName
-                                              : name)
+                                                  ? displayName
+                                                  : name)
                                .ToArray();
 
             cmbGame.Items.AddRange(gameNames);
             cmbGame.SelectedIndex = 1;
 
-            // Rest of the method remains the same...
+            // Initialize cmbHotMode here
             cmbHotMode.Items.AddRange(new[] { "GSC", "CSC" });
             cmbHotMode.SelectedIndex = 0;
             cmbHotMode.Enabled = false;
@@ -650,35 +708,13 @@ namespace DebugCompiler
 
         private bool IsGameRunning()
         {
-            try
+            string processName = cmbGame.Text switch
             {
-                string processName;
-                string gameText = cmbGame.Text;
-
-                // Map display names back to process names
-                var gameProcessMap = new Dictionary<string, string>
-                {
-                    {"Call of Duty: Black Ops 2", "t6"},
-                    {"Call of Duty: Black Ops 3", "blackops3"},
-                    {"Call of Duty: Black OPs 4", "t8"}
-                };
-
-                if (gameProcessMap.TryGetValue(gameText, out string gameCode))
-                {
-                    processName = gameCode;
-                }
-                else
-                {
-                    // Fallback for direct code entry
-                    processName = gameText.ToLower().Replace(" ", "");
-                }
-
-                return Process.GetProcessesByName(processName).Length > 0;
-            }
-            catch
-            {
-                return false;
-            }
+                "Call of Duty: Black Ops 3" => "BlackOps3",
+                "Call of Duty: Black Ops 4" => "BlackOps4",
+                _ => cmbGame.Text.Replace(" ", "").ToLower()
+            };
+            return Process.GetProcessesByName(processName).Length > 0;
         }
 
     }

@@ -28,18 +28,18 @@ namespace SMC.UI.Core.Controls
             this.ForeColor = themeData.TextColor;
             ErrorRTB.BackColor = themeData.BackColor;
             ErrorRTB.ForeColor = themeData.TextColor;
-            AcceptButton.BackColor = themeData.ButtonActive;
-            AcceptButton.ForeColor = themeData.TextColor;
-            AcceptButton.FlatAppearance.BorderColor = themeData.AccentColor;
+            OKButton.BackColor = themeData.ButtonActive;
+            OKButton.ForeColor = themeData.TextColor;
+            OKButton.FlatAppearance.BorderColor = themeData.AccentColor;
         }
 
         public IEnumerable<Control> GetThemedControls()
         {
             yield return ErrorRTB;
-            yield return AcceptButton;
+            yield return OKButton;
         }
 
-        private void AcceptButton_Click(object sender, EventArgs e)
+        private void OKButton_Click(object sender, EventArgs e)
         {
             this.DialogResult = DialogResult.OK;
             this.Close();
@@ -53,18 +53,14 @@ namespace SMC.UI.Core.Controls
                 var owner = Application.OpenForms[0];
                 owner.Invoke((MethodInvoker)delegate
                 {
-                    using (var dialog = new CErrorDialog(title, description) { TopMost = topMost })
-                    {
-                        dialog.ShowDialog(owner);
-                    }
+                    using var dialog = new CErrorDialog(title, description) { TopMost = topMost };
+                    dialog.ShowDialog(owner);
                 });
             }
             else
             {
-                using (var dialog = new CErrorDialog(title, description) { TopMost = topMost })
-                {
-                    dialog.ShowDialog();
-                }
+                using var dialog = new CErrorDialog(title, description) { TopMost = topMost };
+                dialog.ShowDialog();
             }
         }
 
