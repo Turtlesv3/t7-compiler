@@ -1,0 +1,169 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\DebugCompiler.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\DebugCompiler.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\DebugCompiler.csproj",
+        "projectName": "DebugCompiler",
+        "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\DebugCompiler.csproj",
+        "packagesPath": "C:\\Users\\golia\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\obj\\",
+        "projectStyle": "PackageReference",
+        "crossTargeting": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\golia\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net48"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net48": {
+            "targetAlias": "net48",
+            "projectReferences": {
+              "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj": {
+                "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj"
+              },
+              "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj": {
+                "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj"
+              },
+              "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj": {
+                "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj"
+              },
+              "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\TreyarchCompiler\\TreyarchCompiler.csproj": {
+                "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\TreyarchCompiler\\TreyarchCompiler.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net48": {
+          "targetAlias": "net48",
+          "dependencies": {
+            "System.Buffers": {
+              "target": "Package",
+              "version": "[4.6.1, )"
+            },
+            "System.Memory": {
+              "target": "Package",
+              "version": "[4.6.3, )"
+            },
+            "System.Numerics.Vectors": {
+              "target": "Package",
+              "version": "[4.6.1, )"
+            },
+            "System.Runtime.CompilerServices.Unsafe": {
+              "target": "Package",
+              "version": "[6.1.2, )"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301\\RuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "win-x64": {
+          "#import": []
+        },
+        "win-x86": {
+          "#import": []
+        }
+      }
+    },
+    "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj": {
+      "restore": {
+        "projectUniqueName": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj",
+        "projectName": "External",
+        "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj",
+        "UsingMicrosoftNETSdk": false,
+        "frameworks": {
+          "net48": {
+            "projectReferences": {}
+          }
+        }
+      },
+      "frameworks": {
+        "net48": {}
+      }
+    },
+    "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj": {
+      "restore": {
+        "projectUniqueName": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj",
+        "projectName": "T7CompilerLib",
+        "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj",
+        "UsingMicrosoftNETSdk": false,
+        "frameworks": {
+          "net48": {
+            "projectReferences": {}
+          }
+        }
+      },
+      "frameworks": {
+        "net48": {}
+      }
+    },
+    "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj": {
+      "restore": {
+        "projectUniqueName": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj",
+        "projectName": "T89CompilerLib",
+        "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj",
+        "UsingMicrosoftNETSdk": false,
+        "frameworks": {
+          "net48": {
+            "projectReferences": {}
+          }
+        }
+      },
+      "frameworks": {
+        "net48": {}
+      }
+    },
+    "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\TreyarchCompiler\\TreyarchCompiler.csproj": {
+      "restore": {
+        "projectUniqueName": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\TreyarchCompiler\\TreyarchCompiler.csproj",
+        "projectName": "TreyarchCompiler",
+        "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\TreyarchCompiler\\TreyarchCompiler.csproj",
+        "UsingMicrosoftNETSdk": false,
+        "frameworks": {
+          "net48": {
+            "projectReferences": {
+              "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj": {
+                "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj"
+              },
+              "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj": {
+                "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj"
+              }
+            }
+          }
+        }
+      },
+      "frameworks": {
+        "net48": {}
+      }
+    }
+  }
+}

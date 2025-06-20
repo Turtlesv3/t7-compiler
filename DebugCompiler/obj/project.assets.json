@@ -1,0 +1,571 @@
+{
+  "version": 3,
+  "targets": {
+    ".NETFramework,Version=v4.8": {
+      "System.Buffers/4.6.1": {
+        "type": "package",
+        "compile": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Memory/4.6.3": {
+        "type": "package",
+        "dependencies": {
+          "System.Buffers": "4.6.1",
+          "System.Numerics.Vectors": "4.6.1",
+          "System.Runtime.CompilerServices.Unsafe": "6.1.2"
+        },
+        "compile": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Numerics.Vectors/4.6.1": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "System.Numerics"
+        ],
+        "compile": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Runtime.CompilerServices.Unsafe/6.1.2": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "mscorlib"
+        ],
+        "compile": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "External/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/External.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/External.dll": {}
+        }
+      },
+      "T7CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        }
+      },
+      "T89CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        }
+      },
+      "TreyarchCompiler/1.0.0": {
+        "type": "project",
+        "dependencies": {
+          "T7CompilerLib": "1.0.0",
+          "T89CompilerLib": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        }
+      }
+    },
+    ".NETFramework,Version=v4.8/win-x64": {
+      "System.Buffers/4.6.1": {
+        "type": "package",
+        "compile": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Memory/4.6.3": {
+        "type": "package",
+        "dependencies": {
+          "System.Buffers": "4.6.1",
+          "System.Numerics.Vectors": "4.6.1",
+          "System.Runtime.CompilerServices.Unsafe": "6.1.2"
+        },
+        "compile": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Numerics.Vectors/4.6.1": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "System.Numerics"
+        ],
+        "compile": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Runtime.CompilerServices.Unsafe/6.1.2": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "mscorlib"
+        ],
+        "compile": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "External/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/External.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/External.dll": {}
+        }
+      },
+      "T7CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        }
+      },
+      "T89CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        }
+      },
+      "TreyarchCompiler/1.0.0": {
+        "type": "project",
+        "dependencies": {
+          "T7CompilerLib": "1.0.0",
+          "T89CompilerLib": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        }
+      }
+    },
+    ".NETFramework,Version=v4.8/win-x86": {
+      "System.Buffers/4.6.1": {
+        "type": "package",
+        "compile": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Memory/4.6.3": {
+        "type": "package",
+        "dependencies": {
+          "System.Buffers": "4.6.1",
+          "System.Numerics.Vectors": "4.6.1",
+          "System.Runtime.CompilerServices.Unsafe": "6.1.2"
+        },
+        "compile": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Numerics.Vectors/4.6.1": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "System.Numerics"
+        ],
+        "compile": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Runtime.CompilerServices.Unsafe/6.1.2": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "mscorlib"
+        ],
+        "compile": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "External/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/External.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/External.dll": {}
+        }
+      },
+      "T7CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        }
+      },
+      "T89CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        }
+      },
+      "TreyarchCompiler/1.0.0": {
+        "type": "project",
+        "dependencies": {
+          "T7CompilerLib": "1.0.0",
+          "T89CompilerLib": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "System.Buffers/4.6.1": {
+      "sha512": "N8GXpmiLMtljq7gwvyS+1QvKT/W2J8sNAvx+HVg4NGmsG/H+2k/y9QI23auLJRterrzCiDH+IWAw4V/GPwsMlw==",
+      "type": "package",
+      "path": "system.buffers/4.6.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "buildTransitive/net461/System.Buffers.targets",
+        "buildTransitive/net462/_._",
+        "lib/net462/System.Buffers.dll",
+        "lib/net462/System.Buffers.xml",
+        "lib/netcoreapp2.0/_._",
+        "lib/netstandard2.0/System.Buffers.dll",
+        "lib/netstandard2.0/System.Buffers.xml",
+        "lib/netstandard2.1/_._",
+        "system.buffers.4.6.1.nupkg.sha512",
+        "system.buffers.nuspec"
+      ]
+    },
+    "System.Memory/4.6.3": {
+      "sha512": "qdcDOgnFZY40+Q9876JUHnlHu7bosOHX8XISRoH94fwk6hgaeQGSgfZd8srWRZNt5bV9ZW2TljcegDNxsf+96A==",
+      "type": "package",
+      "path": "system.memory/4.6.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "buildTransitive/net461/System.Memory.targets",
+        "buildTransitive/net462/_._",
+        "lib/net462/System.Memory.dll",
+        "lib/net462/System.Memory.xml",
+        "lib/netcoreapp2.1/_._",
+        "lib/netstandard2.0/System.Memory.dll",
+        "lib/netstandard2.0/System.Memory.xml",
+        "lib/netstandard2.1/_._",
+        "system.memory.4.6.3.nupkg.sha512",
+        "system.memory.nuspec"
+      ]
+    },
+    "System.Numerics.Vectors/4.6.1": {
+      "sha512": "sQxefTnhagrhoq2ReR0D/6K0zJcr9Hrd6kikeXsA1I8kOCboTavcUC4r7TSfpKFeE163uMuxZcyfO1mGO3EN8Q==",
+      "type": "package",
+      "path": "system.numerics.vectors/4.6.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "buildTransitive/net461/System.Numerics.Vectors.targets",
+        "buildTransitive/net462/_._",
+        "lib/net462/System.Numerics.Vectors.dll",
+        "lib/net462/System.Numerics.Vectors.xml",
+        "lib/netcoreapp2.0/_._",
+        "lib/netstandard2.0/System.Numerics.Vectors.dll",
+        "lib/netstandard2.0/System.Numerics.Vectors.xml",
+        "lib/netstandard2.1/_._",
+        "system.numerics.vectors.4.6.1.nupkg.sha512",
+        "system.numerics.vectors.nuspec"
+      ]
+    },
+    "System.Runtime.CompilerServices.Unsafe/6.1.2": {
+      "sha512": "2hBr6zdbIBTDE3EhK7NSVNdX58uTK6iHW/P/Axmm9sl1xoGSLqDvMtpecn226TNwHByFokYwJmt/aQQNlO5CRw==",
+      "type": "package",
+      "path": "system.runtime.compilerservices.unsafe/6.1.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "buildTransitive/net461/System.Runtime.CompilerServices.Unsafe.targets",
+        "buildTransitive/net462/_._",
+        "buildTransitive/net6.0/_._",
+        "buildTransitive/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.targets",
+        "lib/net462/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/net462/System.Runtime.CompilerServices.Unsafe.xml",
+        "lib/net6.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/net6.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "lib/net7.0/_._",
+        "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "system.runtime.compilerservices.unsafe.6.1.2.nupkg.sha512",
+        "system.runtime.compilerservices.unsafe.nuspec"
+      ]
+    },
+    "External/1.0.0": {
+      "type": "project",
+      "path": "../External/External.csproj",
+      "msbuildProject": "../External/External.csproj"
+    },
+    "T7CompilerLib/1.0.0": {
+      "type": "project",
+      "path": "../T7CompilerLib/T7CompilerLib.csproj",
+      "msbuildProject": "../T7CompilerLib/T7CompilerLib.csproj"
+    },
+    "T89CompilerLib/1.0.0": {
+      "type": "project",
+      "path": "../T8CompilerLib/T89CompilerLib.csproj",
+      "msbuildProject": "../T8CompilerLib/T89CompilerLib.csproj"
+    },
+    "TreyarchCompiler/1.0.0": {
+      "type": "project",
+      "path": "../TreyarchCompiler/TreyarchCompiler.csproj",
+      "msbuildProject": "../TreyarchCompiler/TreyarchCompiler.csproj"
+    }
+  },
+  "projectFileDependencyGroups": {
+    ".NETFramework,Version=v4.8": [
+      "External >= 1.0.0",
+      "System.Buffers >= 4.6.1",
+      "System.Memory >= 4.6.3",
+      "System.Numerics.Vectors >= 4.6.1",
+      "System.Runtime.CompilerServices.Unsafe >= 6.1.2",
+      "T7CompilerLib >= 1.0.0",
+      "T89CompilerLib >= 1.0.0",
+      "TreyarchCompiler >= 1.0.0"
+    ]
+  },
+  "packageFolders": {
+    "C:\\Users\\golia\\.nuget\\packages\\": {},
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\DebugCompiler.csproj",
+      "projectName": "DebugCompiler",
+      "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\DebugCompiler.csproj",
+      "packagesPath": "C:\\Users\\golia\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\obj\\",
+      "projectStyle": "PackageReference",
+      "crossTargeting": true,
+      "fallbackFolders": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+      ],
+      "configFilePaths": [
+        "C:\\Users\\golia\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+      ],
+      "originalTargetFrameworks": [
+        "net48"
+      ],
+      "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "C:\\Program Files\\dotnet\\library-packs": {},
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net48": {
+          "targetAlias": "net48",
+          "projectReferences": {
+            "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj": {
+              "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj"
+            },
+            "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj": {
+              "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T7CompilerLib\\T7CompilerLib.csproj"
+            },
+            "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj": {
+              "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\T8CompilerLib\\T89CompilerLib.csproj"
+            },
+            "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\TreyarchCompiler\\TreyarchCompiler.csproj": {
+              "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\TreyarchCompiler\\TreyarchCompiler.csproj"
+            }
+          }
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      },
+      "SdkAnalysisLevel": "9.0.300"
+    },
+    "frameworks": {
+      "net48": {
+        "targetAlias": "net48",
+        "dependencies": {
+          "System.Buffers": {
+            "target": "Package",
+            "version": "[4.6.1, )"
+          },
+          "System.Memory": {
+            "target": "Package",
+            "version": "[4.6.3, )"
+          },
+          "System.Numerics.Vectors": {
+            "target": "Package",
+            "version": "[4.6.1, )"
+          },
+          "System.Runtime.CompilerServices.Unsafe": {
+            "target": "Package",
+            "version": "[6.1.2, )"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301\\RuntimeIdentifierGraph.json"
+      }
+    },
+    "runtimes": {
+      "win-x64": {
+        "#import": []
+      },
+      "win-x86": {
+        "#import": []
+      }
+    }
+  }
+}

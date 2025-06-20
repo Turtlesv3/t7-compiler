@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "qh7fp3tKaP0=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\DebugCompiler.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\golia\\.nuget\\packages\\system.buffers\\4.6.1\\system.buffers.4.6.1.nupkg.sha512",
+    "C:\\Users\\golia\\.nuget\\packages\\system.memory\\4.6.3\\system.memory.4.6.3.nupkg.sha512",
+    "C:\\Users\\golia\\.nuget\\packages\\system.numerics.vectors\\4.6.1\\system.numerics.vectors.4.6.1.nupkg.sha512",
+    "C:\\Users\\golia\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.1.2\\system.runtime.compilerservices.unsafe.6.1.2.nupkg.sha512"
+  ],
+  "logs": []
+}
