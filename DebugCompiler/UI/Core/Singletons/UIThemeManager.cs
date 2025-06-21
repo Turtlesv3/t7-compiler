@@ -1,5 +1,5 @@
 ﻿using DebugCompiler.UI.Core.Interfaces;
-using SMC.UI.Core.Controls;
+using DebugCompiler.UI.Core.Controls;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -8,141 +8,63 @@ using System.Windows.Forms;
 
 namespace DebugCompiler.UI.Core.Singletons
 {
-    internal struct UIThemeInfo
+    public static class UIThemeManager
     {
-        public string Name { get; set; }
-        public bool IsDarkTheme { get; set; }
+        public static UIThemeInfo CurrentTheme { get; private set; } = UIThemeInfo.Dark;
+        private static readonly HashSet<Control> ThemedControls = new();
+        private static readonly Dictionary<Control, Action<UIThemeInfo>> CustomControlHandlers = new();
 
-        // Core Colors
-        public Color BackColor { get; set; }
-        public Color AccentColor { get; set; }
-        public Color TextColor { get; set; }
-
-        // Component Specific
-        public Color TitleBarColor { get; set; }
-        public Color ControlBackColor { get; set; }
-        public Color TextBoxBackColor { get; set; }
-        public Color ButtonBackColor { get; set; }
-        public Color ButtonHoverColor { get; set; }
-        public Color ButtonActiveColor { get; set; }
-        public Color TextInactiveColor { get; set; }
-        public Color BorderColor { get; set; }
-
-        // Styles
-        public FlatStyle ButtonFlatStyle { get; set; }
-        public BorderStyle TextBoxBorderStyle { get; set; }
-
-        public static UIThemeInfo DarkTheme => new UIThemeInfo
-        {
-            Name = "Dark",
-            IsDarkTheme = true,
-            BackColor = Color.FromArgb(28, 28, 28),
-            ControlBackColor = Color.FromArgb(40, 40, 40),
-            TextColor = Color.WhiteSmoke,
-            AccentColor = Color.DodgerBlue,
-            TitleBarColor = Color.FromArgb(36, 36, 36),
-            TextBoxBackColor = Color.FromArgb(35, 35, 35),
-            ButtonBackColor = Color.FromArgb(50, 50, 50),
-            ButtonHoverColor = Color.FromArgb(70, 70, 70),
-            ButtonActiveColor = Color.DodgerBlue,
-            TextInactiveColor = Color.Gray,
-            BorderColor = Color.FromArgb(60, 60, 60),
-            ButtonFlatStyle = FlatStyle.Flat,
-            TextBoxBorderStyle = BorderStyle.FixedSingle
-        };
-
-        public static UIThemeInfo LightTheme => new UIThemeInfo
-        {
-            Name = "Light",
-            IsDarkTheme = false,
-            BackColor = SystemColors.Control,
-            ControlBackColor = SystemColors.ControlLight,
-            TextColor = SystemColors.ControlText,
-            AccentColor = Color.DodgerBlue,
-            TitleBarColor = SystemColors.ControlDark,
-            TextBoxBackColor = SystemColors.Window,
-            ButtonBackColor = SystemColors.Control,
-            ButtonHoverColor = SystemColors.ControlLight,
-            ButtonActiveColor = SystemColors.Highlight,
-            TextInactiveColor = SystemColors.GrayText,
-            BorderColor = SystemColors.ControlDark,
-            ButtonFlatStyle = FlatStyle.Standard,
-            TextBoxBorderStyle = BorderStyle.Fixed3D
-        };
-    }
-
-    internal delegate void ThemeChangedCallback(UIThemeInfo themeData);
-
-    internal static class UIThemeManager
-    {
-        public static UIThemeInfo CurrentTheme { get; private set; }
-        private static readonly HashSet<Control> ThemedControls = new HashSet<Control>();
-        private static readonly Dictionary<Type, ThemeChangedCallback> CustomTypeHandlers = new Dictionary<Type, ThemeChangedCallback>();
-        private static readonly Dictionary<Control, ThemeChangedCallback> CustomControlHandlers = new Dictionary<Control, ThemeChangedCallback>();
-
-        static UIThemeManager()
-        {
-            CurrentTheme = UIThemeInfo.DarkTheme; // Default to dark theme
-        }
+        public static event Action<UIThemeInfo> ThemeChanged;
 
         public static void SetTheme(UIThemeInfo theme)
         {
             CurrentTheme = theme;
             ApplyThemeToAllControls();
+            ThemeChanged?.Invoke(theme);
         }
 
-        public static void ToggleTheme()
+        public static void SetTheme(string themeName)
         {
-            SetTheme(CurrentTheme.IsDarkTheme ? UIThemeInfo.LightTheme : UIThemeInfo.DarkTheme);
-        }
-
-        internal static void SetThemeAware(this IThemeableControl control)
-        {
-            if (!(control is Control ctrl))
-                throw new InvalidOperationException($"Cannot theme control of type '{control.GetType()}' because it is not derived from Control");
-
-            foreach (Control childControl in control.GetThemedControls())
-            {
-                if (childControl == null) continue;
-                if (childControl is IThemeableControl themedControl)
-                    themedControl.SetThemeAware();
-                else
-                    RegisterAndThemeControl(childControl);
-            }
-            RegisterAndThemeControl(ctrl);
+            var theme = UIThemeInfo.AvailableThemes
+                .FirstOrDefault(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase));
+            if (theme.Name != null) SetTheme(theme);
         }
 
         private static void ApplyThemeToAllControls()
         {
-            foreach (var control in ThemedControls.ToArray()) // ToArray to prevent collection modification
+            foreach (var control in ThemedControls.ToArray())
             {
                 if (control.IsDisposed)
                 {
                     ThemedControls.Remove(control);
                     continue;
                 }
-                ThemeSpecificControl(control);
+                ApplyThemeToControl(control);
             }
         }
 
-        private static void ThemeSpecificControl(Control control)
+        private static void ApplyThemeToControl(Control control)
         {
-            // Invoke custom type handlers first
-            if (CustomTypeHandlers.TryGetValue(control.GetType(), out var typeHandler))
+            control.SuspendLayout();
+            try
             {
-                typeHandler.Invoke(CurrentTheme);
-            }
+                if (control is IThemeableControl themeable)
+                {
+                    themeable.ApplyTheme(CurrentTheme);
+                }
+                else
+                {
+                    ApplyDefaultTheme(control);
+                }
 
-            // Apply default theming
-            if (!(control is IThemeableControl))
-            {
-                ApplyDefaultTheme(control);
+                if (CustomControlHandlers.TryGetValue(control, out var handler))
+                {
+                    handler(CurrentTheme);
+                }
             }
-
-            // Invoke custom control handlers
-            if (CustomControlHandlers.TryGetValue(control, out var controlHandler))
+            finally
             {
-                controlHandler.Invoke(CurrentTheme);
+                control.ResumeLayout();
             }
         }
 
@@ -198,21 +120,13 @@ namespace DebugCompiler.UI.Core.Singletons
             }
         }
 
-        private static void RegisterAndThemeControl(Control control)
+        public static void RegisterControl(Control control)
         {
-            if (control == null || ThemedControls.Contains(control)) return;
-
-            control.Disposed += ThemedControlDisposed;
-            ThemedControls.Add(control);
-            ThemeSpecificControl(control);
-        }
-
-        private static void ThemedControlDisposed(object sender, EventArgs e)
-        {
-            if (sender is Control control)
+            if (control != null && !ThemedControls.Contains(control))
             {
-                ThemedControls.Remove(control);
-                CustomControlHandlers.Remove(control);
+                ThemedControls.Add(control);
+                control.Disposed += (s, e) => ThemedControls.Remove(control);
+                ApplyThemeToControl(control);
             }
         }
 
@@ -259,45 +173,5 @@ namespace DebugCompiler.UI.Core.Singletons
             }
         }
 
-        // Extension methods for easier theming
-        // Replace the existing extension method with these two versions:
-
-        // For controls
-        public static void RegisterCustomThemeHandler<T>(this T control, ThemeChangedCallback callback) where T : Control
-        {
-            if (control == null) return;
-
-            if (callback == null)
-            {
-                CustomControlHandlers.Remove(control);
-            }
-            else
-            {
-                CustomControlHandlers[control] = callback;
-                control.Disposed += (s, e) => CustomControlHandlers.Remove(control);
-            }
-        }
-
-        // For types (add this new method)
-        public static void RegisterCustomThemeHandler(Type type, ThemeChangedCallback callback)
-        {
-            if (type == null) return;
-
-            if (callback == null)
-            {
-                CustomTypeHandlers.Remove(type);
-            }
-            else
-            {
-                if (CustomTypeHandlers.ContainsKey(type))
-                {
-                    CustomTypeHandlers[type] += callback;
-                }
-                else
-                {
-                    CustomTypeHandlers[type] = callback;
-                }
-            }
-        }
     }
 }

@@ -13,6 +13,7 @@ using System.Drawing.Design;
 using System.Collections;
 using DebugCompiler.UI.Core.Singletons;
 using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Controls;
 
 //http://www.reza-aghaei.com/enable-designer-of-child-panel-in-a-usercontrol/
 //TODO: https://stackoverflow.com/questions/2575216/how-to-move-and-resize-a-form-without-a-border
@@ -66,12 +67,28 @@ namespace DebugCompiler.UI.Core.Controls
         }
         #endregion
 
+        public void ApplyTheme(UIThemeInfo theme)
+        {
+            this.BackColor = theme.BackColor;
+            this.ForeColor = theme.TextColor;
+
+            // Apply theme to all child controls
+            foreach (Control control in this.Controls)
+            {
+                if (control is IThemeableControl themeable)
+                {
+                    themeable.ApplyTheme(theme);
+                }
+            }
+        }
+
         public CBorderedForm()
         {
             InitializeComponent();
             MouseDown += MouseDown_Drag;
             MainPanel.MouseDown += MouseDown_Drag;
-            UIThemeManager.RegisterCustomThemeHandler(typeof(CBorderedForm), ApplyThemeCustom_Implementation);
+            UIThemeManager.RegisterControl(this);
+            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
             TypeDescriptor.AddAttributes(this.DesignerContents,
             new DesignerAttribute(typeof(CBFInnerPanelDesigner)));
         }
@@ -94,17 +111,14 @@ namespace DebugCompiler.UI.Core.Controls
             }
         }
 
-        private void ApplyThemeCustom_Implementation(UIThemeInfo themeData)
+        private void OnThemeChanged_Implementation(UIThemeInfo theme)
         {
-            BackColor = themeData.AccentColor;
-            MainPanel.BackColor = themeData.BackColor;
+            ApplyTheme(theme);
         }
 
         public IEnumerable<Control> GetThemedControls()
         {
-            yield return TitleBar;
-            yield return MainPanel;
-            yield return DesignerContents;
+            return this.Controls.Cast<Control>();
         }
 
         public void SetExitHidden(bool hidden)

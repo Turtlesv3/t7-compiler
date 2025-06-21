@@ -1,5 +1,5 @@
 ﻿
-namespace SMC.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     partial class CComboDialog
     {
@@ -31,7 +31,7 @@ namespace SMC.UI.Core.Controls
         {
             this.InnerForm = new DebugCompiler.UI.Core.Controls.CBorderedForm();
             this.AcceptButton = new System.Windows.Forms.Button();
-            this.cComboBox1 = new SMC.UI.Core.Controls.CComboBox();
+            this.cComboBox1 = new DebugCompiler.UI.Core.Controls.CComboBox();
             this.InnerForm.ControlContents.SuspendLayout();
             this.SuspendLayout();
             // 

@@ -46,7 +46,7 @@
             // 
             // InnerForm
             // 
-            this.InnerForm.BackColor = System.Drawing.Color.Red;
+            this.InnerForm.BackColor = System.Drawing.Color.MediumPurple;
             // 
             // InnerForm.ControlContents
             // 
@@ -66,13 +66,14 @@
             this.InnerForm.ControlContents.Enabled = true;
             this.InnerForm.ControlContents.Location = new System.Drawing.Point(0, 32);
             this.InnerForm.ControlContents.Name = "ControlContents";
-            this.InnerForm.ControlContents.Size = new System.Drawing.Size(656, 299);
+            this.InnerForm.ControlContents.Size = new System.Drawing.Size(656, 337);
             this.InnerForm.ControlContents.TabIndex = 1;
             this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.InnerForm.ForeColor = System.Drawing.Color.WhiteSmoke;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
-            this.InnerForm.Size = new System.Drawing.Size(660, 335);
+            this.InnerForm.Size = new System.Drawing.Size(660, 373);
             this.InnerForm.TabIndex = 0;
             this.InnerForm.TitleBarTitle = "Serious\'s T7/T8 Compiler GUI by DoubleG";
             this.InnerForm.UseTitleBar = true;
@@ -89,7 +90,7 @@
             this.txtOutput.Location = new System.Drawing.Point(116, 114);
             this.txtOutput.Name = "txtOutput";
             this.txtOutput.ReadOnly = true;
-            this.txtOutput.Size = new System.Drawing.Size(530, 175);
+            this.txtOutput.Size = new System.Drawing.Size(530, 213);
             this.txtOutput.TabIndex = 0;
             this.txtOutput.Text = "";
             this.txtOutput.WordWrap = false;
@@ -262,8 +263,8 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = System.Drawing.Color.Red;
-            this.ClientSize = new System.Drawing.Size(660, 335);
+            this.BackColor = System.Drawing.Color.MediumPurple;
+            this.ClientSize = new System.Drawing.Size(660, 373);
             this.Controls.Add(this.InnerForm);
             this.ForeColor = System.Drawing.SystemColors.ControlText;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;

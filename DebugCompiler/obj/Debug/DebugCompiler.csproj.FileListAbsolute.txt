@@ -72,8 +72,8 @@ C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\bin\Debug\System.Collect
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.csproj.AssemblyReference.cache
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.MainForm1.resources
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.UI.Core.Controls.CBorderedForm.resources
-C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\SMC.UI.Core.Controls.CComboDialog.resources
-C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\SMC.UI.Core.Controls.CErrorDialog.resources
+C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.UI.Core.Controls.CComboDialog.resources
+C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.UI.Core.Controls.CErrorDialog.resources
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.UI.Core.Controls.CTitleBar.resources
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.ImportDialog.resources
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.csproj.GenerateResource.cache

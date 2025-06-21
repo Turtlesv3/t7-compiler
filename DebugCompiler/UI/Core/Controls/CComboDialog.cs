@@ -1,6 +1,4 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -9,8 +7,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Controls;
 
-namespace SMC.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     public partial class CComboDialog : Form, IThemeableControl
     {
@@ -19,8 +24,8 @@ namespace SMC.UI.Core.Controls
         public CComboDialog(string title, object[] selectables, int defaultIndex = 0)
         {
             InitializeComponent();
-            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
-            this.SetThemeAware();
+            UIThemeManager.RegisterControl(this);
+            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
             MaximizeBox = true;
             MinimizeBox = true;
             Text = title;
@@ -33,16 +38,35 @@ namespace SMC.UI.Core.Controls
             }
         }
 
-        private void OnThemeChanged_Implementation(UIThemeInfo themeData)
+        public void ApplyTheme(UIThemeInfo theme)
         {
-            return;
+            this.BackColor = theme.BackColor;
+            this.ForeColor = theme.TextColor;
+
+            // Theme child controls
+            foreach (Control control in this.Controls)
+            {
+                if (control is IThemeableControl themeable)
+                {
+                    themeable.ApplyTheme(theme);
+                }
+                else if (control is ComboBox combo)
+                {
+                    combo.BackColor = theme.TextBoxBackColor;
+                    combo.ForeColor = theme.TextColor;
+                }
+            }
+        }
+
+        private void OnThemeChanged_Implementation(UIThemeInfo theme)
+        {
+            ApplyTheme(theme);
         }
 
         public IEnumerable<Control> GetThemedControls()
         {
-            yield return InnerForm;
-            yield return cComboBox1;
-            yield return AcceptButton;
+            return this.Controls.Cast<Control>();
+
         }
 
         private void AcceptButton_Click(object sender, EventArgs e)

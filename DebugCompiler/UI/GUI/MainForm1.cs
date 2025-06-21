@@ -1,21 +1,24 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
+﻿using DebugCompiler.UI.Core.Controls;
+using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
-using DebugCompiler.UI.Core.Controls;
-using SMC.UI.Core.Controls;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.ComponentModel.Design;
 using System.Data;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Design;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Windows.Forms.Design;
 using TreyarchCompiler.Enums;
-using static DebugCompiler.Root;
 
 namespace DebugCompiler
 {
@@ -47,6 +50,61 @@ namespace DebugCompiler
         private readonly Color _infoColor = Color.FromArgb(100, 200, 255);
         private bool _isCompiling = false;
 
+        private ToolStripMenuItem _themeMenu;
+        internal static class NativeMethods
+        {
+            [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+            private static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
+
+            public static void SetDarkScrollBars(IntPtr handle)
+            {
+                try
+                {
+                    if (UIThemeManager.CurrentTheme.IsDarkTheme)
+                    {
+                        SetWindowTheme(handle, "DarkMode_Explorer", null);
+                    }
+                    else
+                    {
+                        SetWindowTheme(handle, "Explorer", null);
+                    }
+                }
+                catch (EntryPointNotFoundException)
+                {
+                    // Fallback if API not available (Windows 7 or older)
+                    // We'll just use default scrollbars
+                }
+            }
+        }
+
+        private void InitializeThemeMenu()
+        {
+            _themeMenu = new ToolStripMenuItem("Themes");
+
+            foreach (var theme in UIThemeInfo.AvailableThemes)
+            {
+                var item = new ToolStripMenuItem(theme.Name)
+                {
+                    Tag = theme.Name
+                };
+                item.Click += (s, e) => UIThemeManager.SetTheme((string)((ToolStripMenuItem)s).Tag);
+                _themeMenu.DropDownItems.Add(item);
+            }
+
+            // Add to existing menu or create new
+            if (MainMenuStrip != null)
+            {
+                MainMenuStrip.Items.Add(_themeMenu);
+            }
+            else
+            {
+                var menuStrip = new MenuStrip();
+                menuStrip.Items.Add(_themeMenu);
+                Controls.Add(menuStrip);
+                MainMenuStrip = menuStrip;
+            }
+        }
+
         public MainForm1()
         {
             InitializeComponent();
@@ -61,10 +119,18 @@ namespace DebugCompiler
             statusLabel.Text = "Ready";
 
             // Theme setup
-            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
-            this.SetThemeAware();
+            InitializeThemeMenu();
+            UIThemeManager.RegisterControl(this);
+            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
             MaximizeBox = true;
             MinimizeBox = true;
+
+            UIThemeManager.ThemeChanged += (theme) =>
+            {
+                btnInject.Invalidate();
+                btnCompile.Invalidate();
+                btnBrowse.Invalidate();
+            };
 
             // Initialize components
             InitializeCustomComponents();
@@ -77,12 +143,106 @@ namespace DebugCompiler
 
             CheckRequiredFiles();
             this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
+            ApplyTheme(UIThemeManager.CurrentTheme);
         }
 
         private void InitializeOutputColors()
         {
             txtOutput.ForeColor = Color.FromKnownColor(KnownColor.WindowText);
             txtOutput.BackColor = Color.FromKnownColor(KnownColor.Window);
+        }
+
+        public void ApplyTheme(UIThemeInfo theme)
+        {
+            this.SuspendLayout();
+            try
+            {
+                // Apply to form
+                this.BackColor = theme.BackColor;
+                this.ForeColor = theme.TextColor;
+
+                // Apply to all controls recursively
+                ApplyThemeToControls(this.Controls, theme);
+
+                // Special handling for RichTextBox
+                txtOutput.BackColor = theme.TextBoxBackColor;
+                txtOutput.ForeColor = theme.TextColor;
+                txtOutput.BorderStyle = theme.TextBoxBorderStyle;
+
+                // Force redraw
+                this.Invalidate(true);
+            }
+            finally
+            {
+                this.ResumeLayout(true);
+            }
+        }
+
+        private void ApplyThemeToControls(Control.ControlCollection controls, UIThemeInfo theme)
+        {
+            foreach (Control control in controls)
+            {
+                if (control is Button button && (button == btnInject || button == btnCompile || button == btnBrowse))
+                {
+                    // Special theming for action buttons
+                    button.BackColor = theme.AccentColor;
+                    button.ForeColor = Color.White; // High contrast text
+                    button.FlatStyle = FlatStyle.Flat;
+                    button.FlatAppearance.BorderColor = theme.AccentColor;
+                    button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
+                    button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
+                    button.Font = new Font(button.Font, FontStyle.Bold);
+                }
+                else if (control is Button standardButton)
+                {
+                    // Standard button theming
+                    standardButton.BackColor = theme.ButtonBackColor;
+                    standardButton.ForeColor = theme.TextColor;
+                    standardButton.FlatStyle = theme.ButtonFlatStyle;
+                    standardButton.FlatAppearance.BorderColor = theme.BorderColor;
+                    standardButton.FlatAppearance.MouseOverBackColor = theme.ButtonHoverColor;
+                    standardButton.FlatAppearance.MouseDownBackColor = theme.ButtonActiveColor;
+                }
+                else if (control is RichTextBox rtb)
+                {
+                    rtb.BackColor = theme.TextBoxBackColor;
+                    rtb.ForeColor = theme.TextColor;
+                    rtb.BorderStyle = theme.TextBoxBorderStyle;
+                    NativeMethods.SetDarkScrollBars(rtb.Handle);
+                }
+                else if (control is TextBox txt)
+                {
+                    txt.BackColor = theme.TextBoxBackColor;
+                    txt.ForeColor = theme.TextColor;
+                    txt.BorderStyle = theme.TextBoxBorderStyle;
+                }
+                else if (control is ComboBox cmb)
+                {
+                    cmb.BackColor = theme.TextBoxBackColor;
+                    cmb.ForeColor = theme.TextColor;
+                    cmb.FlatStyle = theme.ButtonFlatStyle;
+                }
+                else if (control is Label || control is CheckBox || control is RadioButton)
+                {
+                    control.ForeColor = theme.TextColor;
+                }
+                else if (control is Panel || control is GroupBox)
+                {
+                    control.BackColor = theme.ControlBackColor;
+                    control.ForeColor = theme.TextColor;
+                }
+                else if (control is ToolStrip toolStrip)
+                {
+                    toolStrip.BackColor = theme.BackColor;
+                    toolStrip.ForeColor = theme.TextColor;
+                }
+
+                // Recursively apply to children
+                if (control.HasChildren)
+                {
+                    ApplyThemeToControls(control.Controls, theme);
+                }
+            }
         }
 
         private void SafeAppendText(string text)
@@ -180,6 +340,22 @@ namespace DebugCompiler
 
         private void OnThemeChanged_Implementation(UIThemeInfo currentTheme)
         {
+            // Force immediate update of all controls
+            ApplyTheme(currentTheme);
+
+            // Special case for tooltips
+            resetToolTip.BackColor = currentTheme.BackColor;
+            resetToolTip.ForeColor = currentTheme.TextColor;
+
+            // For ComboBox items (if needed)
+            if (cmbGame is not null)
+            {
+                cmbGame.Invalidate();
+            }
+            btnInject.Invalidate();
+            btnCompile.Invalidate();
+            btnBrowse.Invalidate();
+            btnResetParseTree.Invalidate();
         }
 
         public void WndProc_Implementation(ref Message m)

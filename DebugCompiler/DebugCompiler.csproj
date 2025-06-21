@@ -145,6 +145,8 @@
     </Compile>
     <Compile Include="Root.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UI\Core\Singletons\ThemeExtensions.cs" />
+    <Compile Include="UI\Core\Singletons\UIThemeInfo.cs" />
 
     <!-- Forms with designer files -->
     <Compile Include="UI\GUI\MainForm1.cs" />

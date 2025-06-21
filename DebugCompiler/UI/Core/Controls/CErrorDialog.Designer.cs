@@ -1,5 +1,5 @@
 ﻿
-namespace SMC.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     partial class CErrorDialog
     {

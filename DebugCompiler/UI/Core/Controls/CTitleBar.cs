@@ -1,6 +1,4 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -9,6 +7,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler.UI.Core.Controls
 {
@@ -19,8 +24,8 @@ namespace DebugCompiler.UI.Core.Controls
         {
             InitializeComponent();
             MouseDown += MouseDown_Drag;
-            UIThemeManager.RegisterCustomThemeHandler(typeof(CTitleBar), ApplyThemeCustomType_Implementation);
-            this.RegisterCustomThemeHandler(ApplyThemeCustom_Implementation);
+            UIThemeManager.RegisterControl(this);
+            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
             TitleLabel.MouseDown += MouseDown_Drag;
         }
 
@@ -53,14 +58,17 @@ namespace DebugCompiler.UI.Core.Controls
             ExitButton.Visible = isVisible;
         }
 
-        private void ApplyThemeCustomType_Implementation(UIThemeInfo themeData)
+        public void ApplyTheme(UIThemeInfo theme)
         {
-
+            // Implement control-specific theming
+            this.BackColor = theme.BackColor;
+            this.ForeColor = theme.TextColor;
+            // ... other properties
         }
 
-        private void ApplyThemeCustom_Implementation(UIThemeInfo themeData)
+        private void OnThemeChanged_Implementation(UIThemeInfo theme)
         {
-            ExitButton.BackColor = themeData.ControlBackColor;
+            ApplyTheme(theme);
         }
 
         public IEnumerable<Control> GetThemedControls()

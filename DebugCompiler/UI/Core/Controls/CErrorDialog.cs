@@ -1,6 +1,4 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -9,16 +7,23 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Controls;
 
-namespace SMC.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     public partial class CErrorDialog : Form, IThemeableControl
     {
         public CErrorDialog(string title, string description)
         {
             InitializeComponent();
-            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
-            this.SetThemeAware();
+            UIThemeManager.RegisterControl(this);
+            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
             MaximizeBox = true;
             MinimizeBox = true;
             Text = title;
@@ -26,9 +31,17 @@ namespace SMC.UI.Core.Controls
             ErrorRTB.Text = description;
         }
 
-        private void OnThemeChanged_Implementation(UIThemeInfo themeData)
+        public void ApplyTheme(UIThemeInfo theme)
         {
-            return;
+            // Implement control-specific theming
+            this.BackColor = theme.BackColor;
+            this.ForeColor = theme.TextColor;
+            // ... other properties
+        }
+
+        private void OnThemeChanged_Implementation(UIThemeInfo theme)
+        {
+            ApplyTheme(theme);
         }
 
         public IEnumerable<Control> GetThemedControls()

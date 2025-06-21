@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace SMC.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     public class CComboBox : ComboBox
     {

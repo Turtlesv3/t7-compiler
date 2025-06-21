@@ -1,29 +1,28 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
-using SMC.UI.Core.Controls;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
-using System.Diagnostics;
 using System.Drawing;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler
 {
     public partial class ImportDialog : Form, IThemeableControl
     {
-        private string ImportFolderPath;
-        private string OutputFolderPath;
         public ImportDialog()
         {
             InitializeComponent();
-            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
-            this.SetThemeAware();
+            UIThemeManager.RegisterControl(this);
             MaximizeBox = true;
             MinimizeBox = true;
         }
@@ -38,8 +37,17 @@ namespace DebugCompiler
             yield return StartImportButton;
         }
 
-        private void OnThemeChanged_Implementation(UIThemeInfo currentTheme)
+        public void ApplyTheme(UIThemeInfo theme)
         {
+            // Implement control-specific theming
+            this.BackColor = theme.BackColor;
+            this.ForeColor = theme.TextColor;
+            // ... other properties
+        }
+
+        private void OnThemeChanged(UIThemeInfo theme)
+        {
+            ApplyTheme(theme);
         }
 
         private void RPCTest1_Click(object sender, EventArgs e)
@@ -66,42 +74,14 @@ namespace DebugCompiler
 
         private void SelectImportButton_Click(object sender, EventArgs e)
         {
-            FolderBrowserDialog fbd = new FolderBrowserDialog();
-            fbd.ShowNewFolderButton = false;
-            fbd.Description = "Select a project to import";
-            if (fbd.ShowDialog() != DialogResult.OK) return;
-            if (!Directory.Exists(fbd.SelectedPath))
-            {
-                CErrorDialog.Show("Selection failed!", "Cannot import a project which does not exist", true);
-                return;
-            }
-            ImportFolderPath = fbd.SelectedPath;
-            ImportLabel.Text = ImportFolderPath.Split(new char[] { '\\' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "Error";
         }
 
         private void OutputBtn_Click(object sender, EventArgs e)
         {
-            FolderBrowserDialog fbd = new FolderBrowserDialog();
-            fbd.ShowNewFolderButton = true;
-            fbd.Description = "Select an output folder";
-            if (fbd.ShowDialog() != DialogResult.OK) return;
-            if (Directory.Exists(fbd.SelectedPath) && !IsDirectoryEmpty(fbd.SelectedPath))
-            {
-                MessageBox.Show("You cannot select this folder for output. The folder you select must be empty.", "DANGER: Folder has contents", MessageBoxButtons.OKCancel);
-                return;
-            }
-            OutputFolderPath = fbd.SelectedPath;
-            OutputLabel.Text = OutputFolderPath.Split(new char[] { '\\' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "Error";
-        }
-
-        private bool IsDirectoryEmpty(string path)
-        {
-            return !Directory.EnumerateFileSystemEntries(path).Any();
         }
 
         private void StartImportButton_Click(object sender, EventArgs e)
         {
-            
         }
     }
 }
