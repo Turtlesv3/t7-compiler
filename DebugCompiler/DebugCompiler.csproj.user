@@ -12,7 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Update="UI\Core\Controls\CBorderedForm.cs">
-      <SubType>Form</SubType>
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Update="UI\Core\Controls\CComboBox.cs">
       <SubType>Component</SubType>

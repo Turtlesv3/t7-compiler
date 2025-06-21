@@ -1,6 +1,14 @@
-﻿using Refract.UI.Core.Singletons;
+﻿using SMC.UI.Core.Controls;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Net;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace DebugCompiler
@@ -19,9 +27,6 @@ namespace DebugCompiler
             {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-
-                // Initialize theme before creating main form
-                UIThemeManager.SetTheme("Dark"); // Or "Light" if you prefer
 
                 Application.Run(new MainForm1());
             }

@@ -2,71 +2,55 @@
 using Refract.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
 using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace SMC.UI.Core.Controls
 {
     public partial class CErrorDialog : Form, IThemeableControl
     {
-        public string ErrorDescription => ErrorRTB.Text;
-
         public CErrorDialog(string title, string description)
         {
             InitializeComponent();
             UIThemeManager.OnThemeChanged(this, OnThemeChanged_Implementation);
             this.SetThemeAware();
-
+            MaximizeBox = true;
+            MinimizeBox = true;
             Text = title;
+            InnerForm.TitleBarTitle = title;
             ErrorRTB.Text = description;
-            this.StartPosition = FormStartPosition.CenterParent;
         }
 
         private void OnThemeChanged_Implementation(UIThemeInfo themeData)
         {
-            this.BackColor = themeData.BackColor;
-            this.ForeColor = themeData.TextColor;
-            ErrorRTB.BackColor = themeData.BackColor;
-            ErrorRTB.ForeColor = themeData.TextColor;
-            OKButton.BackColor = themeData.ButtonActive;
-            OKButton.ForeColor = themeData.TextColor;
-            OKButton.FlatAppearance.BorderColor = themeData.AccentColor;
+            return;
         }
 
         public IEnumerable<Control> GetThemedControls()
         {
+            yield return InnerForm;
             yield return ErrorRTB;
-            yield return OKButton;
+            yield return AcceptButton;
         }
 
-        private void OKButton_Click(object sender, EventArgs e)
+        private void AcceptButton_Click(object sender, EventArgs e)
         {
-            this.DialogResult = DialogResult.OK;
-            this.Close();
+            Close();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+
         }
 
         public static void Show(string title, string description, bool topMost = false)
         {
-            // Ensure we're on the UI thread
-            if (Application.OpenForms.Count > 0)
-            {
-                var owner = Application.OpenForms[0];
-                owner.Invoke((MethodInvoker)delegate
-                {
-                    using var dialog = new CErrorDialog(title, description) { TopMost = topMost };
-                    dialog.ShowDialog(owner);
-                });
-            }
-            else
-            {
-                using var dialog = new CErrorDialog(title, description) { TopMost = topMost };
-                dialog.ShowDialog();
-            }
-        }
-
-        internal static DialogResult Show(string v1, bool v2)
-        {
-            throw new NotImplementedException();
+            new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog();
         }
     }
 }

@@ -1,5 +1,4 @@
-﻿// MainForm1.cs
-using Refract.UI.Core.Interfaces;
+﻿using Refract.UI.Core.Interfaces;
 using Refract.UI.Core.Singletons;
 using Refract.UI.Core.Controls;
 using System;
@@ -13,11 +12,13 @@ using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TreyarchCompiler.Enums;
-using SMC.UI.Core.Controls; // Add this line
+using SMC.UI.Core.Controls;
+using System.Data;
+
 
 namespace DebugCompiler
 {
-    public partial class MainForm1 : CBorderedForm, IThemeableControl, IResizableForm
+    public partial class MainForm1 : Form, IThemeableControl
     {
         private readonly Root compilerRoot;
         private readonly ToolTip resetToolTip = new ToolTip
@@ -32,36 +33,18 @@ namespace DebugCompiler
         private DateTime _lastInjectionTime;
         private string _lastInjectedScript;
         private string _lastGameMode;
-        private UIThemeInfo _currentTheme;
         private readonly TextWriter _originalOut = Console.Out;
         private readonly object _outputLock = new object();
 
         public MainForm1()
         {
-            // InitializeComponent must be first to create all controls
+
             InitializeComponent();
-
-            // Initialize ControlContents if null (shouldn't be needed if designer is set up properly)
-            if (ControlContents == null)
-            {
-                ControlContents = new Panel();
-                ControlContents.Dock = DockStyle.Fill;
-                this.Controls.Add(ControlContents);
-            }
-
-            // Add MainContainer to ControlContents if not already added
-            if (!ControlContents.Controls.Contains(MainContainer))
-            {
-                MainContainer.Dock = DockStyle.Fill;
-                ControlContents.Controls.Add(MainContainer);
-            }
-
+           
             // Add menu items
             var fileMenu = new ToolStripMenuItem("File");
             var exitItem = new ToolStripMenuItem("Exit");
-            exitItem.Click += (s, e) => this.Close();
             fileMenu.DropDownItems.Add(exitItem);
-
             // Add status label
             var statusLabel = new ToolStripStatusLabel();
             statusLabel.Text = "Ready";
@@ -69,7 +52,8 @@ namespace DebugCompiler
             // Theme setup
             UIThemeManager.OnThemeChanged(this, OnThemeChanged_Implementation);
             this.SetThemeAware();
-            UIThemeManager.SetTheme("Dark"); // Force initial theme
+            MaximizeBox = true;
+            MinimizeBox = true;
 
             // Initialize custom components after all controls are ready
             InitializeCustomComponents();
@@ -117,16 +101,11 @@ namespace DebugCompiler
             }
         }
 
-        public override IEnumerable<Control> GetThemedControls()
+        public IEnumerable<Control> GetThemedControls()
         {
-            // First return controls from base class
-            foreach (var control in base.GetThemedControls())
-            {
-                yield return control;
-            }
-
+          
             // Then return your additional controls
-            yield return MainContainer;
+            yield return InnerForm;
             yield return txtOutput;
             yield return btnResetParseTree;
             yield return btnInject;
@@ -138,26 +117,11 @@ namespace DebugCompiler
             yield return chkHotLoad;
             yield return chkCompileOnly;
             yield return chkBuild;
-            yield return chkNoUpdate;
             yield return cmbGame;
         }
 
         private void OnThemeChanged_Implementation(UIThemeInfo currentTheme)
         {
-            _currentTheme = currentTheme;
-
-            // Apply theme to all controls
-            this.BackColor = currentTheme.BackColor;
-            this.ForeColor = currentTheme.TextColor;
-
-            // Custom control theming
-            txtOutput.BackColor = Color.Black;
-            txtOutput.ForeColor = Color.Lime;
-
-            // Special button theming
-            btnResetParseTree.BackColor = currentTheme.ButtonActive;
-            btnResetParseTree.FlatAppearance.BorderColor = currentTheme.AccentColor;
-            btnResetParseTree.ForeColor = currentTheme.TextColor;
         }
 
         public void WndProc_Implementation(ref Message m)
@@ -167,29 +131,20 @@ namespace DebugCompiler
 
         private void InitializeCustomComponents()
         {
-            // Add null check at start
-            if (cmbGame == null)
-            {
-                cmbGame = new ComboBox();
-                cmbGame.BackColor = Color.FromArgb(50, 50, 50);
-                cmbGame.ForeColor = Color.White;
-                cmbGame.FlatStyle = FlatStyle.Flat;
-                OptionsPanel.Controls.Add(cmbGame);
-            }
-
+            
             var gameDisplayNames = new Dictionary<string, string>
-    {
-        {"t6", "Call of Duty: Black Ops 2"},
-        {"t7", "Call of Duty: Black Ops 3"},
-        {"t8", "Call of Duty: Black Ops 4"}
-    };
+            {
+                {"t6", "Call of Duty: Black Ops 2"},
+                {"t7", "Call of Duty: Black Ops 3"},
+                {"t8", "Call of Duty: Black Ops 4"}
+            };
 
             // Get all enum names and map them to display names
             var gameNames = Enum.GetNames(typeof(Games))
-                               .Select(name => gameDisplayNames.TryGetValue(name.ToLower(), out var displayName)
-                                                  ? displayName
-                                                  : name)
-                               .ToArray();
+                .Select(name => gameDisplayNames.TryGetValue(name.ToLower(), out var displayName)
+                        ? displayName
+                        : name)
+                .ToArray();
 
             cmbGame.Items.AddRange(gameNames);
             cmbGame.SelectedIndex = 1;
@@ -222,12 +177,6 @@ namespace DebugCompiler
                 "Compile Options:\n" +
                 "- Full Build: Complete Build+Inject\n" +
                 "- Compile Only: Skip injection");
-
-            // Tooltips for checkboxes
-            resetToolTip.SetToolTip(chkNoUpdate,
-                "No Update\n\n" +
-                "Skips all program version update checks\n" +
-                "Faster compilation but may miss important updates");
 
             resetToolTip.SetToolTip(chkBuild,
                 "Full Build\n\n" +
@@ -413,7 +362,7 @@ namespace DebugCompiler
             // Enhanced input validation
             if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
             {
-                CErrorDialog.Show("Error", "Please select a script file or folder first", true);
+                CErrorDialog.Show("Error", "Select a script folder Dumbass", true);
                 return;
             }
 
@@ -453,7 +402,6 @@ namespace DebugCompiler
                 }
 
                 // Add other options...
-                if (chkNoUpdate.Checked) opts.Add("--noupdate");
                 if (chkCompileOnly.Checked) opts.Add("--compile");
                 if (chkHotLoad.Checked)
                 {
@@ -594,11 +542,10 @@ namespace DebugCompiler
         {
             await Task.Run(() => ClearOutput());
 
+            // Enhanced input validation
             if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
             {
-                resetToolTip.SetToolTip(btnInject,
-            "Please select a script file first!\n\n" +
-            "Use the Browse button to select a .gsc/.gscc file");
+                CErrorDialog.Show("Error", "Select a script file Dumbass", true);
                 return;
             }
 
@@ -658,15 +605,6 @@ namespace DebugCompiler
             {
                 btnInject.Enabled = true;
                 Cursor = Cursors.Default;
-            }
-        }
-
-        private void MainForm1_Load(object sender, EventArgs e)
-        {
-            if (_currentTheme.Equals(default(UIThemeInfo)))
-            {
-                _currentTheme = UIThemeInfo.Default();
-                OnThemeChanged_Implementation(_currentTheme);
             }
         }
 

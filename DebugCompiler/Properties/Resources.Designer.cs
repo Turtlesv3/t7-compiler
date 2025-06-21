@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace t7c_installer.Properties {
+namespace DebugCompiler.Properties {
     using System;
     
     

@@ -2,104 +2,180 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data;
 using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Refract.UI.Core.Singletons;
 using System.ComponentModel.Design;
 using System.Windows.Forms.Design;
+using System.Drawing.Design;
 using System.Collections;
 
+//http://www.reza-aghaei.com/enable-designer-of-child-panel-in-a-usercontrol/
+//TODO: https://stackoverflow.com/questions/2575216/how-to-move-and-resize-a-form-without-a-border
 namespace Refract.UI.Core.Controls
 {
     [Designer(typeof(CBorderedFormDesigner))]
-    public partial class CBorderedForm : Form, IThemeableControl
+    public partial class CBorderedForm : UserControl, IThemeableControl
     {
-        #region Designer Properties
-        private bool _useTitleBar = true;
 
-        [Category("Title Bar")]
-        [Description("Determines if a title bar should be rendered.")]
+        #region designer
+        private bool __useTitleBar = true;
+        [
+            Category("Title Bar"),
+            Description("Determines if a title bar should be rendered."),
+            Browsable(true)
+        ]
         public bool UseTitleBar
         {
-            get => _useTitleBar;
+            get
+            {
+                return __useTitleBar;
+            }
             set
             {
-                _useTitleBar = value;
-                if (TitleBar != null) TitleBar.Visible = value;
+                __useTitleBar = value;
+                TitleBar.Visible = value;
                 Invalidate();
             }
         }
-
-        [Category("Title Bar")]
-        [Description("Determines the title bar's text")]
+        [
+            Category("Title Bar"),
+            Description("Determines the title bar's text"),
+            Browsable(true)
+        ]
         public string TitleBarTitle
         {
-            get => TitleBar?.TitleLabel?.Text ?? string.Empty;
+            get
+            {
+                return TitleBar.TitleLabel.Text;
+            }
             set
             {
-                if (TitleBar?.TitleLabel != null)
-                    TitleBar.TitleLabel.Text = value;
+                TitleBar.TitleLabel.Text = value;
                 Invalidate();
             }
         }
-
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
-        [Browsable(true)]
-        public Panel ControlContents { get; protected set; } = new Panel();
-        #endregion
-
-        #region Win32 API
-        private const int WM_NCLBUTTONDOWN = 0xA1;
-        private const int HT_CAPTION = 0x2;
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
+        public Panel ControlContents
+        {
+            get { return this.DesignerContents; }
+        }
         #endregion
 
         public CBorderedForm()
         {
             InitializeComponent();
-            ControlContents.Dock = DockStyle.Fill;
             MouseDown += MouseDown_Drag;
-            if (MainPanel != null) MainPanel.MouseDown += MouseDown_Drag;
-
+            MainPanel.MouseDown += MouseDown_Drag;
             UIThemeManager.RegisterCustomThemeHandler(typeof(CBorderedForm), ApplyThemeCustom_Implementation);
-            FormBorderStyle = FormBorderStyle.None;
+            TypeDescriptor.AddAttributes(this.DesignerContents,
+            new DesignerAttribute(typeof(CBFInnerPanelDesigner)));
         }
 
-        private void MouseDown_Drag(object sender, MouseEventArgs e)
-        {
-            if (ParentForm == null || e.Button != MouseButtons.Left)
-                return;
+        public const int WM_NCLBUTTONDOWN = 0xA1;
+        public const int HT_CAPTION = 0x2;
 
-            ReleaseCapture();
-            SendMessage(ParentForm.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        public static extern bool ReleaseCapture();
+
+        private void MouseDown_Drag(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (ParentForm == null) return;
+            if (e.Button == MouseButtons.Left)
+            {
+                ReleaseCapture();
+                SendMessage(ParentForm.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
+            }
         }
 
         private void ApplyThemeCustom_Implementation(UIThemeInfo themeData)
         {
             BackColor = themeData.AccentColor;
-            if (MainPanel != null) MainPanel.BackColor = themeData.BackColor;
+            MainPanel.BackColor = themeData.BackColor;
         }
 
-        public virtual IEnumerable<Control> GetThemedControls()
+        public IEnumerable<Control> GetThemedControls()
         {
             yield return TitleBar;
             yield return MainPanel;
-            yield return ControlContents;
+            yield return DesignerContents;
         }
 
         public void SetExitHidden(bool hidden)
         {
-            if (TitleBar != null) TitleBar.SetExitButtonVisible(!hidden);
+            TitleBar.SetExitButtonVisible(!hidden);
         }
 
         public void SetDraggable(bool draggable)
         {
-            if (TitleBar != null) TitleBar.DisableDrag = !draggable;
+            TitleBar.DisableDrag = !draggable;
         }
     }
+
+    #region designer
+    internal class CBorderedFormDesigner : ParentControlDesigner
+    {
+        public override void Initialize(IComponent component)
+        {
+            base.Initialize(component);
+            var contentsPanel = ((CBorderedForm)this.Control).ControlContents;
+            EnableDesignMode(contentsPanel, "ControlContents");
+        }
+        public override bool CanParent(Control control)
+        {
+            return false;
+        }
+        protected override void OnDragOver(DragEventArgs de)
+        {
+            de.Effect = DragDropEffects.None;
+        }
+        protected override IComponent[] CreateToolCore(ToolboxItem tool,
+            int x, int y, int width, int height, bool hasLocation, bool hasSize)
+        {
+            return null;
+        }
+    }
+
+    internal class CBFInnerPanelDesigner : ParentControlDesigner
+    {
+        public override SelectionRules SelectionRules
+        {
+            get
+            {
+                SelectionRules selectionRules = base.SelectionRules;
+                selectionRules &= ~SelectionRules.AllSizeable;
+                return selectionRules;
+            }
+        }
+        protected override void PostFilterAttributes(IDictionary attributes)
+        {
+            base.PostFilterAttributes(attributes);
+            attributes[typeof(DockingAttribute)] = new DockingAttribute(DockingBehavior.Never);
+        }
+        protected override void PostFilterProperties(IDictionary properties)
+        {
+            base.PostFilterProperties(properties);
+            var propertiesToRemove = new string[] {
+            "Dock", "Anchor",
+            "Size", "Location", "Width", "Height",
+            "MinimumSize", "MaximumSize",
+            "AutoSize", "AutoSizeMode",
+            "Visible", "Enabled",
+        };
+            foreach (var item in propertiesToRemove)
+            {
+                if (properties.Contains(item))
+                    properties[item] = TypeDescriptor.CreateProperty(this.Component.GetType(),
+                        (PropertyDescriptor)properties[item],
+                        new BrowsableAttribute(false));
+            }
+        }
+    }
+    #endregion
 }

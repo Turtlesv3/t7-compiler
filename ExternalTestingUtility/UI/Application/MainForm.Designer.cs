@@ -53,13 +53,13 @@ namespace t7c_installer
             this.InnerForm.ControlContents.Enabled = true;
             this.InnerForm.ControlContents.Location = new System.Drawing.Point(0, 32);
             this.InnerForm.ControlContents.Name = "ControlContents";
-            this.InnerForm.ControlContents.Size = new System.Drawing.Size(246, 168);
+            this.InnerForm.ControlContents.Size = new System.Drawing.Size(370, 170);
             this.InnerForm.ControlContents.TabIndex = 1;
             this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
-            this.InnerForm.Size = new System.Drawing.Size(250, 204);
+            this.InnerForm.Size = new System.Drawing.Size(374, 206);
             this.InnerForm.TabIndex = 0;
             this.InnerForm.TitleBarTitle = "Compiler Utility";
             this.InnerForm.UseTitleBar = true;
@@ -73,7 +73,7 @@ namespace t7c_installer
             this.CreateDefaultProject.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.CreateDefaultProject.Location = new System.Drawing.Point(3, 69);
             this.CreateDefaultProject.Name = "CreateDefaultProject";
-            this.CreateDefaultProject.Size = new System.Drawing.Size(240, 30);
+            this.CreateDefaultProject.Size = new System.Drawing.Size(364, 30);
             this.CreateDefaultProject.TabIndex = 4;
             this.CreateDefaultProject.Text = "Create Default Project";
             this.CreateDefaultProject.UseVisualStyleBackColor = true;
@@ -88,7 +88,7 @@ namespace t7c_installer
             this.JoinDiscord.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.JoinDiscord.Location = new System.Drawing.Point(3, 135);
             this.JoinDiscord.Name = "JoinDiscord";
-            this.JoinDiscord.Size = new System.Drawing.Size(240, 30);
+            this.JoinDiscord.Size = new System.Drawing.Size(364, 30);
             this.JoinDiscord.TabIndex = 3;
             this.JoinDiscord.Text = "Join Discord Server";
             this.JoinDiscord.UseVisualStyleBackColor = true;
@@ -103,7 +103,7 @@ namespace t7c_installer
             this.InstallVSCExt.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.InstallVSCExt.Location = new System.Drawing.Point(3, 36);
             this.InstallVSCExt.Name = "InstallVSCExt";
-            this.InstallVSCExt.Size = new System.Drawing.Size(240, 30);
+            this.InstallVSCExt.Size = new System.Drawing.Size(364, 30);
             this.InstallVSCExt.TabIndex = 2;
             this.InstallVSCExt.Text = "Install VSC Extension";
             this.InstallVSCExt.UseVisualStyleBackColor = true;
@@ -118,7 +118,7 @@ namespace t7c_installer
             this.ConvertProj.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.ConvertProj.Location = new System.Drawing.Point(3, 102);
             this.ConvertProj.Name = "ConvertProj";
-            this.ConvertProj.Size = new System.Drawing.Size(240, 30);
+            this.ConvertProj.Size = new System.Drawing.Size(364, 30);
             this.ConvertProj.TabIndex = 1;
             this.ConvertProj.Text = "Auto-port T7 IL Project";
             this.ConvertProj.UseVisualStyleBackColor = true;
@@ -133,7 +133,7 @@ namespace t7c_installer
             this.UpdateButton.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.UpdateButton.Location = new System.Drawing.Point(3, 3);
             this.UpdateButton.Name = "UpdateButton";
-            this.UpdateButton.Size = new System.Drawing.Size(240, 30);
+            this.UpdateButton.Size = new System.Drawing.Size(364, 30);
             this.UpdateButton.TabIndex = 0;
             this.UpdateButton.Text = "Install Compiler";
             this.UpdateButton.UseVisualStyleBackColor = true;
@@ -143,7 +143,7 @@ namespace t7c_installer
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(250, 204);
+            this.ClientSize = new System.Drawing.Size(374, 206);
             this.Controls.Add(this.InnerForm);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.MaximizeBox = false;

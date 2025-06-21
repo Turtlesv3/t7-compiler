@@ -24,18 +24,16 @@ namespace Refract.UI.Core.Singletons
 
         public static UIThemeInfo Default()
         {
-            UIThemeInfo theme = new UIThemeInfo
-            {
-                BackColor = Color.FromArgb(28, 28, 28),
-                TextColor = Color.WhiteSmoke,
-                AccentColor = Color.DodgerBlue,
-                TitleBarColor = Color.FromArgb(36, 36, 36),
-                ButtonFlatStyle = FlatStyle.Flat,
-                ButtonHoverColor = Color.FromArgb(50, 50, 50),
-                LightBackColor = Color.FromArgb(36, 36, 36),
-                ButtonActive = Color.DodgerBlue,
-                TextInactive = Color.Gray
-            };
+            UIThemeInfo theme = new UIThemeInfo();
+            theme.BackColor = Color.FromArgb(28, 28, 28);
+            theme.TextColor = Color.WhiteSmoke;
+            theme.AccentColor = Color.DodgerBlue;
+            theme.TitleBarColor = Color.FromArgb(36, 36, 36);
+            theme.ButtonFlatStyle = FlatStyle.Flat;
+            theme.ButtonHoverColor = Color.FromArgb(50, 50, 50);
+            theme.LightBackColor = Color.FromArgb(36, 36, 36);
+            theme.ButtonActive = Color.DodgerBlue;
+            theme.TextInactive = Color.Gray;
             return theme;
         }
     }
@@ -48,12 +46,15 @@ namespace Refract.UI.Core.Singletons
         private static HashSet<Control> ThemedControls = new HashSet<Control>();
         private static Dictionary<Type, ThemeChangedCallback> CustomTypeHandlers = new Dictionary<Type, ThemeChangedCallback>();
         private static Dictionary<Control, ThemeChangedCallback> CustomControlHandlers = new Dictionary<Control, ThemeChangedCallback>();
-
         static UIThemeManager()
         {
             CurrentTheme = UIThemeInfo.Default();
         }
 
+        /// <summary>
+        /// Makes this control, and all the children of this control, theme aware. Any classes which have not had a theme handler registered will throw an exception.
+        /// </summary>
+        /// <param name="control"></param>
         internal static void SetThemeAware(this IThemeableControl control)
         {
             if (!(control is Control ctrl)) throw new InvalidOperationException($"Cannot theme control of type '{control.GetType()}' because it is not derived from Control");
@@ -66,6 +67,11 @@ namespace Refract.UI.Core.Singletons
             RegisterAndThemeControl(ctrl);
         }
 
+        /// <summary>
+        /// When a themed control is disposed, we are going remove it from the controls registry so it no longer receives theming data.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private static void ThemedControlDisposed(object sender, EventArgs e)
         {
             ThemedControls.Remove(sender as Control);
@@ -80,6 +86,11 @@ namespace Refract.UI.Core.Singletons
             }
         }
 
+        /// <summary>
+        /// Register a handler for a non-default type when theming is requested.
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="callback"></param>
         public static void RegisterCustomThemeHandler(Type type, ThemeChangedCallback callback)
         {
             if (callback == null)
@@ -133,9 +144,11 @@ namespace Refract.UI.Core.Singletons
                         gBox.Paint -= ThemedGroupBoxPaint;
                         gBox.Paint += ThemedGroupBoxPaint;
                         break;
-                    case ComboBox cBox:
+                    case CComboBox cBox:
                         cBox.ForeColor = CurrentTheme.TextColor;
                         cBox.BackColor = CurrentTheme.BackColor;
+                        cBox.BorderColor = CurrentTheme.AccentColor;
+                        cBox.Cursor = Cursors.Hand;
                         cBox.FlatStyle = FlatStyle.Flat;
                         break;
                     case Button button:
@@ -148,36 +161,27 @@ namespace Refract.UI.Core.Singletons
                     case Label label:
                         label.ForeColor = CurrentTheme.TextColor;
                         break;
+                    case CThemedTextbox cTextBox:
+                        cTextBox.BackColor = CurrentTheme.BackColor;
+                        cTextBox.ForeColor = CurrentTheme.TextColor;
+                        cTextBox.BorderStyle = BorderStyle.Fixed3D;
+                        cTextBox.BorderColor = CurrentTheme.AccentColor;
+                        break;
+                    case RichTextBox rtb:
+                        rtb.BorderStyle = BorderStyle.None;
+                        rtb.BackColor = CurrentTheme.BackColor;
+                        rtb.ForeColor = CurrentTheme.TextColor;
+                        break;
                     case TextBox textBox:
                         textBox.BackColor = CurrentTheme.BackColor;
                         textBox.ForeColor = CurrentTheme.TextColor;
-                        textBox.BorderStyle = BorderStyle.FixedSingle;
-                        break;
-                    case RichTextBox rtb:
-                        rtb.BackColor = CurrentTheme.BackColor;
-                        rtb.ForeColor = CurrentTheme.TextColor;
-                        rtb.BorderStyle = BorderStyle.FixedSingle;
                         break;
                     case Panel panel:
                         panel.BackColor = CurrentTheme.BackColor;
                         break;
-                    case CheckBox chk:
-                        chk.ForeColor = CurrentTheme.TextColor;
-                        chk.BackColor = CurrentTheme.BackColor;
-                        break;
                     case UserControl uControl:
                         uControl.BackColor = CurrentTheme.BackColor;
                         uControl.ForeColor = CurrentTheme.TextColor;
-                        break;
-                    case MenuStrip menuStrip:
-                        menuStrip.BackColor = CurrentTheme.TitleBarColor;
-                        menuStrip.ForeColor = CurrentTheme.TextColor;
-                        menuStrip.Renderer = new ToolStripProfessionalRenderer(new MenuStripColorTable(CurrentTheme));
-                        break;
-
-                    case StatusStrip statusStrip:
-                        statusStrip.BackColor = CurrentTheme.TitleBarColor;
-                        statusStrip.ForeColor = CurrentTheme.TextColor;
                         break;
                     default:
                         // Don't throw exception for unknown controls
@@ -185,6 +189,7 @@ namespace Refract.UI.Core.Singletons
                 }
             }
 
+            // invoke registered callbacks for theme changed
             if (CustomControlHandlers.ContainsKey(control))
                 CustomControlHandlers[control].Invoke(CurrentTheme);
         }
@@ -215,55 +220,24 @@ namespace Refract.UI.Core.Singletons
                                                box.ClientRectangle.Width - 1,
                                                box.ClientRectangle.Height - (int)(strSize.Height / 2) - 1);
 
+                // Clear text and border
                 g.Clear(backColor);
+
+                // Draw text
                 g.DrawString(box.Text, box.Font, textBrush, box.Padding.Left, 0);
 
                 // Drawing Border
+                //Left
                 g.DrawLine(borderPen, rect.Location, new Point(rect.X, rect.Y + rect.Height));
+                //Right
                 g.DrawLine(borderPen, new Point(rect.X + rect.Width, rect.Y), new Point(rect.X + rect.Width, rect.Y + rect.Height));
+                //Bottom
                 g.DrawLine(borderPen, new Point(rect.X, rect.Y + rect.Height), new Point(rect.X + rect.Width, rect.Y + rect.Height));
+                //Top1
                 g.DrawLine(borderPen, new Point(rect.X, rect.Y), new Point(rect.X + box.Padding.Left, rect.Y));
+                //Top2
                 g.DrawLine(borderPen, new Point(rect.X + box.Padding.Left + (int)(strSize.Width), rect.Y), new Point(rect.X + rect.Width, rect.Y));
             }
-        }
-
-        private class MenuStripColorTable : ProfessionalColorTable
-        {
-            private readonly UIThemeInfo _theme;
-
-            public MenuStripColorTable(UIThemeInfo theme)
-            {
-                _theme = theme;
-            }
-
-            public override Color MenuStripGradientBegin => _theme.TitleBarColor;
-            public override Color MenuStripGradientEnd => _theme.TitleBarColor;
-            public override Color MenuItemSelected => _theme.ButtonHoverColor;
-            public override Color MenuItemBorder => _theme.AccentColor;
-            public override Color MenuItemSelectedGradientBegin => _theme.ButtonHoverColor;
-            public override Color MenuItemSelectedGradientEnd => _theme.ButtonHoverColor;
-            public override Color MenuItemPressedGradientBegin => _theme.ButtonActive;
-            public override Color MenuItemPressedGradientEnd => _theme.ButtonActive;
-        }
-
-        public static void SetTheme(string themeName)
-        {
-            CurrentTheme = themeName.Equals("Dark", StringComparison.OrdinalIgnoreCase)
-                ? UIThemeInfo.Default()
-                : new UIThemeInfo
-                {
-                    BackColor = SystemColors.Control,
-                    AccentColor = SystemColors.Highlight,
-                    TextColor = SystemColors.ControlText,
-                    TitleBarColor = SystemColors.MenuBar,
-                    ButtonFlatStyle = FlatStyle.Standard,
-                    ButtonHoverColor = SystemColors.ControlLight,
-                    LightBackColor = SystemColors.ControlLight,
-                    ButtonActive = SystemColors.Highlight,
-                    TextInactive = SystemColors.GrayText
-                };
-
-            ApplyTheme(CurrentTheme);
         }
     }
 }
