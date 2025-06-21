@@ -29,7 +29,7 @@ namespace SMC.UI.Core.Controls
         /// </summary>
         private void InitializeComponent()
         {
-            this.InnerForm = new Refract.UI.Core.Controls.CBorderedForm();
+            this.InnerForm = new DebugCompiler.UI.Core.Controls.CBorderedForm();
             this.AcceptButton = new System.Windows.Forms.Button();
             this.ErrorRTB = new System.Windows.Forms.RichTextBox();
             this.InnerForm.ControlContents.SuspendLayout();
@@ -83,7 +83,9 @@ namespace SMC.UI.Core.Controls
             // 
             // CErrorDialog
             // 
+#pragma warning disable CS1717 // Assignment made to same variable
             this.AcceptButton = this.AcceptButton;
+#pragma warning restore CS1717 // Assignment made to same variable
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(196, 118);
@@ -99,7 +101,7 @@ namespace SMC.UI.Core.Controls
 
         #endregion
 
-        private Refract.UI.Core.Controls.CBorderedForm InnerForm;
+        private DebugCompiler.UI.Core.Controls.CBorderedForm InnerForm;
         private System.Windows.Forms.RichTextBox ErrorRTB;
         private System.Windows.Forms.Button AcceptButton;
     }

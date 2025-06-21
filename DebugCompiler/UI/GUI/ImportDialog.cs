@@ -1,5 +1,5 @@
-﻿using Refract.UI.Core.Interfaces;
-using Refract.UI.Core.Singletons;
+﻿using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
 using SMC.UI.Core.Controls;
 using System;
 using System.Collections.Generic;
@@ -22,7 +22,7 @@ namespace DebugCompiler
         public ImportDialog()
         {
             InitializeComponent();
-            UIThemeManager.OnThemeChanged(this, OnThemeChanged_Implementation);
+            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
             this.SetThemeAware();
             MaximizeBox = true;
             MinimizeBox = true;
@@ -60,7 +60,7 @@ namespace DebugCompiler
         {
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void Button1_Click(object sender, EventArgs e)
         {
         }
 

@@ -1,41 +1,74 @@
-﻿using Refract.UI.Core.Interfaces;
+﻿using DebugCompiler.UI.Core.Interfaces;
 using SMC.UI.Core.Controls;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace Refract.UI.Core.Singletons
+namespace DebugCompiler.UI.Core.Singletons
 {
     internal struct UIThemeInfo
     {
-        public Color BackColor;
-        public Color AccentColor;
-        public Color TextColor;
-        public Color TitleBarColor;
-        public FlatStyle ButtonFlatStyle;
-        public Color ButtonHoverColor;
-        public Color LightBackColor;
-        public Color ButtonActive;
-        public Color TextInactive;
+        public string Name { get; set; }
+        public bool IsDarkTheme { get; set; }
 
-        public static UIThemeInfo Default()
+        // Core Colors
+        public Color BackColor { get; set; }
+        public Color AccentColor { get; set; }
+        public Color TextColor { get; set; }
+
+        // Component Specific
+        public Color TitleBarColor { get; set; }
+        public Color ControlBackColor { get; set; }
+        public Color TextBoxBackColor { get; set; }
+        public Color ButtonBackColor { get; set; }
+        public Color ButtonHoverColor { get; set; }
+        public Color ButtonActiveColor { get; set; }
+        public Color TextInactiveColor { get; set; }
+        public Color BorderColor { get; set; }
+
+        // Styles
+        public FlatStyle ButtonFlatStyle { get; set; }
+        public BorderStyle TextBoxBorderStyle { get; set; }
+
+        public static UIThemeInfo DarkTheme => new UIThemeInfo
         {
-            UIThemeInfo theme = new UIThemeInfo();
-            theme.BackColor = Color.FromArgb(28, 28, 28);
-            theme.TextColor = Color.WhiteSmoke;
-            theme.AccentColor = Color.DodgerBlue;
-            theme.TitleBarColor = Color.FromArgb(36, 36, 36);
-            theme.ButtonFlatStyle = FlatStyle.Flat;
-            theme.ButtonHoverColor = Color.FromArgb(50, 50, 50);
-            theme.LightBackColor = Color.FromArgb(36, 36, 36);
-            theme.ButtonActive = Color.DodgerBlue;
-            theme.TextInactive = Color.Gray;
-            return theme;
-        }
+            Name = "Dark",
+            IsDarkTheme = true,
+            BackColor = Color.FromArgb(28, 28, 28),
+            ControlBackColor = Color.FromArgb(40, 40, 40),
+            TextColor = Color.WhiteSmoke,
+            AccentColor = Color.DodgerBlue,
+            TitleBarColor = Color.FromArgb(36, 36, 36),
+            TextBoxBackColor = Color.FromArgb(35, 35, 35),
+            ButtonBackColor = Color.FromArgb(50, 50, 50),
+            ButtonHoverColor = Color.FromArgb(70, 70, 70),
+            ButtonActiveColor = Color.DodgerBlue,
+            TextInactiveColor = Color.Gray,
+            BorderColor = Color.FromArgb(60, 60, 60),
+            ButtonFlatStyle = FlatStyle.Flat,
+            TextBoxBorderStyle = BorderStyle.FixedSingle
+        };
+
+        public static UIThemeInfo LightTheme => new UIThemeInfo
+        {
+            Name = "Light",
+            IsDarkTheme = false,
+            BackColor = SystemColors.Control,
+            ControlBackColor = SystemColors.ControlLight,
+            TextColor = SystemColors.ControlText,
+            AccentColor = Color.DodgerBlue,
+            TitleBarColor = SystemColors.ControlDark,
+            TextBoxBackColor = SystemColors.Window,
+            ButtonBackColor = SystemColors.Control,
+            ButtonHoverColor = SystemColors.ControlLight,
+            ButtonActiveColor = SystemColors.Highlight,
+            TextInactiveColor = SystemColors.GrayText,
+            BorderColor = SystemColors.ControlDark,
+            ButtonFlatStyle = FlatStyle.Standard,
+            TextBoxBorderStyle = BorderStyle.Fixed3D
+        };
     }
 
     internal delegate void ThemeChangedCallback(UIThemeInfo themeData);
@@ -43,96 +76,80 @@ namespace Refract.UI.Core.Singletons
     internal static class UIThemeManager
     {
         public static UIThemeInfo CurrentTheme { get; private set; }
-        private static HashSet<Control> ThemedControls = new HashSet<Control>();
-        private static Dictionary<Type, ThemeChangedCallback> CustomTypeHandlers = new Dictionary<Type, ThemeChangedCallback>();
-        private static Dictionary<Control, ThemeChangedCallback> CustomControlHandlers = new Dictionary<Control, ThemeChangedCallback>();
+        private static readonly HashSet<Control> ThemedControls = new HashSet<Control>();
+        private static readonly Dictionary<Type, ThemeChangedCallback> CustomTypeHandlers = new Dictionary<Type, ThemeChangedCallback>();
+        private static readonly Dictionary<Control, ThemeChangedCallback> CustomControlHandlers = new Dictionary<Control, ThemeChangedCallback>();
+
         static UIThemeManager()
         {
-            CurrentTheme = UIThemeInfo.Default();
+            CurrentTheme = UIThemeInfo.DarkTheme; // Default to dark theme
         }
 
-        /// <summary>
-        /// Makes this control, and all the children of this control, theme aware. Any classes which have not had a theme handler registered will throw an exception.
-        /// </summary>
-        /// <param name="control"></param>
+        public static void SetTheme(UIThemeInfo theme)
+        {
+            CurrentTheme = theme;
+            ApplyThemeToAllControls();
+        }
+
+        public static void ToggleTheme()
+        {
+            SetTheme(CurrentTheme.IsDarkTheme ? UIThemeInfo.LightTheme : UIThemeInfo.DarkTheme);
+        }
+
         internal static void SetThemeAware(this IThemeableControl control)
         {
-            if (!(control is Control ctrl)) throw new InvalidOperationException($"Cannot theme control of type '{control.GetType()}' because it is not derived from Control");
-            foreach (Control c in control.GetThemedControls())
+            if (!(control is Control ctrl))
+                throw new InvalidOperationException($"Cannot theme control of type '{control.GetType()}' because it is not derived from Control");
+
+            foreach (Control childControl in control.GetThemedControls())
             {
-                if (c == null) continue;
-                if (c is IThemeableControl themed_c) SetThemeAware(themed_c);
-                else RegisterAndThemeControl(c);
+                if (childControl == null) continue;
+                if (childControl is IThemeableControl themedControl)
+                    themedControl.SetThemeAware();
+                else
+                    RegisterAndThemeControl(childControl);
             }
             RegisterAndThemeControl(ctrl);
         }
 
-        /// <summary>
-        /// When a themed control is disposed, we are going remove it from the controls registry so it no longer receives theming data.
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private static void ThemedControlDisposed(object sender, EventArgs e)
+        private static void ApplyThemeToAllControls()
         {
-            ThemedControls.Remove(sender as Control);
-        }
-
-        internal static void ApplyTheme(UIThemeInfo theme)
-        {
-            CurrentTheme = theme;
-            foreach (var control in ThemedControls)
+            foreach (var control in ThemedControls.ToArray()) // ToArray to prevent collection modification
             {
+                if (control.IsDisposed)
+                {
+                    ThemedControls.Remove(control);
+                    continue;
+                }
                 ThemeSpecificControl(control);
             }
         }
 
-        /// <summary>
-        /// Register a handler for a non-default type when theming is requested.
-        /// </summary>
-        /// <param name="type"></param>
-        /// <param name="callback"></param>
-        public static void RegisterCustomThemeHandler(Type type, ThemeChangedCallback callback)
-        {
-            if (callback == null)
-            {
-                CustomTypeHandlers.Remove(type);
-                return;
-            }
-
-            if (CustomTypeHandlers.ContainsKey(type))
-            {
-                CustomTypeHandlers[type] += callback;
-            }
-            else
-            {
-                CustomTypeHandlers[type] = callback;
-            }
-        }
-
-        public static void OnThemeChanged(Control control, ThemeChangedCallback callback)
-        {
-            if (control == null) return;
-            if (callback == null)
-            {
-                CustomControlHandlers.Remove(control);
-                return;
-            }
-            CustomControlHandlers[control] = callback;
-            control.Disposed += CustomThemeCallback_ControlDisposed;
-        }
-
-        private static void CustomThemeCallback_ControlDisposed(object sender, EventArgs e)
-        {
-            CustomControlHandlers.Remove(sender as Control);
-        }
-
         private static void ThemeSpecificControl(Control control)
         {
-            if (CustomTypeHandlers.ContainsKey(control.GetType()))
+            // Invoke custom type handlers first
+            if (CustomTypeHandlers.TryGetValue(control.GetType(), out var typeHandler))
             {
-                CustomTypeHandlers[control.GetType()]?.Invoke(CurrentTheme);
+                typeHandler.Invoke(CurrentTheme);
             }
-            else
+
+            // Apply default theming
+            if (!(control is IThemeableControl))
+            {
+                ApplyDefaultTheme(control);
+            }
+
+            // Invoke custom control handlers
+            if (CustomControlHandlers.TryGetValue(control, out var controlHandler))
+            {
+                controlHandler.Invoke(CurrentTheme);
+            }
+        }
+
+        private static void ApplyDefaultTheme(Control control)
+        {
+            control.SuspendLayout();
+            try
             {
                 switch (control)
                 {
@@ -140,103 +157,146 @@ namespace Refract.UI.Core.Singletons
                         form.BackColor = CurrentTheme.BackColor;
                         form.ForeColor = CurrentTheme.TextColor;
                         break;
-                    case GroupBox gBox:
-                        gBox.Paint -= ThemedGroupBoxPaint;
-                        gBox.Paint += ThemedGroupBoxPaint;
-                        break;
-                    case CComboBox cBox:
-                        cBox.ForeColor = CurrentTheme.TextColor;
-                        cBox.BackColor = CurrentTheme.BackColor;
-                        cBox.BorderColor = CurrentTheme.AccentColor;
-                        cBox.Cursor = Cursors.Hand;
-                        cBox.FlatStyle = FlatStyle.Flat;
+                    case GroupBox groupBox:
+                        groupBox.Paint -= ThemedGroupBoxPaint;
+                        groupBox.Paint += ThemedGroupBoxPaint;
+                        groupBox.ForeColor = CurrentTheme.TextColor;
                         break;
                     case Button button:
-                        button.BackColor = CurrentTheme.BackColor;
-                        button.FlatAppearance.BorderColor = CurrentTheme.AccentColor;
-                        button.FlatStyle = CurrentTheme.ButtonFlatStyle;
+                        button.BackColor = CurrentTheme.ButtonBackColor;
                         button.ForeColor = CurrentTheme.TextColor;
+                        button.FlatStyle = CurrentTheme.ButtonFlatStyle;
+                        button.FlatAppearance.BorderColor = CurrentTheme.BorderColor;
                         button.FlatAppearance.MouseOverBackColor = CurrentTheme.ButtonHoverColor;
+                        button.FlatAppearance.MouseDownBackColor = CurrentTheme.ButtonActiveColor;
+                        break;
+                    case TextBoxBase textBox: // Handles TextBox and RichTextBox
+                        textBox.BackColor = CurrentTheme.TextBoxBackColor;
+                        textBox.ForeColor = CurrentTheme.TextColor;
+                        textBox.BorderStyle = CurrentTheme.TextBoxBorderStyle;
                         break;
                     case Label label:
                         label.ForeColor = CurrentTheme.TextColor;
                         break;
-                    case CThemedTextbox cTextBox:
-                        cTextBox.BackColor = CurrentTheme.BackColor;
-                        cTextBox.ForeColor = CurrentTheme.TextColor;
-                        cTextBox.BorderStyle = BorderStyle.Fixed3D;
-                        cTextBox.BorderColor = CurrentTheme.AccentColor;
-                        break;
-                    case RichTextBox rtb:
-                        rtb.BorderStyle = BorderStyle.None;
-                        rtb.BackColor = CurrentTheme.BackColor;
-                        rtb.ForeColor = CurrentTheme.TextColor;
-                        break;
-                    case TextBox textBox:
-                        textBox.BackColor = CurrentTheme.BackColor;
-                        textBox.ForeColor = CurrentTheme.TextColor;
-                        break;
                     case Panel panel:
-                        panel.BackColor = CurrentTheme.BackColor;
+                        panel.BackColor = CurrentTheme.ControlBackColor;
                         break;
-                    case UserControl uControl:
-                        uControl.BackColor = CurrentTheme.BackColor;
-                        uControl.ForeColor = CurrentTheme.TextColor;
+                    case ComboBox comboBox:
+                        comboBox.BackColor = CurrentTheme.TextBoxBackColor;
+                        comboBox.ForeColor = CurrentTheme.TextColor;
+                        comboBox.FlatStyle = CurrentTheme.ButtonFlatStyle;
                         break;
-                    default:
-                        // Don't throw exception for unknown controls
+                    case UserControl userControl:
+                        userControl.BackColor = CurrentTheme.BackColor;
+                        userControl.ForeColor = CurrentTheme.TextColor;
                         break;
                 }
             }
-
-            // invoke registered callbacks for theme changed
-            if (CustomControlHandlers.ContainsKey(control))
-                CustomControlHandlers[control].Invoke(CurrentTheme);
+            finally
+            {
+                control.ResumeLayout();
+            }
         }
 
         private static void RegisterAndThemeControl(Control control)
         {
+            if (control == null || ThemedControls.Contains(control)) return;
+
             control.Disposed += ThemedControlDisposed;
             ThemedControls.Add(control);
             ThemeSpecificControl(control);
         }
 
-        private static void ThemedGroupBoxPaint(object sender, PaintEventArgs e)
+        private static void ThemedControlDisposed(object sender, EventArgs e)
         {
-            GroupBox box = sender as GroupBox;
-            DrawGroupBox(box, e.Graphics, CurrentTheme.TextColor, CurrentTheme.AccentColor, CurrentTheme.BackColor);
+            if (sender is Control control)
+            {
+                ThemedControls.Remove(control);
+                CustomControlHandlers.Remove(control);
+            }
         }
 
-        private static void DrawGroupBox(GroupBox box, Graphics g, Color textColor, Color borderColor, Color backColor)
+        private static void ThemedGroupBoxPaint(object sender, PaintEventArgs e)
         {
-            if (box != null)
+            if (sender is GroupBox box)
             {
-                Brush textBrush = new SolidBrush(textColor);
-                Brush borderBrush = new SolidBrush(borderColor);
-                Pen borderPen = new Pen(borderBrush);
-                SizeF strSize = g.MeasureString(box.Text, box.Font);
-                Rectangle rect = new Rectangle(box.ClientRectangle.X,
-                                               box.ClientRectangle.Y + (int)(strSize.Height / 2),
-                                               box.ClientRectangle.Width - 1,
-                                               box.ClientRectangle.Height - (int)(strSize.Height / 2) - 1);
+                using (var textBrush = new SolidBrush(CurrentTheme.TextColor))
+                using (var borderPen = new Pen(CurrentTheme.BorderColor))
+                {
+                    SizeF strSize = e.Graphics.MeasureString(box.Text, box.Font);
+                    Rectangle rect = new Rectangle(
+                        box.ClientRectangle.X,
+                        box.ClientRectangle.Y + (int)(strSize.Height / 2),
+                        box.ClientRectangle.Width - 1,
+                        box.ClientRectangle.Height - (int)(strSize.Height / 2) - 1);
 
-                // Clear text and border
-                g.Clear(backColor);
+                    // Clear background
+                    e.Graphics.Clear(CurrentTheme.BackColor);
 
-                // Draw text
-                g.DrawString(box.Text, box.Font, textBrush, box.Padding.Left, 0);
+                    // Draw text
+                    e.Graphics.DrawString(box.Text, box.Font, textBrush, box.Padding.Left, 0);
 
-                // Drawing Border
-                //Left
-                g.DrawLine(borderPen, rect.Location, new Point(rect.X, rect.Y + rect.Height));
-                //Right
-                g.DrawLine(borderPen, new Point(rect.X + rect.Width, rect.Y), new Point(rect.X + rect.Width, rect.Y + rect.Height));
-                //Bottom
-                g.DrawLine(borderPen, new Point(rect.X, rect.Y + rect.Height), new Point(rect.X + rect.Width, rect.Y + rect.Height));
-                //Top1
-                g.DrawLine(borderPen, new Point(rect.X, rect.Y), new Point(rect.X + box.Padding.Left, rect.Y));
-                //Top2
-                g.DrawLine(borderPen, new Point(rect.X + box.Padding.Left + (int)(strSize.Width), rect.Y), new Point(rect.X + rect.Width, rect.Y));
+                    // Draw border
+                    // Left
+                    e.Graphics.DrawLine(borderPen, rect.Location, new Point(rect.X, rect.Y + rect.Height));
+                    // Right
+                    e.Graphics.DrawLine(borderPen,
+                        new Point(rect.X + rect.Width, rect.Y),
+                        new Point(rect.X + rect.Width, rect.Y + rect.Height));
+                    // Bottom
+                    e.Graphics.DrawLine(borderPen,
+                        new Point(rect.X, rect.Y + rect.Height),
+                        new Point(rect.X + rect.Width, rect.Y + rect.Height));
+                    // Top left
+                    e.Graphics.DrawLine(borderPen,
+                        new Point(rect.X, rect.Y),
+                        new Point(rect.X + box.Padding.Left, rect.Y));
+                    // Top right
+                    e.Graphics.DrawLine(borderPen,
+                        new Point(rect.X + box.Padding.Left + (int)strSize.Width, rect.Y),
+                        new Point(rect.X + rect.Width, rect.Y));
+                }
+            }
+        }
+
+        // Extension methods for easier theming
+        // Replace the existing extension method with these two versions:
+
+        // For controls
+        public static void RegisterCustomThemeHandler<T>(this T control, ThemeChangedCallback callback) where T : Control
+        {
+            if (control == null) return;
+
+            if (callback == null)
+            {
+                CustomControlHandlers.Remove(control);
+            }
+            else
+            {
+                CustomControlHandlers[control] = callback;
+                control.Disposed += (s, e) => CustomControlHandlers.Remove(control);
+            }
+        }
+
+        // For types (add this new method)
+        public static void RegisterCustomThemeHandler(Type type, ThemeChangedCallback callback)
+        {
+            if (type == null) return;
+
+            if (callback == null)
+            {
+                CustomTypeHandlers.Remove(type);
+            }
+            else
+            {
+                if (CustomTypeHandlers.ContainsKey(type))
+                {
+                    CustomTypeHandlers[type] += callback;
+                }
+                else
+                {
+                    CustomTypeHandlers[type] = callback;
+                }
             }
         }
     }

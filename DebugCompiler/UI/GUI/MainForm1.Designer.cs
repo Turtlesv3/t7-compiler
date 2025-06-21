@@ -28,8 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.InnerForm = new Refract.UI.Core.Controls.CBorderedForm();
-            this.txtOutput = new System.Windows.Forms.TextBox();
+            this.InnerForm = new DebugCompiler.UI.Core.Controls.CBorderedForm();
+            this.txtOutput = new System.Windows.Forms.RichTextBox();
             this.btnResetParseTree = new System.Windows.Forms.Button();
             this.btnInject = new System.Windows.Forms.Button();
             this.btnCompile = new System.Windows.Forms.Button();
@@ -40,7 +40,7 @@
             this.cmbHotMode = new System.Windows.Forms.ComboBox();
             this.cmbGame = new System.Windows.Forms.ComboBox();
             this.btnBrowse = new System.Windows.Forms.Button();
-            this.txtScriptPath = new System.Windows.Forms.TextBox();
+            this.txtScriptPath = new System.Windows.Forms.RichTextBox();
             this.InnerForm.ControlContents.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -82,16 +82,17 @@
             this.txtOutput.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtOutput.BackColor = System.Drawing.Color.Black;
-            this.txtOutput.Font = new System.Drawing.Font("Consolas", 9F);
+            this.txtOutput.BackColor = System.Drawing.Color.DimGray;
+            this.txtOutput.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtOutput.ForeColor = System.Drawing.Color.MediumPurple;
+            this.txtOutput.HideSelection = false;
             this.txtOutput.Location = new System.Drawing.Point(116, 114);
-            this.txtOutput.Multiline = true;
             this.txtOutput.Name = "txtOutput";
             this.txtOutput.ReadOnly = true;
-            this.txtOutput.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.txtOutput.Size = new System.Drawing.Size(530, 175);
             this.txtOutput.TabIndex = 0;
+            this.txtOutput.Text = "";
+            this.txtOutput.WordWrap = false;
             // 
             // btnResetParseTree
             // 
@@ -156,6 +157,7 @@
             this.chkBuild.TabIndex = 5;
             this.chkBuild.Text = "Full Build";
             this.chkBuild.UseVisualStyleBackColor = true;
+            this.chkBuild.CheckedChanged += new System.EventHandler(this.ChkBuild_CheckedChanged);
             // 
             // chkCompileOnly
             // 
@@ -168,6 +170,7 @@
             this.chkCompileOnly.TabIndex = 6;
             this.chkCompileOnly.Text = "Compile Only";
             this.chkCompileOnly.UseVisualStyleBackColor = true;
+            this.chkCompileOnly.CheckedChanged += new System.EventHandler(this.ChkCompileOnly_CheckedChanged);
             // 
             // chkHotLoad
             // 
@@ -180,6 +183,7 @@
             this.chkHotLoad.TabIndex = 7;
             this.chkHotLoad.Text = "Hot Load";
             this.chkHotLoad.UseVisualStyleBackColor = true;
+            this.chkHotLoad.CheckedChanged += new System.EventHandler(this.ChkHotLoad_CheckedChanged);
             // 
             // chkNoRuntime
             // 
@@ -192,6 +196,7 @@
             this.chkNoRuntime.TabIndex = 8;
             this.chkNoRuntime.Text = "No Runtime";
             this.chkNoRuntime.UseVisualStyleBackColor = true;
+            this.chkNoRuntime.CheckedChanged += new System.EventHandler(this.ChkNoRuntime_CheckedChanged);
             // 
             // cmbHotMode
             // 
@@ -202,9 +207,6 @@
             this.cmbHotMode.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.cmbHotMode.ForeColor = System.Drawing.Color.White;
             this.cmbHotMode.FormattingEnabled = true;
-            this.cmbHotMode.Items.AddRange(new object[] {
-            "GSC",
-            "CSC"});
             this.cmbHotMode.Location = new System.Drawing.Point(116, 56);
             this.cmbHotMode.Name = "cmbHotMode";
             this.cmbHotMode.Size = new System.Drawing.Size(52, 25);
@@ -254,6 +256,7 @@
             this.txtScriptPath.Name = "txtScriptPath";
             this.txtScriptPath.Size = new System.Drawing.Size(366, 25);
             this.txtScriptPath.TabIndex = 12;
+            this.txtScriptPath.Text = "";
             // 
             // MainForm1
             // 
@@ -276,9 +279,9 @@
 
         #endregion
 
-        private Refract.UI.Core.Controls.CBorderedForm InnerForm;
-        private System.Windows.Forms.TextBox txtScriptPath;
-        private System.Windows.Forms.TextBox txtOutput;
+        private DebugCompiler.UI.Core.Controls.CBorderedForm InnerForm;
+        private System.Windows.Forms.RichTextBox txtScriptPath;
+        private System.Windows.Forms.RichTextBox txtOutput;
         private System.Windows.Forms.Button btnResetParseTree;
         private System.Windows.Forms.Button btnCompile;
         private System.Windows.Forms.Button btnBrowse;

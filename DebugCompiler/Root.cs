@@ -36,11 +36,11 @@ namespace DebugCompiler
             internal CommandHandler Exec;
         }
         private delegate int CommandHandler(string[] args, string[] opts);
-        private Dictionary<ConsoleKey, CommandInfo> CommandTable;
+        private readonly Dictionary<ConsoleKey, CommandInfo> CommandTable;
         private bool ClearHistory = false;
-        private static string UpdatesURL = "https://gsc.dev/t7c_version";
-        private static string UpdaterURL = "https://gsc.dev/t7c_updater";
-        private static string motdpath => Path.Combine(Application.StartupPath, "motd");
+        private static readonly string UpdatesURL = "https://gsc.dev/t7c_version";
+        private static readonly string UpdaterURL = "https://gsc.dev/t7c_updater";
+        private static string Motdpath => Path.Combine(Application.StartupPath, "motd");
         private const int motdHrsRemindClear = 4;
         private static string T7ProcessName = "blackops3";
 
@@ -52,11 +52,11 @@ namespace DebugCompiler
         public Root()
         {
             CommandTable = new Dictionary<ConsoleKey, CommandInfo>();
-            AddCommand(ConsoleKey.Q, "Quit Program", cmd_Exit);
-            AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", cmd_HashString);
-            AddCommand(ConsoleKey.T, "Toggle Text History", cmd_ToggleNoClear);
-            AddCommand(ConsoleKey.C, "Compile Script [path] <T7|T8>", cmd_Compile);
-            AddCommand(ConsoleKey.I, "Inject Script [path] <T7|T8> <inject path>", cmd_Inject);
+            AddCommand(ConsoleKey.Q, "Quit Program", Cmd_Exit);
+            AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", Cmd_HashString);
+            AddCommand(ConsoleKey.T, "Toggle Text History", Cmd_ToggleNoClear);
+            AddCommand(ConsoleKey.C, "Compile Script [path] <T7|T8>", Cmd_Compile);
+            AddCommand(ConsoleKey.I, "Inject Script [path] <T7|T8> <inject path>", Cmd_Inject);
 
             // Initialize hash tables
             t8_dword = new Dictionary<uint, string>();
@@ -70,22 +70,20 @@ namespace DebugCompiler
             ParseCmdArgs(args, out string[] arguments, out string[] options);
 
             if (options.Contains("--build") || options.Contains("--compile"))
-                return cmd_Compile(arguments, options);
+                return Cmd_Compile(arguments, options);
 
             if (arguments.Length > 1 && options.Contains("--inject"))
-                return cmd_Inject(arguments, options);
+                return Cmd_Inject(arguments, options);
 
             return 0;
         }
 
-        public void PublicFreeActiveScript(bool forceReset)
-        {
-            FreeActiveScript();
-        }
+        public void PublicFreeActiveScript(bool forceReset) => FreeActiveScript();
+
         public static int RunCommandLine(string[] args)
         {
             // Create instance for command execution
-            Root rootInstance = new Root();
+            Root rootInstance = new();
 
             ParseCmdArgs(args, out string[] arguments, out string[] options);
 
@@ -104,11 +102,11 @@ namespace DebugCompiler
                 {
                     try
                     {
-                        motd();
+                        Motd(new FileInfo(Motdpath));
                         ulong local_version = ParseVersion(lv);
                         ulong remote_version = 0;
                         Console.WriteLine($"Checking client version... (our version is {local_version:X})");
-                        using (WebClient client = new WebClient())
+                        using (WebClient client = new())
                         {
                             string downloadString = client.DownloadString(UpdatesURL);
                             remote_version = ParseVersion(downloadString.ToLower().Trim());
@@ -118,7 +116,7 @@ namespace DebugCompiler
                             Console.WriteLine("Client out of date, downloading installer...");
                             string filename = Path.Combine(Path.GetTempPath(), "t7c_installer.exe");
                             if (File.Exists(filename)) File.Delete(filename);
-                            using (WebClient client = new WebClient())
+                            using (WebClient client = new())
                             {
                                 client.DownloadFile(UpdaterURL, filename);
                             }
@@ -139,10 +137,10 @@ namespace DebugCompiler
 
                 // Execute commands
                 if (options.Contains("--build") || options.Contains("--compile"))
-                    return rootInstance.cmd_Compile(arguments, options);
+                    return rootInstance.Cmd_Compile(arguments, options);
 
                 if (arguments.Length > 1 && options.Contains("--inject"))
-                    return rootInstance.cmd_Inject(arguments, options);
+                    return rootInstance.Cmd_Inject(arguments, options);
             }
 
             // If no valid commands, show help
@@ -156,18 +154,18 @@ namespace DebugCompiler
             return 1;
         }
 
-        static void motd()
+        static void Motd(FileInfo motdFileInfo)
         {
-            var fi = new FileInfo(motdpath);
+            var fi = new FileInfo(Motdpath);
             if (fi.Exists)
             {
-                if ((DateTime.Now - fi.LastWriteTimeUtc).TotalMinutes <= (60 * motdHrsRemindClear))
+                if ((DateTime.Now - fi.LastWriteTimeUtc).TotalMinutes <= 60 * motdHrsRemindClear)
                 {
                     return; // we dont want to spam users with artificial delays in the program. Lets be nice and only show the motd once every 4 hours.
                 }
             }
-            File.WriteAllText(motdpath, "https://www.youtube.com/anthonything");
-            fi = new FileInfo(motdpath);
+            File.WriteAllText(Motdpath, "https://www.youtube.com/anthonything");
+            fi = motdFileInfo;
             fi.LastWriteTimeUtc = DateTime.Now;
             Console.WriteLine($"Message of the Day:\n\tEver wanted to shoot your friend with a thundergun?\n\tEver wondered what would happen if you could 1v1 with the origins staffs?\n\tNow you can! Zombie Blood Rush is a Black Ops III zombies mod that lets you kill other players.\n\tYour points are your health. Kill other players and zombies to race to 100K points. Play now: https://steamcommunity.com/sharedfiles/filedetails/?id=2696008055\n\n");
             System.Threading.Thread.Sleep(4000);
@@ -182,7 +180,7 @@ namespace DebugCompiler
             {
                 int real_index = numbers.Length - 1 - i;
                 ulong num = ushort.Parse(numbers[real_index]);
-                result += num << (index * 16);
+                result += num << index * 16;
             }
             return result;
         }
@@ -192,11 +190,9 @@ namespace DebugCompiler
             var assembly = Assembly.GetExecutingAssembly();
             var resourceName = "DebugCompiler.version";
 
-            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
-            using (StreamReader reader = new StreamReader(stream))
-            {
-                return reader.ReadToEnd().Trim().ToLower();
-            }
+            using Stream stream = assembly.GetManifestResourceStream(resourceName);
+            using StreamReader reader = new(stream);
+            return reader.ReadToEnd().Trim().ToLower();
         }
 
         private ConsoleKey PrintOptions()
@@ -219,7 +215,7 @@ namespace DebugCompiler
                    && !Console.IsInputRedirected;
         }
 
-        public static IEnumerable<String> ParseArgs(String line, Char delimiter, Char textQualifier)
+        public static IEnumerable<string> ParseArgs(string line, char delimiter, char textQualifier)
         {
 
             if (line == null)
@@ -227,23 +223,20 @@ namespace DebugCompiler
 
             else
             {
-                Char prevChar = '\0';
-                Char nextChar = '\0';
-                Char currentChar = '\0';
+                bool inString = false;
 
-                Boolean inString = false;
-
-                StringBuilder token = new StringBuilder();
+                StringBuilder token = new();
 
                 for (int i = 0; i < line.Length; i++)
                 {
-                    currentChar = line[i];
-
+                    char currentChar = line[i];
+                    char prevChar;
                     if (i > 0)
                         prevChar = line[i - 1];
                     else
                         prevChar = '\0';
 
+                    char nextChar;
                     if (i + 1 < line.Length)
                         nextChar = line[i + 1];
                     else
@@ -279,8 +272,8 @@ namespace DebugCompiler
 
         private static void ParseCmdArgs(string[] argv, out string[] arguments, out string[] options)
         {
-            List<string> opts = new List<string>();
-            List<string> args = new List<string>();
+            List<string> opts = new();
+            List<string> args = new();
 
             foreach (string arg in argv)
             {
@@ -355,7 +348,7 @@ namespace DebugCompiler
 
         }
 
-        private int cmd_Inject(string[] args, string[] opts)
+        private int Cmd_Inject(string[] args, string[] opts)
         {
             if (args.Length < 1)
             {
@@ -380,10 +373,10 @@ namespace DebugCompiler
             {
                 byte[] buffer = File.ReadAllBytes(args[0]);
                 var path = args.Length > 2 ? args[2] :
-                          (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" :
-                                              @"scripts/zm_common/load.gsc");
+                          game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" :
+                                              @"scripts/zm_common/load.gsc";
 
-                PointerEx injresult = InjectScript(path, buffer, game, hotmode.none, false);
+                PointerEx injresult = InjectScript(path, buffer, game, Hotmode.none, false);
 
                 // Modified output handling
                 string resultMessage = !injresult ?
@@ -414,17 +407,17 @@ namespace DebugCompiler
             }
         }
 
-        private int cmd_DumpEmptySlots(string[] args, string[] opts)
+        private int Cmd_DumpEmptySlots(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_migrateMap(string[] args, string[] opts)
+        private int Cmd_migrateMap(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_ExtractStrings(string[] args, string[] opts)
+        private int Cmd_ExtractStrings(string[] args, string[] opts)
         {
             return -1;
         }
@@ -437,17 +430,17 @@ namespace DebugCompiler
             }
         }
 
-        private int cmd_Collect(string[] args, string[] opts)
+        private int Cmd_Collect(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_Automap(string[] args, string[] opts)
+        private int Cmd_Automap(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_HashString(string[] args, string[] opts)
+        private int Cmd_HashString(string[] args, string[] opts)
         {
             if (args.Length != 2 && args.Length != 4)
                 return Error("Invalid arguments");
@@ -470,8 +463,8 @@ namespace DebugCompiler
                             return Error("Invalid arguments");
                         try
                         {
-                            fnv64Offset = ulong.Parse(args[1].Trim().ToLower().Replace("0x", ""), System.Globalization.NumberStyles.HexNumber);
-                            fnv64Prime = ulong.Parse(args[2].Trim().ToLower().Replace("0x", ""), System.Globalization.NumberStyles.HexNumber);
+                            fnv64Offset = ulong.Parse(args[1].Trim().ToLower().Replace("0x", ""), NumberStyles.HexNumber);
+                            fnv64Prime = ulong.Parse(args[2].Trim().ToLower().Replace("0x", ""), NumberStyles.HexNumber);
                             input = args[3].Replace('"', ' ').Trim();
                         }
                         catch
@@ -495,8 +488,8 @@ namespace DebugCompiler
                             return Error("Invalid arguments");
                         try
                         {
-                            baseline = uint.Parse(args[1].Trim().ToLower().Replace("0x", ""), System.Globalization.NumberStyles.HexNumber);
-                            prime = uint.Parse(args[2].Trim().ToLower().Replace("0x", ""), System.Globalization.NumberStyles.HexNumber);
+                            baseline = uint.Parse(args[1].Trim().ToLower().Replace("0x", ""), NumberStyles.HexNumber);
+                            prime = uint.Parse(args[2].Trim().ToLower().Replace("0x", ""), NumberStyles.HexNumber);
                             input = args[3].Replace('"', ' ').Trim();
                         }
                         catch
@@ -514,17 +507,17 @@ namespace DebugCompiler
             }
         }
 
-        private int cmd_GenerateHashMap(string[] args, string[] opts)
+        private int Cmd_GenerateHashMap(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_Permute(string[] args, string[] opts)
+        private int Cmd_Permute(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_StatDump(string[] args, string[] opts)
+        private int Cmd_StatDump(string[] args, string[] opts)
         {
             return -1;
         }
@@ -537,13 +530,13 @@ namespace DebugCompiler
             return tok;
         }
 
-        private int cmd_Exit(string[] args, string[] opts)
+        private int Cmd_Exit(string[] args, string[] opts)
         {
             Environment.Exit(0);
             return 0;
         }
 
-        private int cmd_ToggleNoClear(string[] args, string[] opts)
+        private int Cmd_ToggleNoClear(string[] args, string[] opts)
         {
             ClearHistory = !ClearHistory;
 
@@ -552,12 +545,12 @@ namespace DebugCompiler
             return 0;
         }
 
-        private int cmd_MapFileNS(string[] args, string[] opts)
+        private int Cmd_MapFileNS(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_IncludeMapper(string[] args, string[] opts)
+        private int Cmd_IncludeMapper(string[] args, string[] opts)
         {
             return -1;
         }
@@ -569,19 +562,19 @@ namespace DebugCompiler
             public int LineEnd;
             public int CharStart;
             public int CharEnd;
-            public Dictionary<int, (int CStart, int CEnd)> LineMappings = new Dictionary<int, (int CStart, int CEnd)>();
+            public Dictionary<int, (int CStart, int CEnd)> LineMappings = new();
         }
 
-        private int cmd_Compile(string[] args, string[] opts)
+        private int Cmd_Compile(string[] args, string[] opts)
         {
 
-            List<string> conditionalSymbols = new List<string>();
+            List<string> conditionalSymbols = new();
             string replaceScript = null;
             string scriptLocation = args.Length > 0 ? args[0] : "scripts";
 
             Platforms platform = Platforms.PC;
             Games game = Games.T7;
-            hotmode hot = hotmode.none;
+            Hotmode hot = Hotmode.none;
             bool noruntime = false;
             bool buildScript = false;
             bool compileOnly = false;
@@ -645,7 +638,7 @@ namespace DebugCompiler
                         case "hot":
                             if (!Enum.TryParse(split[1].ToLower().Trim(), true, out hot))
                             {
-                                hot = hotmode.none;
+                                hot = Hotmode.none;
                             }
                             break;
                         case "noruntime":
@@ -670,16 +663,18 @@ namespace DebugCompiler
 
             string source = "";
             CompiledCode code;
-            List<SourceTokenDef> SourceTokens = new List<SourceTokenDef>();
-            StringBuilder sb = new StringBuilder();
+            List<SourceTokenDef> SourceTokens = new();
+            StringBuilder sb = new();
             int CurrentLineCount = 0;
             int CurrentCharCount = 0;
             foreach (string f in Directory.GetFiles(scriptLocation, "*.gsc", SearchOption.AllDirectories))
             {
-                var CurrentSource = new SourceTokenDef();
-                CurrentSource.FilePath = f.Replace(scriptLocation, "").Substring(1).Replace("\\", "/");
-                CurrentSource.LineStart = CurrentLineCount;
-                CurrentSource.CharStart = CurrentCharCount;
+                var CurrentSource = new SourceTokenDef
+                {
+                    FilePath = f.Replace(scriptLocation, "").Substring(1).Replace("\\", "/"),
+                    LineStart = CurrentLineCount,
+                    CharStart = CurrentCharCount
+                };
                 foreach (var line in File.ReadAllLines(f))
                 {
                     CurrentSource.LineMappings[CurrentLineCount] = (CurrentCharCount, CurrentCharCount + line.Length + 1);
@@ -696,7 +691,7 @@ namespace DebugCompiler
             end_loop:;
             }
 
-            replaceScript = replaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
+            replaceScript ??= (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
             source = sb.ToString();
             var ppc = new ConditionalBlocks();
             conditionalSymbols.Add(isT7 ? "BO3" : "BO4");
@@ -722,13 +717,13 @@ namespace DebugCompiler
                         errorCharPos -= numLineBreaks; // adjust for inserted linebreaks between files
                         foreach (var line in stok.LineMappings)
                         {
-                            var constraints = line.Value;
-                            if (errorCharPos < constraints.CStart || errorCharPos > constraints.CEnd)
+                            var (CStart, CEnd) = line.Value;
+                            if (errorCharPos < CStart || errorCharPos > CEnd)
                             {
                                 continue; // havent found the index we want yet
                             }
                             // found the target line
-                            return Error($"{e.Message} in scripts/{stok.FilePath} at line {line.Key - stok.LineStart}, position {errorCharPos - constraints.CStart}");
+                            return Error($"{e.Message} in scripts/{stok.FilePath} at line {line.Key - stok.LineStart}, position {errorCharPos - CStart}");
                         }
                     }
                     while (false);
@@ -771,7 +766,7 @@ namespace DebugCompiler
             string cpath = $"{outName}.{(code.RequiresGSI ? "gsic" : "gscc")}";
             File.WriteAllBytes(cpath, code.CompiledScript);
             string hpath = "hashes.txt";
-            StringBuilder hashes = new StringBuilder();
+            StringBuilder hashes = new();
             foreach (var kvp in code.HashMap)
             {
                 hashes.AppendLine($"0x{kvp.Key:X}, {kvp.Value}");
@@ -812,7 +807,7 @@ namespace DebugCompiler
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
             Console.WriteLine($"\t[{replaceScript}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
 
-            if (!injresult && hot == hotmode.none)
+            if (!injresult && hot == Hotmode.none)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
@@ -857,24 +852,28 @@ namespace DebugCompiler
         private int InjectedBuffSize;
         private T7SPT InjectedScript;
         private int OriginalPID = 0;
-        private int InjectScript(string replacePath, byte[] buffer, Games game, hotmode hot, bool noruntime)
+        private int InjectScript(string replacePath, byte[] buffer, Games game, Hotmode hot, bool noruntime)
         {
             LastGameInjected = game;
             switch (game)
             {
                 case Games.T7: return InjectT7(replacePath, buffer, hot, noruntime);
                 case Games.T8: return InjectT8(replacePath, buffer);
+                case Games.T6:
+                    break;
+                default:
+                    break;
             }
             return 1;
         }
 
         private class GSICInfo
         {
-            public List<T7ScriptObject.ScriptDetour> Detours = new List<T7ScriptObject.ScriptDetour>();
+            public List<T7ScriptObject.ScriptDetour> Detours = new();
 
             public byte[] PackDetours()
             {
-                List<byte> data = new List<byte>();
+                List<byte> data = new();
                 foreach (var detour in Detours)
                 {
                     data.AddRange(detour.Serialize());
@@ -885,11 +884,11 @@ namespace DebugCompiler
 
         private class GSICInfoT8
         {
-            public List<T89ScriptObject.ScriptDetour> Detours = new List<T89ScriptObject.ScriptDetour>();
+            public List<T89ScriptObject.ScriptDetour> Detours = new();
 
             public byte[] PackDetours()
             {
-                List<byte> data = new List<byte>();
+                List<byte> data = new();
                 foreach (var detour in Detours)
                 {
                     data.AddRange(detour.Serialize());
@@ -898,9 +897,9 @@ namespace DebugCompiler
             }
         }
 
-        public enum hotmode { none, csc, gsc }
+        public enum Hotmode { none, csc, gsc }
 
-        private int InjectT7(string replacePath, byte[] buffer, hotmode hot, bool noruntime)
+        private int InjectT7(string replacePath, byte[] buffer, Hotmode hot, bool noruntime)
         {
             NoExcept(FreeT7Script);
             GSICInfo gsi = null;
@@ -911,8 +910,8 @@ namespace DebugCompiler
                 {
                     return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
                 }
-                using (MemoryStream ms = new MemoryStream(buffer))
-                using (BinaryReader reader = new BinaryReader(ms))
+                using (MemoryStream ms = new(buffer))
+                using (BinaryReader reader = new(ms))
                 {
                     T7ScriptObject.GSIFields currentField = T7ScriptObject.GSIFields.Detours;
                     reader.BaseStream.Position += 4;
@@ -926,7 +925,7 @@ namespace DebugCompiler
                                 int numdetours = reader.ReadInt32();
                                 for (int j = 0; j < numdetours; j++)
                                 {
-                                    T7ScriptObject.ScriptDetour detour = new T7ScriptObject.ScriptDetour();
+                                    T7ScriptObject.ScriptDetour detour = new();
                                     detour.Deserialize(reader);
                                     gsi.Detours.Add(detour);
                                 }
@@ -945,7 +944,7 @@ namespace DebugCompiler
             {
                 return Error("No game process found for Black Ops III.");
             }
-            bool IsWindowsStore = !(bo3["GameChat2.dll"] is null);
+            bool IsWindowsStore = bo3["GameChat2.dll"] is not null;
             bo3.OpenHandle();
             bo3.SetDefaultCallType(ExCallThreadType.XCTT_QUAPC);
             OriginalPID = bo3.BaseProcess.Id;
@@ -962,10 +961,10 @@ namespace DebugCompiler
                 {
                     // find target
                     var name = bo3.GetString(entry.llpName);
-                    if (hot != hotmode.none || name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
+                    if (hot != Hotmode.none || name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
                     {
                         // cache target info
-                        if (hot == hotmode.none)
+                        if (hot == Hotmode.none)
                         {
                             llpModifiedSPTStruct = (ulong)(i * Marshal.SizeOf(typeof(T7SPT))) + sptGlob;
                             llpOriginalBuffer = entry.lpBuffer;
@@ -979,7 +978,7 @@ namespace DebugCompiler
                         bo3.SetBytes(entry.lpBuffer, buffer);
 
                         // patch spt struct
-                        if (hot == hotmode.none)
+                        if (hot == Hotmode.none)
                         {
                             bo3.SetStruct(llpModifiedSPTStruct, entry);
 
@@ -1019,7 +1018,7 @@ namespace DebugCompiler
                             }
                         }
 
-                        if (hot != hotmode.none)
+                        if (hot != Hotmode.none)
                         {
                             string exeFilePath = Assembly.GetExecutingAssembly().Location;
                             var pe = new System.PEStructures.PEImage(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll")));
@@ -1039,7 +1038,7 @@ namespace DebugCompiler
                             byte[] error_data = new byte[4];
                             try
                             {
-                                bool result = bo3.Call<bool>(hFnHotload, entry.lpBuffer, (hot == hotmode.csc) ? 1 : 0, error_data);
+                                bool result = bo3.Call<bool>(hFnHotload, entry.lpBuffer, hot == Hotmode.csc ? 1 : 0, error_data);
 
                                 if (!result)
                                 {
@@ -1088,8 +1087,8 @@ namespace DebugCompiler
                 {
                     return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops IIII.");
                 }
-                using (MemoryStream ms = new MemoryStream(buffer))
-                using (BinaryReader reader = new BinaryReader(ms))
+                using (MemoryStream ms = new(buffer))
+                using (BinaryReader reader = new(ms))
                 {
                     T7ScriptObject.GSIFields currentField = T7ScriptObject.GSIFields.Detours;
                     reader.BaseStream.Position += 4;
@@ -1103,7 +1102,7 @@ namespace DebugCompiler
                                 int numdetours = reader.ReadInt32();
                                 for (int j = 0; j < numdetours; j++)
                                 {
-                                    T89ScriptObject.ScriptDetour detour = new T89ScriptObject.ScriptDetour();
+                                    T89ScriptObject.ScriptDetour detour = new();
                                     detour.Deserialize(reader);
                                     gsi.Detours.Add(detour);
                                 }
@@ -1169,12 +1168,12 @@ namespace DebugCompiler
                 PointerEx includeTable = InjectCache.Surrogate.Buffer + bo4.GetValue<int>(InjectCache.Surrogate.Buffer + tableOff);
                 for (int i = 0; i < includeCount; i++)
                 {
-                    if (bo4.GetValue<long>(includeTable + (i * 8)) == targetScript)
+                    if (bo4.GetValue<long>(includeTable + i * 8) == targetScript)
                     {
                         goto patchBuff;
                     }
                 }
-                bo4.SetValue(includeTable + (includeCount * 8), targetScript);
+                bo4.SetValue(includeTable + includeCount * 8, targetScript);
                 bo4.SetValue(InjectCache.Surrogate.Buffer + includeOff, (byte)(includeCount + 1));
 
             patchBuff:
@@ -1314,14 +1313,14 @@ namespace DebugCompiler
             public int Unk0;
         };
 
-        private int cmd_Dump(string[] args, string[] opts)
+        private int Cmd_Dump(string[] args, string[] opts)
         {
             return -1;
         }
 
         #endregion
 
-        private static HashSet<string> HashIdentifierPrefixes = new HashSet<string>() { "script_" };
+        private static readonly HashSet<string> HashIdentifierPrefixes = new() { "script_" };
         public static ulong T8s64Hash(string input)
         {
             input = input.ToLower();
@@ -1359,7 +1358,7 @@ namespace DebugCompiler
 
             for (var i = 0; i < bytes.Length; i++)
             {
-                hash = hash ^ bytes[i];
+                hash ^= bytes[i];
                 hash *= fnv64Prime;
             }
 
@@ -1375,7 +1374,7 @@ namespace DebugCompiler
         {
         }
 
-        private static Dictionary<byte, ScriptOpCode> XboxCodes = null;
+        private static readonly Dictionary<byte, ScriptOpCode> XboxCodes = null;
 
     }
 }

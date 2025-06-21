@@ -1,5 +1,5 @@
-﻿using Refract.UI.Core.Interfaces;
-using Refract.UI.Core.Singletons;
+﻿using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace Refract.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     public partial class CTitleBar : UserControl, IThemeableControl
     {
@@ -20,7 +20,7 @@ namespace Refract.UI.Core.Controls
             InitializeComponent();
             MouseDown += MouseDown_Drag;
             UIThemeManager.RegisterCustomThemeHandler(typeof(CTitleBar), ApplyThemeCustomType_Implementation);
-            UIThemeManager.OnThemeChanged(this, ApplyThemeCustom_Implementation);
+            this.RegisterCustomThemeHandler(ApplyThemeCustom_Implementation);
             TitleLabel.MouseDown += MouseDown_Drag;
         }
 
@@ -60,7 +60,7 @@ namespace Refract.UI.Core.Controls
 
         private void ApplyThemeCustom_Implementation(UIThemeInfo themeData)
         {
-            ExitButton.BackColor = themeData.LightBackColor;
+            ExitButton.BackColor = themeData.ControlBackColor;
         }
 
         public IEnumerable<Control> GetThemedControls()

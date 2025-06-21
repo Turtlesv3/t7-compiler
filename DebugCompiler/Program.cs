@@ -1,4 +1,5 @@
-﻿using SMC.UI.Core.Controls;
+﻿using DebugCompiler;
+using SMC.UI.Core.Controls;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

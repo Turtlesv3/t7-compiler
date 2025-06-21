@@ -1,20 +1,21 @@
-﻿using Refract.UI.Core.Interfaces;
-using Refract.UI.Core.Singletons;
-using Refract.UI.Core.Controls;
+﻿using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Controls;
+using SMC.UI.Core.Controls;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TreyarchCompiler.Enums;
-using SMC.UI.Core.Controls;
-using System.Data;
-
+using static DebugCompiler.Root;
 
 namespace DebugCompiler
 {
@@ -35,28 +36,39 @@ namespace DebugCompiler
         private string _lastGameMode;
         private readonly TextWriter _originalOut = Console.Out;
         private readonly object _outputLock = new object();
+        private bool _isInternalUpdate = false;
+        private List<string> _currentOptions = new List<string>();
+
+        // New fields for enhanced functionality
+        private CancellationTokenSource _compilationCts;
+        private readonly Color _errorColor = Color.FromArgb(255, 100, 100);
+        private readonly Color _warningColor = Color.FromArgb(255, 203, 107);
+        private readonly Color _successColor = Color.FromArgb(100, 255, 100);
+        private readonly Color _infoColor = Color.FromArgb(100, 200, 255);
+        private bool _isCompiling = false;
 
         public MainForm1()
         {
-
             InitializeComponent();
-           
+
             // Add menu items
             var fileMenu = new ToolStripMenuItem("File");
             var exitItem = new ToolStripMenuItem("Exit");
             fileMenu.DropDownItems.Add(exitItem);
+
             // Add status label
             var statusLabel = new ToolStripStatusLabel();
             statusLabel.Text = "Ready";
 
             // Theme setup
-            UIThemeManager.OnThemeChanged(this, OnThemeChanged_Implementation);
+            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
             this.SetThemeAware();
             MaximizeBox = true;
             MinimizeBox = true;
 
-            // Initialize custom components after all controls are ready
+            // Initialize components
             InitializeCustomComponents();
+            InitializeOutputColors();
 
             // Compiler setup
             compilerRoot = new Root();
@@ -65,6 +77,12 @@ namespace DebugCompiler
 
             CheckRequiredFiles();
             this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
+        }
+
+        private void InitializeOutputColors()
+        {
+            txtOutput.ForeColor = Color.FromKnownColor(KnownColor.WindowText);
+            txtOutput.BackColor = Color.FromKnownColor(KnownColor.Window);
         }
 
         private void SafeAppendText(string text)
@@ -80,31 +98,71 @@ namespace DebugCompiler
                     txtOutput.SuspendLayout();
                     try
                     {
+                        // Determine color based on message content
+                        Color color = txtOutput.ForeColor; // Default color
+                        if (text.Contains("[ERROR]")) color = _errorColor;
+                        else if (text.Contains("[WARNING]")) color = _warningColor;
+                        else if (text.Contains("SUCCESS")) color = _successColor;
+                        else if (text.Contains("[INFO]") || text.Contains("[CONFIG]")) color = _infoColor;
+
+                        // Save current selection
+                        int start = txtOutput.TextLength;
                         txtOutput.AppendText(text);
+                        int end = txtOutput.TextLength;
+
+                        // Apply color
+                        txtOutput.Select(start, end - start);
+                        txtOutput.SelectionColor = color;
+                        txtOutput.SelectionLength = 0; // Clear selection
                         txtOutput.ScrollToCaret();
                     }
                     finally
                     {
                         txtOutput.ResumeLayout();
                     }
+                }
+            }
+        }
 
-                    if (text.Contains("[ERROR]"))
-                    {
-                        Color original = txtOutput.ForeColor;
-                        txtOutput.ForeColor = Color.Red;
-                        Task.Delay(500).ContinueWith(_ =>
-                        {
-                            txtOutput.Invoke((Action)(() => txtOutput.ForeColor = original));
-                        });
-                    }
+        private async Task AppendColoredTextAsync(string text, Color color)
+        {
+            await Task.Run(() => {
+                if (txtOutput.InvokeRequired)
+                {
+                    txtOutput.Invoke(new Action<string, Color>((t, c) => AppendColoredTextSync(t, c)), text, color);
+                }
+                else
+                {
+                    AppendColoredTextSync(text, color);
+                }
+            });
+        }
+
+        private void AppendColoredTextSync(string text, Color color)
+        {
+            lock (_outputLock)
+            {
+                txtOutput.SuspendLayout();
+                try
+                {
+                    int start = txtOutput.TextLength;
+                    txtOutput.AppendText(text);
+                    int end = txtOutput.TextLength;
+
+                    txtOutput.Select(start, end - start);
+                    txtOutput.SelectionColor = color;
+                    txtOutput.SelectionLength = 0;
+                    txtOutput.ScrollToCaret();
+                }
+                finally
+                {
+                    txtOutput.ResumeLayout();
                 }
             }
         }
 
         public IEnumerable<Control> GetThemedControls()
         {
-          
-            // Then return your additional controls
             yield return InnerForm;
             yield return txtOutput;
             yield return btnResetParseTree;
@@ -131,7 +189,6 @@ namespace DebugCompiler
 
         private void InitializeCustomComponents()
         {
-            
             var gameDisplayNames = new Dictionary<string, string>
             {
                 {"t6", "Call of Duty: Black Ops 2"},
@@ -139,7 +196,6 @@ namespace DebugCompiler
                 {"t8", "Call of Duty: Black Ops 4"}
             };
 
-            // Get all enum names and map them to display names
             var gameNames = Enum.GetNames(typeof(Games))
                 .Select(name => gameDisplayNames.TryGetValue(name.ToLower(), out var displayName)
                         ? displayName
@@ -149,12 +205,10 @@ namespace DebugCompiler
             cmbGame.Items.AddRange(gameNames);
             cmbGame.SelectedIndex = 1;
 
-            // Initialize cmbHotMode here
             cmbHotMode.Items.AddRange(new[] { "GSC", "CSC" });
             cmbHotMode.SelectedIndex = 0;
             cmbHotMode.Enabled = false;
 
-            // Tooltips for buttons
             resetToolTip.SetToolTip(btnResetParseTree,
                 "Reset GSC Parse Tree\n\n" +
                 $"Last Injection: {_lastInjectedScript ?? "None"}\n" +
@@ -169,7 +223,6 @@ namespace DebugCompiler
                 "- Game process running\n" +
                 "- Proper compiler setup");
 
-            // New comprehensive tooltip for compile button
             resetToolTip.SetToolTip(btnCompile,
                 "Compile Script\n\n" +
                 "Requirements:\n" +
@@ -202,7 +255,6 @@ namespace DebugCompiler
                 "Hot Load Mode\n\n" +
                 "GSC: Standard script hot loading\n" +
                 "CSC: Client-side script hot loading");
-
         }
 
         private string GetVersion()
@@ -258,10 +310,190 @@ namespace DebugCompiler
             }
         }
 
+        private void UpdateUIState(bool isCompiling)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<bool>(UpdateUIState), isCompiling);
+                return;
+            }
+
+            _isCompiling = isCompiling;
+            btnCompile.Text = isCompiling ? "Cancel" : "Compile";
+            btnCompile.Enabled = true; // Always enabled to allow cancellation
+            btnInject.Enabled = !isCompiling && !string.IsNullOrEmpty(txtScriptPath.Text);
+            btnResetParseTree.Enabled = !isCompiling;
+            btnBrowse.Enabled = !isCompiling;
+
+            chkBuild.Enabled = !isCompiling;
+            chkCompileOnly.Enabled = !isCompiling;
+            chkHotLoad.Enabled = !isCompiling;
+            chkNoRuntime.Enabled = !isCompiling;
+            cmbHotMode.Enabled = !isCompiling && chkHotLoad.Checked;
+            cmbGame.Enabled = !isCompiling;
+        }
+
+        private async Task<bool> ValidateInputs()
+        {
+            if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
+            {
+                await AppendColoredTextAsync("[ERROR] Please select a script file or folder\n", _errorColor);
+                return false;
+            }
+
+            if (!File.Exists(txtScriptPath.Text) && !Directory.Exists(txtScriptPath.Text))
+            {
+                await AppendColoredTextAsync($"[ERROR] Path does not exist: {txtScriptPath.Text}\n", _errorColor);
+                return false;
+            }
+
+            if (btnInject.Enabled && !IsGameRunning())
+            {
+                await AppendColoredTextAsync($"[WARNING] {cmbGame.Text} is not running. Injection will be skipped.\n", _warningColor);
+            }
+
+            return true;
+        }
+
+        private async void BtnCompile_Click(object sender, EventArgs e)
+        {
+            if (_isCompiling)
+            {
+                _compilationCts?.Cancel();
+                return;
+            }
+
+            ClearOutput();
+            _compilationCts = new CancellationTokenSource();
+            UpdateUIState(true);
+
+            try
+            {
+                if (!await ValidateInputs())
+                {
+                    return;
+                }
+
+                var token = _compilationCts.Token;
+                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Starting compilation...\n", _infoColor);
+
+                var args = BuildCompilerArguments();
+                await LogCompilerConfiguration(args);
+
+                int result = await Task.Run(() =>
+                {
+                    try
+                    {
+                        return compilerRoot.ExecuteCommandLine(args.ToArray());
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return -2; // Special code for cancellation
+                    }
+                    catch (Exception ex)
+                    {
+                        SafeAppendText($"[COMPILER ERROR] {ex.Message}\n");
+                        return -1;
+                    }
+                }, token);
+
+                await HandleCompilationResult(result);
+            }
+            catch (OperationCanceledException)
+            {
+                await AppendColoredTextAsync("[INFO] Compilation was cancelled\n", _infoColor);
+            }
+            catch (Exception ex)
+            {
+                await AppendColoredTextAsync($"[SYSTEM ERROR] {ex.Message}\n", _errorColor);
+            }
+            finally
+            {
+                UpdateUIState(false);
+                _compilationCts?.Dispose();
+                _compilationCts = null;
+            }
+        }
+
+        private List<string> BuildCompilerArguments()
+        {
+            var args = new List<string> { txtScriptPath.Text, cmbGame.Text };
+
+            if (chkBuild.Checked) args.Add("--build");
+            if (Directory.Exists(txtScriptPath.Text)) args.Add("--batch");
+            if (chkCompileOnly.Checked) args.Add("--compile");
+
+            if (chkHotLoad.Checked)
+            {
+                args.Add("--hot");
+                args.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
+            }
+
+            if (chkNoRuntime.Checked) args.Add("--noruntime");
+
+            return args;
+        }
+
+        private async Task LogCompilerConfiguration(List<string> args)
+        {
+            await AppendColoredTextAsync("[CONFIG] Compiler Options:\n", _infoColor);
+            await AppendColoredTextAsync($"- Target: {(File.Exists(txtScriptPath.Text) ? "File" : "Folder")} {txtScriptPath.Text}\n", _infoColor);
+            await AppendColoredTextAsync($"- Game: {cmbGame.Text}\n", _infoColor);
+
+            if (chkBuild.Checked) await AppendColoredTextAsync("- Full Build: Enabled\n", _infoColor);
+            if (Directory.Exists(txtScriptPath.Text)) await AppendColoredTextAsync("- Batch Mode: Enabled\n", _infoColor);
+            if (chkCompileOnly.Checked) await AppendColoredTextAsync("- Compile Only: Enabled\n", _infoColor);
+            if (chkHotLoad.Checked) await AppendColoredTextAsync($"- Hot Load: {cmbHotMode.SelectedItem}\n", _infoColor);
+            if (chkNoRuntime.Checked) await AppendColoredTextAsync("- No Runtime: Enabled\n", _infoColor);
+        }
+
+        private async Task HandleCompilationResult(int result)
+        {
+            switch (result)
+            {
+                case 0:
+                    await AppendColoredTextAsync("\nCOMPILATION SUCCESSFUL\n", _successColor);
+                    await HandleSuccessfulCompilation();
+                    break;
+                case -2:
+                    await AppendColoredTextAsync("\nCOMPILATION CANCELLED\n", _warningColor);
+                    break;
+                default:
+                    await AppendColoredTextAsync("\nCOMPILATION FAILED\n", _errorColor);
+                    await AppendColoredTextAsync($"[ERROR] Exit code: {result}\n", _errorColor);
+                    break;
+            }
+        }
+
+        private async Task HandleSuccessfulCompilation()
+        {
+            string outputPath = GetOutputPath();
+
+            if (File.Exists(outputPath))
+            {
+                await AppendColoredTextAsync($"Output file: {outputPath}\n", _infoColor);
+
+                if (!chkCompileOnly.Checked && !chkBuild.Checked)
+                {
+                    await Task.Delay(300);
+                    await InjectCompiledScript(outputPath);
+                }
+            }
+            else
+            {
+                await AppendColoredTextAsync("[WARNING] No output file was generated\n", _warningColor);
+            }
+        }
+
+        private string GetOutputPath()
+        {
+            return Directory.Exists(txtScriptPath.Text)
+                ? Path.Combine(txtScriptPath.Text, "bin", "compiled.gscc")
+                : Path.ChangeExtension(txtScriptPath.Text, ".gscc");
+        }
+
         private async void BtnResetParseTree_Click(object sender, EventArgs e)
         {
-            await Task.Run(() => ClearOutput());
-
             var confirm = MessageBox.Show(
                 "WARNING: Resetting parse tree while in-game may cause crashes!\n\n" +
                 "Are you sure you want to reset the GSC parse tree?",
@@ -269,7 +501,12 @@ namespace DebugCompiler
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
 
-            if (confirm != DialogResult.Yes) return;
+            if (confirm != DialogResult.Yes)
+            {
+                return;
+            }
+
+            await Task.Run(() => ClearOutput());
 
             try
             {
@@ -316,10 +553,8 @@ namespace DebugCompiler
 
         private void BtnBrowse_Click(object sender, EventArgs e)
         {
-            // Create a context menu for the button
             var menu = new ContextMenuStrip();
 
-            // Add file selection option
             var fileItem = new ToolStripMenuItem("Select File...");
             fileItem.Click += (s, args) => {
                 using (var openDialog = new OpenFileDialog())
@@ -334,7 +569,6 @@ namespace DebugCompiler
             };
             menu.Items.Add(fileItem);
 
-            // Add folder selection option
             var folderItem = new ToolStripMenuItem("Select Folder...");
             folderItem.Click += (s, args) => {
                 using (var folderDialog = new FolderBrowserDialog())
@@ -351,127 +585,171 @@ namespace DebugCompiler
             };
             menu.Items.Add(folderItem);
 
-            // Show the menu below the button
             menu.Show(btnBrowse, new Point(0, btnBrowse.Height));
         }
 
-        private async void BtnCompile_Click(object sender, EventArgs e)
+        private void UpdateCompilerOptions()
         {
+            _currentOptions.Clear();
+
+            if (chkNoRuntime.Checked) _currentOptions.Add("--noruntime");
+            if (chkHotLoad.Checked)
+            {
+                _currentOptions.Add("--hot");
+                _currentOptions.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
+            }
+            if (chkBuild.Checked) _currentOptions.Add("--build");
+            if (chkCompileOnly.Checked) _currentOptions.Add("--compile");
+        }
+
+        private void ChkNoRuntime_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_isInternalUpdate) return;
+
             ClearOutput();
-
-            // Enhanced input validation
-            if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
-            {
-                CErrorDialog.Show("Error", "Select a script folder Dumbass", true);
-                return;
-            }
-
-            // Verify the path exists
-            bool isFile = File.Exists(txtScriptPath.Text);
-            bool isDir = Directory.Exists(txtScriptPath.Text);
-
-            if (!isFile && !isDir)
-            {
-                SafeAppendText($"[ERROR] Path does not exist: {txtScriptPath.Text}\n");
-                return;
-            }
 
             try
             {
-                Cursor.Current = Cursors.WaitCursor;
-                btnCompile.Enabled = false;
+                _isInternalUpdate = true;
 
-                // Debug logging
-                SafeAppendText($"[DEBUG] Starting compilation...\n");
-                SafeAppendText($"[DEBUG] Target: {(isFile ? "File" : "Folder")} {txtScriptPath.Text}\n");
-                SafeAppendText($"[DEBUG] Game: {cmbGame.Text}\n");
-
-                var args = new List<string> { txtScriptPath.Text, cmbGame.Text };
-                var opts = new List<string>();
-
-                if (chkBuild.Checked)
+                if (chkNoRuntime.Checked)
                 {
-                    opts.Add("--build");
-                    SafeAppendText("[FULL BUILD] Enabled\n");
-                }
-
-                if (isDir)
-                {
-                    opts.Add("--batch");
-                    SafeAppendText("[BATCH MODE] Compiling all scripts in folder\n");
-                }
-
-                // Add other options...
-                if (chkCompileOnly.Checked) opts.Add("--compile");
-                if (chkHotLoad.Checked)
-                {
-                    opts.Add("--hot");
-                    opts.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
-                }
-                if (chkNoRuntime.Checked) opts.Add("--noruntime");
-
-                // Log final command
-                SafeAppendText($"[DEBUG] Command: compilerRoot {string.Join(" ", args.Concat(opts))}\n");
-
-                int result = await Task.Run(() =>
-                {
-                    try
+                    if (!chkHotLoad.Checked)
                     {
-                        return compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray());
-                    }
-                    catch (Exception ex)
-                    {
-                        SafeAppendText($"[COMPILER ERROR] {ex.Message}\n");
-                        return -1;
-                    }
-                });
-
-                if (result == 0)
-                {
-                    SafeAppendText("\nCOMPILATION SUCCESSFUL\n");
-
-                    // Handle output path
-                    string outputPath;
-                    if (isDir)
-                    {
-                        outputPath = Path.Combine(txtScriptPath.Text, "bin", "compiled.gscc");
+                        chkHotLoad.Checked = true;
+                        cmbHotMode.Enabled = true;
+                        SafeAppendText("[CONFIG] Enabled: No Runtime (auto-enabled Hot Load)\n");
+                        cmbHotMode.SelectedIndex = 0;
                     }
                     else
                     {
-                        outputPath = Path.ChangeExtension(txtScriptPath.Text, ".gscc");
-                    }
-
-                    if (File.Exists(outputPath))
-                    {
-                        SafeAppendText($"Output file: {outputPath}\n");
-
-                        if (!chkCompileOnly.Checked && !chkBuild.Checked)
-                        {
-                            await Task.Delay(300);
-                            await InjectCompiledScript(outputPath);
-                        }
-                    }
-                    else
-                    {
-                        SafeAppendText("[WARNING] No output file was generated\n");
+                        SafeAppendText("[CONFIG] Enabled: No Runtime\n");
                     }
                 }
                 else
                 {
-                    SafeAppendText("\nCOMPILATION FAILED\n");
-                    SafeAppendText($"[ERROR] Exit code: {result}\n");
+                    SafeAppendText("[CONFIG] Disabled: No Runtime\n");
                 }
-            }
-            catch (Exception ex)
-            {
-                SafeAppendText($"[SYSTEM ERROR] {ex.Message}\n");
-                SafeAppendText($"[STACK TRACE] {ex.StackTrace}\n");
+                UpdateCompilerOptions();
             }
             finally
             {
-                Cursor.Current = Cursors.Default;
-                btnCompile.Enabled = true;
+                _isInternalUpdate = false;
             }
+        }
+
+        private void ChkHotLoad_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_isInternalUpdate) return;
+
+            ClearOutput();
+            cmbHotMode.Enabled = chkHotLoad.Checked;
+
+            try
+            {
+                _isInternalUpdate = true;
+
+                if (!chkHotLoad.Checked)
+                {
+                    if (chkNoRuntime.Checked)
+                    {
+                        chkNoRuntime.Checked = false;
+                        SafeAppendText("[CONFIG] Disabled: Hot Load (auto-disabled No Runtime)\n");
+                    }
+                    else
+                    {
+                        SafeAppendText("[CONFIG] Disabled: Hot Load\n");
+                    }
+                }
+                else
+                {
+                    SafeAppendText("[CONFIG] Enabled: Hot Load\n");
+                }
+                UpdateCompilerOptions();
+            }
+            finally
+            {
+                _isInternalUpdate = false;
+            }
+        }
+
+        private void CmbHotMode_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_isInternalUpdate || !chkHotLoad.Checked) return;
+
+            ClearOutput();
+            SafeAppendText($"[CONFIG] Hot Load Mode: {(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc")}\n");
+            UpdateCompilerOptions();
+        }
+
+        private void ChkBuild_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_isInternalUpdate) return;
+
+            ClearOutput();
+            try
+            {
+                _isInternalUpdate = true;
+                if (chkBuild.Checked)
+                {
+                    chkCompileOnly.Checked = false;
+                    SafeAppendText("[CONFIG] Enabled: Full Build\n");
+                }
+                UpdateCompilerOptions();
+            }
+            finally
+            {
+                _isInternalUpdate = false;
+            }
+        }
+
+        private void ChkCompileOnly_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_isInternalUpdate) return;
+
+            ClearOutput();
+            try
+            {
+                _isInternalUpdate = true;
+                if (chkCompileOnly.Checked)
+                {
+                    chkBuild.Checked = false;
+                    SafeAppendText("[CONFIG] Enabled: Compile Only\n");
+                }
+                UpdateCompilerOptions();
+            }
+            finally
+            {
+                _isInternalUpdate = false;
+            }
+        }
+
+        private void ClearOutput()
+        {
+            if (txtOutput.InvokeRequired)
+            {
+                txtOutput.Invoke(new Action(ClearOutput));
+            }
+            else
+            {
+                lock (_outputLock)
+                {
+                    txtOutput.SuspendLayout();
+                    txtOutput.Clear();
+                    txtOutput.ResumeLayout();
+                }
+            }
+        }
+
+        private bool IsGameRunning()
+        {
+            string processName = cmbGame.Text switch
+            {
+                "Call of Duty: Black Ops 3" => "BlackOps3",
+                "Call of Duty: Black Ops 4" => "BlackOps4",
+                _ => cmbGame.Text.Replace(" ", "").ToLower()
+            };
+            return Process.GetProcessesByName(processName).Length > 0;
         }
 
         private async Task InjectCompiledScript(string outputFile)
@@ -496,14 +774,12 @@ namespace DebugCompiler
                 }
                 if (chkNoRuntime.Checked) opts.Add("--noruntime");
 
-                // Save original console streams
                 TextReader originalInput = Console.In;
                 TextWriter originalOutput = Console.Out;
                 TextWriter originalError = Console.Error;
 
                 try
                 {
-                    // Redirect all console streams
                     Console.SetIn(new StreamReader(Stream.Null));
                     Console.SetOut(TextWriter.Null);
                     Console.SetError(TextWriter.Null);
@@ -526,7 +802,6 @@ namespace DebugCompiler
                 }
                 finally
                 {
-                    // Restore original console streams
                     Console.SetIn(originalInput);
                     Console.SetOut(originalOutput);
                     Console.SetError(originalError);
@@ -542,7 +817,6 @@ namespace DebugCompiler
         {
             await Task.Run(() => ClearOutput());
 
-            // Enhanced input validation
             if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
             {
                 CErrorDialog.Show("Error", "Select a script file Dumbass", true);
@@ -607,53 +881,5 @@ namespace DebugCompiler
                 Cursor = Cursors.Default;
             }
         }
-
-        private void CmbHotMode_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            // Optional: Add any specific handling for hot mode changes
-        }
-
-        private void chkHotLoad_CheckedChanged(object sender, EventArgs e)
-        {
-            cmbHotMode.Enabled = chkHotLoad.Checked;
-
-            if (chkHotLoad.Checked)
-            {
-                SafeAppendText("Hot Load enabled. Mode: " + cmbHotMode.Text + "\n");
-            }
-            else
-            {
-                SafeAppendText("Hot Load disabled\n");
-            }
-        }
-
-        private void ClearOutput()
-        {
-            if (txtOutput.InvokeRequired)
-            {
-                txtOutput.Invoke(new Action(ClearOutput));
-            }
-            else
-            {
-                lock (_outputLock)
-                {
-                    txtOutput.SuspendLayout();
-                    txtOutput.Clear();
-                    txtOutput.ResumeLayout();
-                }
-            }
-        }
-
-        private bool IsGameRunning()
-        {
-            string processName = cmbGame.Text switch
-            {
-                "Call of Duty: Black Ops 3" => "BlackOps3",
-                "Call of Duty: Black Ops 4" => "BlackOps4",
-                _ => cmbGame.Text.Replace(" ", "").ToLower()
-            };
-            return Process.GetProcessesByName(processName).Length > 0;
-        }
-
     }
 }

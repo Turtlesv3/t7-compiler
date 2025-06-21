@@ -1,5 +1,5 @@
-﻿using Refract.UI.Core.Interfaces;
-using Refract.UI.Core.Singletons;
+﻿using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -17,7 +17,7 @@ namespace SMC.UI.Core.Controls
         public CErrorDialog(string title, string description)
         {
             InitializeComponent();
-            UIThemeManager.OnThemeChanged(this, OnThemeChanged_Implementation);
+            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
             this.SetThemeAware();
             MaximizeBox = true;
             MinimizeBox = true;
@@ -43,7 +43,7 @@ namespace SMC.UI.Core.Controls
             Close();
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void Button1_Click(object sender, EventArgs e)
         {
 
         }

@@ -1,5 +1,5 @@
-﻿using Refract.UI.Core.Interfaces;
-using Refract.UI.Core.Singletons;
+﻿using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -19,7 +19,7 @@ namespace SMC.UI.Core.Controls
         public CComboDialog(string title, object[] selectables, int defaultIndex = 0)
         {
             InitializeComponent();
-            UIThemeManager.OnThemeChanged(this, OnThemeChanged_Implementation);
+            this.RegisterCustomThemeHandler(OnThemeChanged_Implementation);
             this.SetThemeAware();
             MaximizeBox = true;
             MinimizeBox = true;
@@ -51,7 +51,7 @@ namespace SMC.UI.Core.Controls
             Close();
         }
 
-        private void cComboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        private void CComboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
             SelectedIndex = cComboBox1.SelectedIndex;
             if (SelectedIndex >= 0 && SelectedIndex < cComboBox1.Items.Count)

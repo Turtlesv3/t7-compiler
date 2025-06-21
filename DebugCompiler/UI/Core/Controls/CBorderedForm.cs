@@ -1,5 +1,4 @@
-﻿using Refract.UI.Core.Interfaces;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -8,15 +7,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Refract.UI.Core.Singletons;
 using System.ComponentModel.Design;
 using System.Windows.Forms.Design;
 using System.Drawing.Design;
 using System.Collections;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Interfaces;
 
 //http://www.reza-aghaei.com/enable-designer-of-child-panel-in-a-usercontrol/
 //TODO: https://stackoverflow.com/questions/2575216/how-to-move-and-resize-a-form-without-a-border
-namespace Refract.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     [Designer(typeof(CBorderedFormDesigner))]
     public partial class CBorderedForm : UserControl, IThemeableControl

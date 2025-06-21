@@ -29,7 +29,7 @@ namespace SMC.UI.Core.Controls
         /// </summary>
         private void InitializeComponent()
         {
-            this.InnerForm = new Refract.UI.Core.Controls.CBorderedForm();
+            this.InnerForm = new DebugCompiler.UI.Core.Controls.CBorderedForm();
             this.AcceptButton = new System.Windows.Forms.Button();
             this.cComboBox1 = new SMC.UI.Core.Controls.CComboBox();
             this.InnerForm.ControlContents.SuspendLayout();
@@ -79,7 +79,7 @@ namespace SMC.UI.Core.Controls
             this.cComboBox1.Name = "cComboBox1";
             this.cComboBox1.Size = new System.Drawing.Size(188, 25);
             this.cComboBox1.TabIndex = 2;
-            this.cComboBox1.SelectedIndexChanged += new System.EventHandler(this.cComboBox1_SelectedIndexChanged);
+            this.cComboBox1.SelectedIndexChanged += new System.EventHandler(this.CComboBox1_SelectedIndexChanged);
             // 
             // CComboDialog
             // 
@@ -98,7 +98,7 @@ namespace SMC.UI.Core.Controls
 
         #endregion
 
-        private Refract.UI.Core.Controls.CBorderedForm InnerForm;
+        private DebugCompiler.UI.Core.Controls.CBorderedForm InnerForm;
         private System.Windows.Forms.Button AcceptButton;
         private CComboBox cComboBox1;
     }

@@ -1,5 +1,5 @@
 ﻿
-namespace Refract.UI.Core.Controls
+namespace DebugCompiler.UI.Core.Controls
 {
     partial class CTitleBar
     {

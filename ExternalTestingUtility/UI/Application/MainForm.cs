@@ -58,7 +58,7 @@ namespace t7c_installer
         {
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void Button1_Click(object sender, EventArgs e)
         {
         }
 
@@ -80,7 +80,7 @@ namespace t7c_installer
                     CErrorDialog.Show("Success!", "Compiler installed successfully from local update.zip", true);
                     return;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Fall through to manual selection if automatic fails
                 }
@@ -122,9 +122,11 @@ namespace t7c_installer
                 return;
             }
             var game = (box.SelectedValue.ToString() == "Black Ops 4") ? "T8" : "T7";
-            FolderBrowserDialog fbd = new FolderBrowserDialog();
-            fbd.ShowNewFolderButton = true;
-            fbd.Description = "Select a folder to copy the default project to";
+            FolderBrowserDialog fbd = new FolderBrowserDialog
+            {
+                ShowNewFolderButton = true,
+                Description = "Select a folder to copy the default project to"
+            };
             if (fbd.ShowDialog() != DialogResult.OK) return;
             Program.CopyDefaultProject(fbd.SelectedPath, game);
             Process.Start(fbd.SelectedPath);

@@ -29,7 +29,7 @@ namespace DebugCompiler
         /// </summary>
         private void InitializeComponent()
         {
-            this.InnerForm = new Refract.UI.Core.Controls.CBorderedForm();
+            this.InnerForm = new DebugCompiler.UI.Core.Controls.CBorderedForm();
             this.StartImportButton = new System.Windows.Forms.Button();
             this.panel2 = new System.Windows.Forms.Panel();
             this.OutputLabel = new System.Windows.Forms.Label();
@@ -164,7 +164,7 @@ namespace DebugCompiler
 
         #endregion
 
-        private Refract.UI.Core.Controls.CBorderedForm InnerForm;
+        private DebugCompiler.UI.Core.Controls.CBorderedForm InnerForm;
         private System.Windows.Forms.Button SelectImportBtn;
         private System.Windows.Forms.Label ImportLabel;
         private System.Windows.Forms.Panel panel1;
