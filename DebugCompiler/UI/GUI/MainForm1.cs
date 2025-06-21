@@ -20,7 +20,16 @@ using System.Windows.Forms;
 using System.Windows.Forms.Design;
 using TreyarchCompiler.Enums;
 using System.Text;
-
+using TreyarchCompiler;
+using T7CompilerLib;
+using Games = TreyarchCompiler.Enums.Games;
+using T7CompilerLib.OpCodes;
+using XDevkit;
+using Microsoft.Test.Xbox.XDRPC;
+using System.Windows.Forms.VisualStyles;
+using System.Globalization;
+using System.Net;
+using T89CompilerLib;
 
 namespace DebugCompiler
 {

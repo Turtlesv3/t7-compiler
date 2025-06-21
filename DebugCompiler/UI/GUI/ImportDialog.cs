@@ -14,6 +14,12 @@ using System.Collections;
 using DebugCompiler.UI.Core.Singletons;
 using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Controls;
+using System.Diagnostics;
+using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading;
+using TreyarchCompiler.Enums;
 
 namespace DebugCompiler
 {

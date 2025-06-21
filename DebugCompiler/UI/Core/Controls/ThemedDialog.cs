@@ -57,5 +57,17 @@ namespace DebugCompiler.UI.Core.Controls
             }
             base.Dispose(disposing);
         }
+
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            // 
+            // ThemedDialog
+            // 
+            this.ClientSize = new System.Drawing.Size(284, 261);
+            this.Name = "ThemedDialog";
+            this.ResumeLayout(false);
+
+        }
     }
 }

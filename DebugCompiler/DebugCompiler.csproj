@@ -191,6 +191,7 @@
 
   <ItemGroup>
     <!-- Resource files -->
+    <EmbeddedResource Include="UI\Core\Controls\ThemedDialog.resx" />
     <EmbeddedResource Include="UI\GUI\MainForm1.resx">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </EmbeddedResource>

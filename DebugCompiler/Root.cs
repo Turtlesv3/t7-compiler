@@ -20,6 +20,16 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Net;
 using T89CompilerLib;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler
 {

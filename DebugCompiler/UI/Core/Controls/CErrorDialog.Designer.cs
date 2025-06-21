@@ -1,4 +1,7 @@
-﻿namespace DebugCompiler.UI.Core.Controls
+﻿using System;
+using System.Diagnostics;
+
+namespace DebugCompiler.UI.Core.Controls
 {
     partial class CErrorDialog
     {
@@ -13,12 +16,21 @@
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            try
             {
-                components.Dispose();
+                if (disposing)
+                {
+                    // Add any additional cleanup you need here
+                    components?.Dispose();
+                }
+                base.Dispose(disposing);
             }
-            base.Dispose(disposing);
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error disposing dialog: {ex}");
+            }
         }
+
 
         #region Windows Form Designer generated code
 
@@ -62,24 +74,25 @@
             // AcceptButton
             // 
             this.AcceptButton.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.AcceptButton.ForeColor = System.Drawing.Color.MediumPurple;
             this.AcceptButton.Location = new System.Drawing.Point(143, 89);
             this.AcceptButton.Name = "AcceptButton";
             this.AcceptButton.Size = new System.Drawing.Size(67, 29);
             this.AcceptButton.TabIndex = 1;
-            this.AcceptButton.Text = "Accept";
+            this.AcceptButton.Text = "NINE";
             this.AcceptButton.UseVisualStyleBackColor = true;
             this.AcceptButton.Click += new System.EventHandler(this.AcceptButton_Click);
             // 
             // ErrorRTB
             // 
             this.ErrorRTB.DetectUrls = false;
+            this.ErrorRTB.ForeColor = System.Drawing.SystemColors.MenuHighlight;
             this.ErrorRTB.Location = new System.Drawing.Point(10, 11);
             this.ErrorRTB.Name = "ErrorRTB";
             this.ErrorRTB.ReadOnly = true;
             this.ErrorRTB.Size = new System.Drawing.Size(200, 72);
             this.ErrorRTB.TabIndex = 0;
-            this.ErrorRTB.Text = "Generic error message! This is a generic error message, and you should be aware o" +
-    "f that.";
+            this.ErrorRTB.Text = "Sup Sexy Cunt!";
             // 
             // CErrorDialog
             // 
@@ -90,7 +103,7 @@
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.Name = "CErrorDialog";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Error Dialog";
+            this.Text = "Jew Dialog";
             this.InnerForm.ControlContents.ResumeLayout(false);
             this.ResumeLayout(false);
 

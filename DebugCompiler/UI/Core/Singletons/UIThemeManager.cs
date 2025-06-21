@@ -183,6 +183,17 @@ namespace DebugCompiler.UI.Core.Singletons
             }
         }
 
+        public static void RefreshAllControls()
+        {
+            foreach (var control in ThemedControls.ToArray())
+            {
+                if (!control.IsDisposed && control.IsHandleCreated)
+                {
+                    ApplyThemeToControl(control);
+                }
+            }
+        }
+
         public static void RegisterControl(Control control)
         {
             if (control != null && !ThemedControls.Contains(control))
