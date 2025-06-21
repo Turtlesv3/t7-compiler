@@ -29,6 +29,12 @@
     <Compile Update="UI\Core\Controls\CTitleBar.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Update="UI\Core\Controls\ThemedControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="UI\Core\Controls\ThemedDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="UI\GUI\ImportDialog.cs">
       <SubType>Form</SubType>
     </Compile>

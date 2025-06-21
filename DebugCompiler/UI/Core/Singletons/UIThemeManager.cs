@@ -1,10 +1,20 @@
 ﻿using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Controls;
+using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler.UI.Core.Singletons
 {
@@ -29,6 +39,19 @@ namespace DebugCompiler.UI.Core.Singletons
                 .FirstOrDefault(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase));
             if (theme.Name != null) SetTheme(theme);
         }
+
+        public static void RegisterChildControls(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                RegisterControl(child);
+                if (child.Controls.Count > 0)
+                {
+                    RegisterChildControls(child);
+                }
+            }
+        }
+
 
         private static void ApplyThemeToAllControls()
         {
@@ -73,45 +96,85 @@ namespace DebugCompiler.UI.Core.Singletons
             control.SuspendLayout();
             try
             {
-                switch (control)
+                // Handle Form first
+                if (control is Form form)
                 {
-                    case Form form:
-                        form.BackColor = CurrentTheme.BackColor;
-                        form.ForeColor = CurrentTheme.TextColor;
-                        break;
-                    case GroupBox groupBox:
-                        groupBox.Paint -= ThemedGroupBoxPaint;
-                        groupBox.Paint += ThemedGroupBoxPaint;
-                        groupBox.ForeColor = CurrentTheme.TextColor;
-                        break;
-                    case Button button:
-                        button.BackColor = CurrentTheme.ButtonBackColor;
-                        button.ForeColor = CurrentTheme.TextColor;
-                        button.FlatStyle = CurrentTheme.ButtonFlatStyle;
-                        button.FlatAppearance.BorderColor = CurrentTheme.BorderColor;
-                        button.FlatAppearance.MouseOverBackColor = CurrentTheme.ButtonHoverColor;
-                        button.FlatAppearance.MouseDownBackColor = CurrentTheme.ButtonActiveColor;
-                        break;
-                    case TextBoxBase textBox: // Handles TextBox and RichTextBox
-                        textBox.BackColor = CurrentTheme.TextBoxBackColor;
-                        textBox.ForeColor = CurrentTheme.TextColor;
-                        textBox.BorderStyle = CurrentTheme.TextBoxBorderStyle;
-                        break;
-                    case Label label:
-                        label.ForeColor = CurrentTheme.TextColor;
-                        break;
-                    case Panel panel:
-                        panel.BackColor = CurrentTheme.ControlBackColor;
-                        break;
-                    case ComboBox comboBox:
-                        comboBox.BackColor = CurrentTheme.TextBoxBackColor;
-                        comboBox.ForeColor = CurrentTheme.TextColor;
-                        comboBox.FlatStyle = CurrentTheme.ButtonFlatStyle;
-                        break;
-                    case UserControl userControl:
-                        userControl.BackColor = CurrentTheme.BackColor;
-                        userControl.ForeColor = CurrentTheme.TextColor;
-                        break;
+                    form.BackColor = CurrentTheme.BackColor;
+                    form.ForeColor = CurrentTheme.TextColor;
+                    return;
+                }
+
+                // Handle specific controls with explicit type checks
+                if (control is GroupBox groupBox)
+                {
+                    groupBox.Paint -= ThemedGroupBoxPaint;
+                    groupBox.Paint += ThemedGroupBoxPaint;
+                    groupBox.ForeColor = CurrentTheme.TextColor;
+                    return;
+                }
+
+                if (control is Button button)
+                {
+                    button.BackColor = CurrentTheme.ButtonBackColor;
+                    button.ForeColor = CurrentTheme.TextColor;
+                    button.FlatStyle = CurrentTheme.ButtonFlatStyle;
+                    button.FlatAppearance.BorderColor = CurrentTheme.BorderColor;
+                    button.FlatAppearance.MouseOverBackColor = CurrentTheme.ButtonHoverColor;
+                    button.FlatAppearance.MouseDownBackColor = CurrentTheme.ButtonActiveColor;
+                    return;
+                }
+
+                // Handle TextBox and RichTextBox separately
+                if (control is TextBox textBox)
+                {
+                    textBox.BackColor = CurrentTheme.TextBoxBackColor;
+                    textBox.ForeColor = CurrentTheme.TextColor;
+                    textBox.BorderStyle = CurrentTheme.TextBoxBorderStyle;
+                    return;
+                }
+
+                if (control is RichTextBox richTextBox)
+                {
+                    richTextBox.BackColor = CurrentTheme.TextBoxBackColor;
+                    richTextBox.ForeColor = CurrentTheme.TextColor;
+                    richTextBox.BorderStyle = CurrentTheme.TextBoxBorderStyle;
+                    return;
+                }
+
+                if (control is Label label)
+                {
+                    label.ForeColor = CurrentTheme.TextColor;
+                    return;
+                }
+
+                if (control is Panel panel)
+                {
+                    panel.BackColor = CurrentTheme.ControlBackColor;
+                    return;
+                }
+
+                if (control is ComboBox comboBox)
+                {
+                    comboBox.BackColor = CurrentTheme.TextBoxBackColor;
+                    comboBox.ForeColor = CurrentTheme.TextColor;
+                    comboBox.FlatStyle = CurrentTheme.ButtonFlatStyle;
+                    return;
+                }
+
+                if (control is UserControl userControl)
+                {
+                    userControl.BackColor = CurrentTheme.BackColor;
+                    userControl.ForeColor = CurrentTheme.TextColor;
+                    return;
+                }
+
+                // Handle DataGridView if needed
+                if (control is DataGridView dataGridView)
+                {
+                    dataGridView.BackgroundColor = CurrentTheme.BackColor;
+                    dataGridView.ForeColor = CurrentTheme.TextColor;
+                    dataGridView.GridColor = CurrentTheme.GridLineColor;
+                    return;
                 }
             }
             finally

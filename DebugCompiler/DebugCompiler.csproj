@@ -145,6 +145,8 @@
     </Compile>
     <Compile Include="Root.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UI\Core\Controls\ThemedControl.cs" />
+    <Compile Include="UI\Core\Controls\ThemedDialog.cs" />
     <Compile Include="UI\Core\Singletons\ThemeExtensions.cs" />
     <Compile Include="UI\Core\Singletons\UIThemeInfo.cs" />
 

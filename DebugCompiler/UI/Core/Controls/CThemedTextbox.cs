@@ -10,10 +10,15 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler.UI.Core.Controls
 {
-    public partial class CThemedTextbox : TextBox
+    public partial class CThemedTextbox : TextBox, IThemeableControl
     {
         const int WM_NCPAINT = 0x85;
         const uint RDW_INVALIDATE = 0x1;
@@ -25,12 +30,6 @@ namespace DebugCompiler.UI.Core.Controls
         static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
         [DllImport("user32.dll")]
         static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprc, IntPtr hrgn, uint flags);
-        public void ApplyTheme(UIThemeInfo theme)
-        {
-            this.BackColor = theme.TextBoxBackColor;
-            this.ForeColor = theme.TextColor;
-            this.BorderStyle = theme.TextBoxBorderStyle;
-        }
 
         private Color __borderColor = Color.Red;
         public Color BorderColor
@@ -43,6 +42,12 @@ namespace DebugCompiler.UI.Core.Controls
                     RDW_FRAME | RDW_IUPDATENOW | RDW_INVALIDATE);
             }
         }
+
+        public IEnumerable<Control> GetThemedControls()
+        {
+            yield break; // TextBox has no child controls to theme
+        }
+
         protected override void WndProc(ref Message m)
         {
 
@@ -77,9 +82,18 @@ namespace DebugCompiler.UI.Core.Controls
                    RDW_FRAME | RDW_IUPDATENOW | RDW_INVALIDATE);
         }
 
+        public void ApplyTheme(UIThemeInfo theme)
+        {
+            this.BackColor = theme.TextBoxBackColor;
+            this.ForeColor = theme.TextColor;
+            this.BorderStyle = theme.TextBoxBorderStyle;
+            BorderColor = theme.BorderColor;
+        }
+
         public CThemedTextbox()
         {
             InitializeComponent();
+            UIThemeManager.RegisterControl(this);
         }
     }
 }

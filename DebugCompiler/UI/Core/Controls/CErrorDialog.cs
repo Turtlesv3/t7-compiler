@@ -1,83 +1,121 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.ComponentModel.Design;
-using System.Windows.Forms.Design;
-using System.Drawing.Design;
-using System.Collections;
-using DebugCompiler.UI.Core.Singletons;
 using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Controls;
+using DebugCompiler.UI.Core.Singletons;
 
 namespace DebugCompiler.UI.Core.Controls
 {
-    public partial class CErrorDialog : Form, IThemeableControl
+    public partial class CErrorDialog : ThemedDialog
     {
         public CErrorDialog(string title, string description)
         {
-            InitializeComponent();
-            UIThemeManager.RegisterControl(this);
-            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
-            MaximizeBox = true;
-            MinimizeBox = true;
-            Text = title;
-            InnerForm.TitleBarTitle = title;
-            ErrorRTB.Text = description;
+            try
+            {
+                InitializeComponent(); // This must complete first
+
+                // Safe initialization
+                if (InnerForm != null)
+                {
+                    InnerForm.TitleBarTitle = title;
+                }
+
+                Text = title;
+                MaximizeBox = MinimizeBox = true;
+
+                // Null-check before accessing ErrorRTB
+                if (ErrorRTB != null)
+                {
+                    ErrorRTB.Text = description ?? string.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error or fallback handling
+                Console.WriteLine($"Error initializing CErrorDialog: {ex.Message}");
+                throw;
+            }
         }
 
-        public void ApplyTheme(UIThemeInfo theme)
+        public override void ApplyTheme(UIThemeInfo theme)
         {
-            ErrorRTB.BackColor = theme.TextBoxBackColor;
-            ErrorRTB.ForeColor = theme.TextColor;
-            AcceptButton.BackColor = theme.ButtonBackColor;
-            AcceptButton.ForeColor = theme.TextColor;
-            this.BackColor = theme.BackColor;
-            this.ForeColor = theme.TextColor;
-            // ... other properties
+            // Check for default struct instead of null
+            if (IsDisposed || !IsHandleCreated || theme.Equals(default(UIThemeInfo)))
+                return;
+
+            try
+            {
+                base.ApplyTheme(theme);
+
+                // Safe theming with null checks
+                if (ErrorRTB != null)
+                {
+                    ErrorRTB.BackColor = theme.TextBoxBackColor;
+                    ErrorRTB.ForeColor = theme.TextColor;
+                    ErrorRTB.BorderStyle = theme.TextBoxBorderStyle;
+                }
+
+                if (AcceptButton != null)
+                {
+                    AcceptButton.BackColor = theme.ButtonBackColor;
+                    AcceptButton.ForeColor = theme.TextColor;
+                    AcceptButton.FlatStyle = theme.ButtonFlatStyle;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error applying theme: {ex.Message}");
+            }
+            finally
+            {
+                Invalidate(true);
+            }
         }
 
-        private void OnThemeChanged_Implementation(UIThemeInfo theme)
+        public override IEnumerable<Control> GetThemedControls()
         {
-            ApplyTheme(theme);
-        }
-
-        public IEnumerable<Control> GetThemedControls()
-        {
-            yield return InnerForm;
-            yield return ErrorRTB;
-            yield return AcceptButton;
+            if (InnerForm != null) yield return InnerForm;
+            if (ErrorRTB != null) yield return ErrorRTB;
+            if (AcceptButton != null) yield return AcceptButton;
         }
 
         private void AcceptButton_Click(object sender, EventArgs e)
         {
-            Close();
-        }
-
-        private void Button1_Click(object sender, EventArgs e)
-        {
-
+            try
+            {
+                Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error closing dialog: {ex.Message}");
+            }
         }
 
         public static void Show(string title, string description, bool topMost = false)
         {
-            // Ensure this runs on the UI thread
-            if (Application.OpenForms.Count > 0)
+            try
             {
-                var form = Application.OpenForms[0];
-                if (form.InvokeRequired)
+                if (Application.OpenForms.Count > 0)
                 {
-                    form.Invoke(new Action(() => new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog()));
+                    var form = Application.OpenForms[0];
+                    if (form.InvokeRequired)
+                    {
+                        form.Invoke(new Action(() =>
+                            new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog()));
+                    }
+                    else
+                    {
+                        new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog();
+                    }
                 }
-                else
-                {
-                    new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog();
-                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error showing error dialog: {ex.Message}");
+                // Fallback to MessageBox if our dialog fails
+                MessageBox.Show(description, title,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
     }

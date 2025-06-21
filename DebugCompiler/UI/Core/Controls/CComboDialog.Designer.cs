@@ -1,5 +1,4 @@
-﻿
-namespace DebugCompiler.UI.Core.Controls
+﻿namespace DebugCompiler.UI.Core.Controls
 {
     partial class CComboDialog
     {
@@ -93,13 +92,12 @@ namespace DebugCompiler.UI.Core.Controls
             this.Text = "Error Dialog";
             this.InnerForm.ControlContents.ResumeLayout(false);
             this.ResumeLayout(false);
-
         }
 
         #endregion
 
         private DebugCompiler.UI.Core.Controls.CBorderedForm InnerForm;
-        private System.Windows.Forms.Button AcceptButton;
-        private CComboBox cComboBox1;
+        private new System.Windows.Forms.Button AcceptButton;
+        private DebugCompiler.UI.Core.Controls.CComboBox cComboBox1;
     }
 }

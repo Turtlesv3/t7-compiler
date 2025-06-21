@@ -19,6 +19,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
 using TreyarchCompiler.Enums;
+using System.Text;
+
 
 namespace DebugCompiler
 {

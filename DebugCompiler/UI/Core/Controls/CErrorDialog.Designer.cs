@@ -1,5 +1,4 @@
-﻿
-namespace DebugCompiler.UI.Core.Controls
+﻿namespace DebugCompiler.UI.Core.Controls
 {
     partial class CErrorDialog
     {
@@ -101,6 +100,6 @@ namespace DebugCompiler.UI.Core.Controls
 
         private DebugCompiler.UI.Core.Controls.CBorderedForm InnerForm;
         private System.Windows.Forms.RichTextBox ErrorRTB;
-        private System.Windows.Forms.Button AcceptButton;
+        private new System.Windows.Forms.Button AcceptButton;
     }
 }

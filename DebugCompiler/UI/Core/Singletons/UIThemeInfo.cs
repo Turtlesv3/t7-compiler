@@ -1,9 +1,12 @@
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -11,8 +14,6 @@ using System.ComponentModel.Design;
 using System.Windows.Forms.Design;
 using System.Drawing.Design;
 using System.Collections;
-using DebugCompiler.UI.Core.Singletons;
-using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler.UI.Core.Singletons
@@ -44,6 +45,27 @@ namespace DebugCompiler.UI.Core.Singletons
         public BorderStyle TextBoxBorderStyle { get; set; }
         public FlatStyle ButtonFlatStyle { get; set; }
         public FontStyle HeaderFontStyle { get; set; }
+
+        public Color GetColor(string colorKey)
+        {
+            return colorKey switch
+            {
+                "@dialog_bg" => this.BackColor,
+                "@text_primary" => this.TextColor,
+                "@border_color" => this.BorderColor,
+                "@button_bg" => this.ButtonBackColor,
+                "@textbox_bg" => this.TextBoxBackColor,
+                "@accent" => this.AccentColor,
+                "@highlight" => this.HighlightColor,
+                _ => throw new ArgumentException($"Unknown color key: {colorKey}")
+            };
+        }
+
+        public static UIThemeInfo GetThemeByName(string name)
+        {
+            return AvailableThemes.FirstOrDefault(t =>
+                t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        }
 
         // Built-in Themes
         public static UIThemeInfo Dark => new()
