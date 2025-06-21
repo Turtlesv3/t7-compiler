@@ -113,7 +113,30 @@ namespace DebugCompiler.UI.Core.Controls
 
         private void OnThemeChanged_Implementation(UIThemeInfo theme)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated)
+                return;
+
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated)
+                {
+                    Invoke(new Action<UIThemeInfo>(OnThemeChanged_Implementation), theme);
+                }
+                return;
+            }
+
             ApplyTheme(theme);
+        }
+
+        public static void SafeInvoke(Control control, Action action)
+        {
+            if (control != null && !control.IsDisposed && control.IsHandleCreated)
+            {
+                if (control.InvokeRequired)
+                    control.Invoke(action);
+                else
+                    action();
+            }
         }
 
         public IEnumerable<Control> GetThemedControls()

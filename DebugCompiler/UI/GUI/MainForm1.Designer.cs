@@ -1,4 +1,21 @@
-﻿namespace DebugCompiler
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.ComponentModel.Design;
+using System.Windows.Forms.Design;
+using System.Drawing.Design;
+using System.Collections;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Controls;
+
+namespace DebugCompiler
 {
     partial class MainForm1
     {
@@ -258,6 +275,7 @@
             this.txtScriptPath.Size = new System.Drawing.Size(366, 25);
             this.txtScriptPath.TabIndex = 12;
             this.txtScriptPath.Text = "";
+            this.txtScriptPath.TextChanged += new System.EventHandler(this.TxtScriptPath_TextChanged);
             // 
             // MainForm1
             // 

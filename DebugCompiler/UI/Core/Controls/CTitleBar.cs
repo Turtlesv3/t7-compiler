@@ -60,10 +60,12 @@ namespace DebugCompiler.UI.Core.Controls
 
         public void ApplyTheme(UIThemeInfo theme)
         {
-            // Implement control-specific theming
-            this.BackColor = theme.BackColor;
+            if (IsDisposed || !IsHandleCreated) return;
+
+            this.BackColor = theme.AccentColor; // Different color for title bar
             this.ForeColor = theme.TextColor;
-            // ... other properties
+            ExitButton.BackColor = theme.AccentColor;
+            ExitButton.ForeColor = theme.TextColor;
         }
 
         private void OnThemeChanged_Implementation(UIThemeInfo theme)

@@ -33,7 +33,10 @@ namespace DebugCompiler.UI.Core.Controls
 
         public void ApplyTheme(UIThemeInfo theme)
         {
-            // Implement control-specific theming
+            ErrorRTB.BackColor = theme.TextBoxBackColor;
+            ErrorRTB.ForeColor = theme.TextColor;
+            AcceptButton.BackColor = theme.ButtonBackColor;
+            AcceptButton.ForeColor = theme.TextColor;
             this.BackColor = theme.BackColor;
             this.ForeColor = theme.TextColor;
             // ... other properties
@@ -63,7 +66,19 @@ namespace DebugCompiler.UI.Core.Controls
 
         public static void Show(string title, string description, bool topMost = false)
         {
-            new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog();
+            // Ensure this runs on the UI thread
+            if (Application.OpenForms.Count > 0)
+            {
+                var form = Application.OpenForms[0];
+                if (form.InvokeRequired)
+                {
+                    form.Invoke(new Action(() => new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog()));
+                }
+                else
+                {
+                    new CErrorDialog(title, description) { TopMost = topMost }.ShowDialog();
+                }
+            }
         }
     }
 }

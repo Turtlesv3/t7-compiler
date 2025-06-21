@@ -1,4 +1,5 @@
 ﻿using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -24,6 +25,12 @@ namespace DebugCompiler.UI.Core.Controls
         static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
         [DllImport("user32.dll")]
         static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprc, IntPtr hrgn, uint flags);
+        public void ApplyTheme(UIThemeInfo theme)
+        {
+            this.BackColor = theme.TextBoxBackColor;
+            this.ForeColor = theme.TextColor;
+            this.BorderStyle = theme.TextBoxBorderStyle;
+        }
 
         private Color __borderColor = Color.Red;
         public Color BorderColor

@@ -48,7 +48,8 @@ namespace DebugCompiler
         private readonly Color _warningColor = Color.FromArgb(255, 203, 107);
         private readonly Color _successColor = Color.FromArgb(100, 255, 100);
         private readonly Color _infoColor = Color.FromArgb(100, 200, 255);
-        private bool _isCompiling = false;
+        private volatile bool _isCompiling = false; // Add volatile for thread safety
+        private volatile bool _isInjecting = false;
 
         private ToolStripMenuItem _themeMenu;
         internal static class NativeMethods
@@ -85,23 +86,40 @@ namespace DebugCompiler
             {
                 var item = new ToolStripMenuItem(theme.Name)
                 {
-                    Tag = theme.Name
+                    Tag = theme.Name,
                 };
-                item.Click += (s, e) => UIThemeManager.SetTheme((string)((ToolStripMenuItem)s).Tag);
+                item.Click += (s, e) => UIThemeManager.SetTheme(theme.Name);
                 _themeMenu.DropDownItems.Add(item);
             }
 
             // Add to existing menu or create new
-            if (MainMenuStrip != null)
-            {
-                MainMenuStrip.Items.Add(_themeMenu);
-            }
-            else
+            if (MainMenuStrip == null)
             {
                 var menuStrip = new MenuStrip();
+                menuStrip.GripStyle = ToolStripGripStyle.Hidden;
+                menuStrip.Visible = false; // Start hidden
                 menuStrip.Items.Add(_themeMenu);
                 Controls.Add(menuStrip);
                 MainMenuStrip = menuStrip;
+            }
+            else
+            {
+                MainMenuStrip.Items.Add(_themeMenu);
+            }
+        }
+
+        public void ShowThemeMenu(bool show)
+        {
+            if (MainMenuStrip != null)
+            {
+                MainMenuStrip.Visible = show;
+                if (show)
+                {
+                    MainMenuStrip.Location = new Point(
+                        this.ClientSize.Width - 120,
+                        0);
+                    MainMenuStrip.BringToFront();
+                }
             }
         }
 
@@ -120,6 +138,7 @@ namespace DebugCompiler
 
             // Theme setup
             InitializeThemeMenu();
+            ShowThemeMenu(false);
             UIThemeManager.RegisterControl(this);
             UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
             MaximizeBox = true;
@@ -132,6 +151,21 @@ namespace DebugCompiler
                 btnBrowse.Invalidate();
             };
 
+            // Initial theme apply
+            this.HandleCreated += (s, e) => {
+                ApplyTheme(UIThemeManager.CurrentTheme);
+            };
+
+            // Toggle with Ctrl+T
+            this.KeyPreview = true;
+            this.KeyDown += (s, e) => {
+                if (e.Control && e.KeyCode == Keys.T)
+                    ShowThemeMenu(!MainMenuStrip.Visible);
+            };
+
+            txtScriptPath.TextChanged += TxtScriptPath_TextChanged;
+            UpdateInjectButtonState(); // Initial button state
+
             // Initialize components
             InitializeCustomComponents();
             InitializeOutputColors();
@@ -143,7 +177,6 @@ namespace DebugCompiler
 
             CheckRequiredFiles();
             this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
-            ApplyTheme(UIThemeManager.CurrentTheme);
         }
 
         private void InitializeOutputColors()
@@ -154,6 +187,20 @@ namespace DebugCompiler
 
         public void ApplyTheme(UIThemeInfo theme)
         {
+
+            if (IsDisposed || Disposing || !IsHandleCreated)
+                return;
+
+            if (InvokeRequired)
+            {
+                // Only invoke if handle is created
+                if (IsHandleCreated)
+                {
+                    Invoke(new Action<UIThemeInfo>(ApplyTheme), theme);
+                }
+                return;
+            }
+
             this.SuspendLayout();
             try
             {
@@ -286,16 +333,14 @@ namespace DebugCompiler
 
         private async Task AppendColoredTextAsync(string text, Color color)
         {
-            await Task.Run(() => {
-                if (txtOutput.InvokeRequired)
-                {
-                    txtOutput.Invoke(new Action<string, Color>((t, c) => AppendColoredTextSync(t, c)), text, color);
-                }
-                else
-                {
-                    AppendColoredTextSync(text, color);
-                }
-            });
+            if (txtOutput.InvokeRequired)
+            {
+                await Task.Run(() => txtOutput.Invoke(new Action<string, Color>(AppendColoredTextSync), text, color));
+            }
+            else
+            {
+                AppendColoredTextSync(text, color);
+            }
         }
 
         private void AppendColoredTextSync(string text, Color color)
@@ -340,8 +385,25 @@ namespace DebugCompiler
 
         private void OnThemeChanged_Implementation(UIThemeInfo currentTheme)
         {
-            // Force immediate update of all controls
-            ApplyTheme(currentTheme);
+
+            if (IsDisposed || Disposing || !IsHandleCreated)
+                return;
+
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated)
+                {
+                    Invoke(new Action<UIThemeInfo>(OnThemeChanged_Implementation), currentTheme);
+                }
+                return;
+            }
+
+            // Only proceed if the theme is actually different
+            if (this.BackColor != currentTheme.BackColor ||
+                this.ForeColor != currentTheme.TextColor)
+            {
+                ApplyTheme(currentTheme);
+            }
 
             // Special case for tooltips
             resetToolTip.BackColor = currentTheme.BackColor;
@@ -486,27 +548,30 @@ namespace DebugCompiler
             }
         }
 
-        private void UpdateUIState(bool isCompiling)
+        private void UpdateUIState()
         {
+            if (IsDisposed || Disposing) return;
+
             if (InvokeRequired)
             {
-                Invoke(new Action<bool>(UpdateUIState), isCompiling);
+                Invoke(new Action(UpdateUIState));
                 return;
             }
 
-            _isCompiling = isCompiling;
-            btnCompile.Text = isCompiling ? "Cancel" : "Compile";
-            btnCompile.Enabled = true; // Always enabled to allow cancellation
-            btnInject.Enabled = !isCompiling && !string.IsNullOrEmpty(txtScriptPath.Text);
-            btnResetParseTree.Enabled = !isCompiling;
-            btnBrowse.Enabled = !isCompiling;
+            btnCompile.Text = _isCompiling ? "Cancel" : "Compile";
+            btnCompile.Enabled = true;
+            btnResetParseTree.Enabled = !_isCompiling && !_isInjecting;
+            btnBrowse.Enabled = !_isCompiling && !_isInjecting;
 
-            chkBuild.Enabled = !isCompiling;
-            chkCompileOnly.Enabled = !isCompiling;
-            chkHotLoad.Enabled = !isCompiling;
-            chkNoRuntime.Enabled = !isCompiling;
-            cmbHotMode.Enabled = !isCompiling && chkHotLoad.Checked;
-            cmbGame.Enabled = !isCompiling;
+            chkBuild.Enabled = !_isCompiling && !_isInjecting;
+            chkCompileOnly.Enabled = !_isCompiling && !_isInjecting;
+            chkHotLoad.Enabled = !_isCompiling && !_isInjecting;
+            chkNoRuntime.Enabled = !_isCompiling && !_isInjecting;
+            cmbHotMode.Enabled = !_isCompiling && !_isInjecting && chkHotLoad.Checked;
+            cmbGame.Enabled = !_isCompiling && !_isInjecting;
+
+            btnInject.Refresh();
+            btnCompile.Refresh();
         }
 
         private async Task<bool> ValidateInputs()
@@ -514,18 +579,15 @@ namespace DebugCompiler
             if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
             {
                 await AppendColoredTextAsync("[ERROR] Please select a script file or folder\n", _errorColor);
+                UpdateUIState(); // Explicitly update state after validation failure
                 return false;
             }
 
             if (!File.Exists(txtScriptPath.Text) && !Directory.Exists(txtScriptPath.Text))
             {
                 await AppendColoredTextAsync($"[ERROR] Path does not exist: {txtScriptPath.Text}\n", _errorColor);
+                UpdateUIState(); // Explicitly update state after validation failure
                 return false;
-            }
-
-            if (btnInject.Enabled && !IsGameRunning())
-            {
-                await AppendColoredTextAsync($"[WARNING] {cmbGame.Text} is not running. Injection will be skipped.\n", _warningColor);
             }
 
             return true;
@@ -539,9 +601,10 @@ namespace DebugCompiler
                 return;
             }
 
+            _isCompiling = true;
+            UpdateUIState();
             ClearOutput();
             _compilationCts = new CancellationTokenSource();
-            UpdateUIState(true);
 
             try
             {
@@ -585,9 +648,11 @@ namespace DebugCompiler
             }
             finally
             {
-                UpdateUIState(false);
+                _isCompiling = false;
+                UpdateUIState();
                 _compilationCts?.Dispose();
                 _compilationCts = null;
+                UpdateInjectButtonState();
             }
         }
 
@@ -900,6 +965,65 @@ namespace DebugCompiler
             }
         }
 
+        private void TxtScriptPath_TextChanged(object sender, EventArgs e)
+        {
+            UpdateInjectButtonState();
+            UpdateUIState();
+        }
+
+        private void UpdateInjectButtonState()
+        {
+            if (IsDisposed || Disposing) return;
+
+            bool shouldEnable = !_isCompiling &&
+                               !_isInjecting &&
+                               !string.IsNullOrEmpty(txtScriptPath.Text) &&
+                               File.Exists(txtScriptPath.Text);
+
+            Action updateAction = () => {
+                if (btnInject.Enabled != shouldEnable)
+                {
+                    btnInject.Enabled = shouldEnable;
+                    btnInject.Invalidate();
+                    btnInject.Update();
+
+                    // Only show error dialog if we're disabling the button and it wasn't already disabled
+                    if (!shouldEnable && btnInject.Enabled)
+                    {
+                        string reason = "";
+                        if (_isCompiling) reason += "• Compilation in progress\n";
+                        if (_isInjecting) reason += "• Injection in progress\n";
+                        if (string.IsNullOrEmpty(txtScriptPath.Text)) reason += "• No script selected\n";
+                        else if (!File.Exists(txtScriptPath.Text)) reason += "• Selected file doesn't exist\n";
+
+                        // Use CErrorDialog instead of tooltip
+                        if (!string.IsNullOrEmpty(reason))
+                        {
+                            CErrorDialog.Show("Injection Unavailable",
+                                            "Cannot inject because:\n\n" + reason,
+                                            true);
+                        }
+                    }
+                }
+            };
+
+            if (btnInject.InvokeRequired)
+            {
+                try
+                {
+                    btnInject.BeginInvoke(updateAction);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Silently handle if control is disposed during invoke
+                }
+            }
+            else
+            {
+                updateAction();
+            }
+        }
+
         private void ClearOutput()
         {
             if (txtOutput.InvokeRequired)
@@ -919,13 +1043,20 @@ namespace DebugCompiler
 
         private bool IsGameRunning()
         {
-            string processName = cmbGame.Text switch
+            try
             {
-                "Call of Duty: Black Ops 3" => "BlackOps3",
-                "Call of Duty: Black Ops 4" => "BlackOps4",
-                _ => cmbGame.Text.Replace(" ", "").ToLower()
-            };
-            return Process.GetProcessesByName(processName).Length > 0;
+                string processName = cmbGame.Text switch
+                {
+                    "Call of Duty: Black Ops 3" => "BlackOps3",
+                    "Call of Duty: Black Ops 4" => "BlackOps4",
+                    _ => cmbGame.Text.Replace(" ", "").ToLower()
+                };
+                return Process.GetProcessesByName(processName).Length > 0;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private async Task InjectCompiledScript(string outputFile)
@@ -991,37 +1122,42 @@ namespace DebugCompiler
 
         private async void BtnInject_Click(object sender, EventArgs e)
         {
-            await Task.Run(() => ClearOutput());
-
-            if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
+            if (_isCompiling || _isInjecting)
             {
-                CErrorDialog.Show("Error", "Select a script file Dumbass", true);
+                await AppendColoredTextAsync("[INFO] Operation already in progress\n", _infoColor);
                 return;
             }
 
-            if (Directory.Exists(txtScriptPath.Text))
-            {
-                CErrorDialog.Show("Error", "Cannot inject a folder. Please select a single script file.", true);
-                return;
-            }
-
-            if (!IsGameRunning())
-            {
-                CErrorDialog.Show("Game Not Running",
-                                $"{cmbGame.Text} is not running. Please start the game first.",
-                                true);
-                return;
-            }
+            _isInjecting = true;
+            UpdateUIState();
 
             try
             {
-                btnInject.Enabled = false;
-                Cursor = Cursors.WaitCursor;
-                SafeAppendText($"[{DateTime.Now:HH:mm:ss}] Starting injection...\n");
+                await ClearOutputAsync();
 
-                _lastInjectedScript = Path.GetFileName(txtScriptPath.Text);
-                _lastGameMode = cmbGame.Text;
-                _lastInjectionTime = DateTime.Now;
+                if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
+                {
+                    CErrorDialog.Show("Error", "Please select a script file first", true);
+                    btnBrowse.Focus();
+                    return;
+                }
+
+                if (Directory.Exists(txtScriptPath.Text))
+                {
+                    CErrorDialog.Show("Error", "Cannot inject a folder. Please select a single script file.", true);
+                    return;
+                }
+
+                if (!IsGameRunning())
+                {
+                    CErrorDialog.Show("Game Not Running",
+                           $"{cmbGame.Text} is not running. Please start the game first.",
+                           true);
+                    return;
+                }
+
+                Cursor = Cursors.WaitCursor;
+                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Starting injection...\n", _infoColor);
 
                 var args = new List<string> { txtScriptPath.Text, cmbGame.Text };
                 var opts = new List<string> { "--inject" };
@@ -1033,28 +1169,49 @@ namespace DebugCompiler
                 }
                 if (chkNoRuntime.Checked) opts.Add("--noruntime");
 
-                int result = await Task.Run(() => compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
+                int injectionResult = await Task.Run(() => compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
 
-                if (result != 0 || txtOutput.Text.Contains("[ERROR] No game process found"))
+                if (injectionResult != 0 || txtOutput.Text.Contains("[ERROR] No game process found"))
                 {
-                    SafeAppendText("\nINJECTION FAILED\n");
+                    await AppendColoredTextAsync("\nINJECTION FAILED\n", _errorColor);
+                    CErrorDialog.Show("Injection Failed", "The injection process failed. Check the output for details.", true);
                     UpdateResetButton(false);
                 }
                 else
                 {
-                    SafeAppendText("\nINJECTION SUCCESSFUL\n");
+                    await AppendColoredTextAsync("\nINJECTION SUCCESSFUL\n", _successColor);
+                    _lastInjectedScript = Path.GetFileName(txtScriptPath.Text);
+                    _lastGameMode = cmbGame.Text;
+                    _lastInjectionTime = DateTime.Now;
                     UpdateResetButton(true);
                 }
             }
             catch (Exception ex)
             {
-                SafeAppendText($"[ERROR] {ex.Message}\n");
+                await AppendColoredTextAsync($"[ERROR] {ex.Message}\n", _errorColor);
                 CErrorDialog.Show("Injection Error", $"An error occurred during injection:\n{ex.Message}", true);
             }
             finally
             {
-                btnInject.Enabled = true;
+                _isInjecting = false;
                 Cursor = Cursors.Default;
+                UpdateUIState();
+                UpdateInjectButtonState();
+            }
+        }
+
+        private async Task ClearOutputAsync()
+        {
+            if (txtOutput.InvokeRequired)
+            {
+                await (Task)txtOutput.Invoke(new Func<Task>(ClearOutputAsync));
+            }
+            else
+            {
+                lock (_outputLock)
+                {
+                    txtOutput.Clear();
+                }
             }
         }
     }

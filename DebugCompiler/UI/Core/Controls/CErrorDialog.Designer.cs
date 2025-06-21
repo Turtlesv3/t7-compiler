@@ -48,13 +48,14 @@ namespace DebugCompiler.UI.Core.Controls
             this.InnerForm.ControlContents.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.InnerForm.ControlContents.Location = new System.Drawing.Point(0, 32);
             this.InnerForm.ControlContents.Name = "ControlContents";
-            this.InnerForm.ControlContents.Size = new System.Drawing.Size(192, 82);
+            this.InnerForm.ControlContents.Size = new System.Drawing.Size(220, 128);
             this.InnerForm.ControlContents.TabIndex = 1;
             this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.InnerForm.ForeColor = System.Drawing.Color.WhiteSmoke;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
-            this.InnerForm.Size = new System.Drawing.Size(196, 118);
+            this.InnerForm.Size = new System.Drawing.Size(224, 164);
             this.InnerForm.TabIndex = 0;
             this.InnerForm.TitleBarTitle = "Error Dialog";
             this.InnerForm.UseTitleBar = true;
@@ -62,7 +63,7 @@ namespace DebugCompiler.UI.Core.Controls
             // AcceptButton
             // 
             this.AcceptButton.Cursor = System.Windows.Forms.Cursors.Hand;
-            this.AcceptButton.Location = new System.Drawing.Point(118, 49);
+            this.AcceptButton.Location = new System.Drawing.Point(143, 89);
             this.AcceptButton.Name = "AcceptButton";
             this.AcceptButton.Size = new System.Drawing.Size(67, 29);
             this.AcceptButton.TabIndex = 1;
@@ -73,22 +74,19 @@ namespace DebugCompiler.UI.Core.Controls
             // ErrorRTB
             // 
             this.ErrorRTB.DetectUrls = false;
-            this.ErrorRTB.Location = new System.Drawing.Point(5, -5);
+            this.ErrorRTB.Location = new System.Drawing.Point(10, 11);
             this.ErrorRTB.Name = "ErrorRTB";
             this.ErrorRTB.ReadOnly = true;
-            this.ErrorRTB.Size = new System.Drawing.Size(180, 48);
+            this.ErrorRTB.Size = new System.Drawing.Size(200, 72);
             this.ErrorRTB.TabIndex = 0;
             this.ErrorRTB.Text = "Generic error message! This is a generic error message, and you should be aware o" +
     "f that.";
             // 
             // CErrorDialog
             // 
-#pragma warning disable CS1717 // Assignment made to same variable
-            this.AcceptButton = this.AcceptButton;
-#pragma warning restore CS1717 // Assignment made to same variable
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(196, 118);
+            this.ClientSize = new System.Drawing.Size(224, 164);
             this.Controls.Add(this.InnerForm);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.Name = "CErrorDialog";

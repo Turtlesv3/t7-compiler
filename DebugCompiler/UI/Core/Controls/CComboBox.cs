@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DebugCompiler.UI.Core.Singletons;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
@@ -37,6 +38,35 @@ namespace DebugCompiler.UI.Core.Controls
         public CComboBox()
         {
             BorderColor = Color.DimGray;
+        }
+
+        private bool _isApplyingTheme = false;
+
+        public void ApplyTheme(UIThemeInfo theme)
+        {
+            if (_isApplyingTheme || IsDisposed || !IsHandleCreated)
+                return;
+
+            _isApplyingTheme = true;
+            try
+            {
+                if (InvokeRequired)
+                {
+                    if (IsHandleCreated)
+                    {
+                        Invoke(new Action<UIThemeInfo>(ApplyTheme), theme);
+                    }
+                    return;
+                }
+
+                this.BackColor = theme.BackColor;
+                this.ForeColor = theme.TextColor;
+
+            }
+            finally
+            {
+                _isApplyingTheme = false;
+            }
         }
 
         [Browsable(true)]
