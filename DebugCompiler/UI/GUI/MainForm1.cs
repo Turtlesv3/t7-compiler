@@ -105,13 +105,18 @@ namespace DebugCompiler
             // Load saved theme at startup
             string savedTheme = UIThemeManager.LoadTheme();
             var savedThemeInfo = UIThemeInfo.GetThemeByName(savedTheme);
+            var defaultTheme = new UIThemeInfo(); // Default struct value
 
             foreach (var theme in UIThemeInfo.AvailableThemes)
             {
+                bool isChecked = EqualityComparer<UIThemeInfo>.Default.Equals(savedThemeInfo, defaultTheme)
+                    ? false
+                    : theme.Name.Equals(savedThemeInfo.Name, StringComparison.OrdinalIgnoreCase);
+
                 var item = new ToolStripMenuItem(theme.Name)
                 {
                     Tag = theme.Name,
-                    Checked = theme.Name.Equals(savedThemeInfo.Name, StringComparison.OrdinalIgnoreCase)
+                    Checked = isChecked
                 };
 
                 item.Click += (s, e) =>
@@ -122,7 +127,6 @@ namespace DebugCompiler
                         menuItem.Checked = menuItem == item;
                     }
 
-                    // Set the new theme
                     UIThemeManager.SetTheme(theme.Name);
                 };
 
@@ -144,10 +148,40 @@ namespace DebugCompiler
                 MainMenuStrip.Items.Add(_themeMenu);
             }
 
-            // Apply the saved theme at startup if valid
-            if (!string.IsNullOrEmpty(savedThemeInfo.Name))
+            // Apply saved theme if not default
+            if (!EqualityComparer<UIThemeInfo>.Default.Equals(savedThemeInfo, defaultTheme) &&
+                !string.IsNullOrEmpty(savedThemeInfo.Name))
             {
                 UIThemeManager.SetTheme(savedThemeInfo);
+            }
+        }
+
+        // Optional helper method for theme preview icons
+        private Image CreateThemePreviewImage(UIThemeInfo theme)
+        {
+            var bmp = new Bitmap(16, 16);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.FillRectangle(new SolidBrush(theme.BackColor), 0, 0, 8, 16);
+                g.FillRectangle(new SolidBrush(theme.AccentColor), 8, 0, 8, 16);
+            }
+            return bmp;
+        }
+
+        // Custom renderer for theme menu
+        private class CustomToolStripRenderer : ToolStripProfessionalRenderer
+        {
+            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.Item.Selected)
+                {
+                    e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(70, 70, 70)),
+                        new Rectangle(Point.Empty, e.Item.Size));
+                }
+                else
+                {
+                    base.OnRenderMenuItemBackground(e);
+                }
             }
         }
 
@@ -169,17 +203,42 @@ namespace DebugCompiler
         public MainForm1()
         {
             InitializeComponent(); // This creates the window handle
+            InitializeGameComboBox();
+
+            // Set initial selection based on running game
+            var (initialGame, _) = DetectRunningGame();
+            if (initialGame != Games.None)
+            {
+                foreach (KeyValuePair<Games, string> item in cmbGame.Items)
+                {
+                    if (item.Key == initialGame)
+                    {
+                        cmbGame.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
 
             // Initialize core components
             toolTip1 = new ToolTip();
-
-            // Create status label (after InitializeComponent)
-            InitializeStatusLabel();
+            // After InitializeComponent()
+            cmbGame.SelectedIndex -= cmbGame.SelectedIndex; // Prevent duplicate binding
+            cmbGame.SelectedIndex += cmbGame.SelectedIndex;
 
             // Theme system initialization
             InitializeThemeMenu();
             UIThemeManager.RegisterControl(this);
             UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
+
+            // Create status label (after InitializeComponent)
+            InitializeStatusLabel();
+
+            // Force initial theme application
+            this.Load += (sender, e) =>
+            {
+                ApplyTheme(UIThemeManager.CurrentTheme);
+                UpdateGameStatus();
+            };
 
             // Process monitoring
             InitializeProcessMonitoring();
@@ -277,17 +336,16 @@ namespace DebugCompiler
                 Dock = DockStyle.Bottom,
                 TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
                 Height = 25,
-                BackColor = Color.FromArgb(30, 30, 30),
-                ForeColor = Color.Gray, // Default color
+                BackColor = Color.FromArgb(40, 40, 40), // Dark default
+                ForeColor = Color.Gray, // Default state
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Margin = new Padding(0),
+                Padding = new Padding(0),
                 UseCompatibleTextRendering = true
             };
 
             Controls.Add(_lblGameStatus);
             _lblGameStatus.BringToFront();
-
-            // Directly update status - no BeginInvoke here
-            UpdateGameStatus();
         }
 
         private (Games runningGame, bool isRunning) DetectRunningGame()
@@ -323,7 +381,7 @@ namespace DebugCompiler
                 {
                     _lastRunningStatus = isRunning;
                     _lastRunningGame = currentRunningGame;
-                    UpdateGameStatus();
+                    UpdateGameStatus(); // This will now update the combobox selection
                 }
             }
             catch (Exception ex)
@@ -334,27 +392,35 @@ namespace DebugCompiler
 
         private void UpdateGameStatus()
         {
-            if (_lblGameStatus == null) return;
-
-            // Check if invoke required
-            if (InvokeRequired)
-            {
-                Invoke((MethodInvoker)UpdateGameStatus);
-                return;
-            }
+            if (_lblGameStatus == null || cmbGame == null) return;
 
             var (runningGame, isRunning) = DetectRunningGame();
 
             if (isRunning)
             {
                 _lblGameStatus.Text = "✓ Running";
-                _lblGameStatus.ForeColor = Color.FromArgb(100, 255, 100);
+                _lblGameStatus.ForeColor = Color.FromArgb(100, 255, 100); // Bright green
+
+                // Find and select the running game in the combobox
+                foreach (var item in cmbGame.Items)
+                {
+                    if (item is KeyValuePair<Games, string> pair && pair.Key == runningGame)
+                    {
+                        if (!Equals(cmbGame.SelectedItem, item))
+                        {
+                            cmbGame.SelectedItem = item;
+                        }
+                        break;
+                    }
+                }
             }
             else
             {
                 _lblGameStatus.Text = "✗ Not Running";
-                _lblGameStatus.ForeColor = Color.FromArgb(255, 100, 100);
+                _lblGameStatus.ForeColor = Color.FromArgb(255, 100, 100); // Bright red
             }
+
+            UpdateInjectButtonState();
         }
 
         private string GetProcessNameForGame(Games game)
@@ -374,65 +440,75 @@ namespace DebugCompiler
             CheckGameProcess();
         }
 
-        private void cmbGame_SelectedIndexChanged(object sender, EventArgs e)
+        private void CmbGame_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (cmbGame.SelectedIndex < 0) return;
+            if (cmbGame == null || cmbGame.SelectedIndex < 0)
+                return;
 
-            _currentGame = (Games)cmbGame.SelectedIndex;
-            UpdateGameStatus();
-            UpdateCompilerOptions();
+            try
+            {
+                if (cmbGame.SelectedItem is KeyValuePair<Games, string> selectedPair)
+                {
+                    _currentGame = selectedPair.Key;
 
-            // Force immediate process check
-            CheckGameProcess();
+                    // Update UI states
+                    UpdateGameStatus();
+                    UpdateCompilerOptions();
+                    UpdateInjectButtonState();
+
+                    // Force immediate process check with thread safety
+                    if (InvokeRequired)
+                    {
+                        BeginInvoke((MethodInvoker)CheckGameProcess);
+                    }
+                    else
+                    {
+                        CheckGameProcess();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Game selection change error: {ex.Message}");
+                SafeAppendText($"[ERROR] Failed to process game selection: {ex.Message}\n");
+            }
         }
 
         public void ApplyTheme(UIThemeInfo theme)
         {
-
-            if (IsDisposed || Disposing || !IsHandleCreated)
-                return;
-
-            if (InvokeRequired)
-            {
-                // Only invoke if handle is created
-                if (IsHandleCreated)
-                {
-                    Invoke(new Action<UIThemeInfo>(ApplyTheme), theme);
-                }
-                return;
-            }
-
-            if (_lblGameStatus != null)
-            {
-                _lblGameStatus.BackColor = theme.IsDarkTheme
-                    ? Color.FromArgb(40, 40, 40)
-                    : Color.FromArgb(240, 240, 240);
-
-                // Update status to apply correct foreground color
-                UpdateGameStatus();
-            }
+            if (IsDisposed || !IsHandleCreated) return;
 
             this.SuspendLayout();
             try
             {
-                // Apply to form
+                // Apply to main form
                 this.BackColor = theme.BackColor;
                 this.ForeColor = theme.TextColor;
 
-                // Apply to all controls recursively
+                // Apply to custom border form if exists
+                if (this.InnerForm != null)
+                {
+                    this.InnerForm.BackColor = theme.AccentColor;
+                    this.InnerForm.ForeColor = theme.TextColor;
+                    this.InnerForm.Invalidate();
+                }
+
+                // Apply to all controls
                 ApplyThemeToControls(this.Controls, theme);
 
-                // Special handling for RichTextBox
-                txtOutput.BackColor = theme.TextBoxBackColor;
-                txtOutput.ForeColor = theme.TextColor;
-                txtOutput.BorderStyle = theme.TextBoxBorderStyle;
-
-                // Force redraw
-                this.Invalidate(true);
+                // Special handling for status label
+                if (_lblGameStatus != null)
+                {
+                    _lblGameStatus.BackColor = theme.IsDarkTheme
+                        ? Color.FromArgb(40, 40, 40)
+                        : Color.FromArgb(240, 240, 240);
+                    UpdateGameStatus();
+                }
             }
             finally
             {
                 this.ResumeLayout(true);
+                this.Refresh();
             }
         }
 
@@ -706,13 +782,6 @@ namespace DebugCompiler
 
         private void InitializeGameComboBox()
         {
-            // Get all enum values except None
-            var gameValues = Enum.GetValues(typeof(Games))
-                                .Cast<Games>()
-                                .Where(g => g != Games.None)
-                                .ToArray();
-
-            // Set display names
             var gameDisplayNames = new Dictionary<Games, string>
     {
         {Games.T6, "Black Ops 2 (T6)"},
@@ -720,14 +789,17 @@ namespace DebugCompiler
         {Games.T8, "Black Ops 4 (T8)"}
     };
 
-            // Set up combobox
             cmbGame.DisplayMember = "Value";
             cmbGame.ValueMember = "Key";
-            cmbGame.DataSource = gameValues
+            cmbGame.DataSource = Enum.GetValues(typeof(Games))
+                .Cast<Games>()
+                .Where(g => g != Games.None)
                 .Select(g => new KeyValuePair<Games, string>(g, gameDisplayNames[g]))
                 .ToList();
 
-            cmbGame.SelectedIndex = 0; // Default to first game
+            // Modified event handler to prevent recursive updates
+            cmbGame.SelectedIndexChanged -= CmbGame_SelectedIndexChanged;
+            cmbGame.SelectedIndexChanged += CmbGame_SelectedIndexChanged;
         }
 
         private string GetVersion()
@@ -1065,16 +1137,20 @@ namespace DebugCompiler
 
         private async void BtnResetParseTree_Click(object sender, EventArgs e)
         {
-            var confirm = MessageBox.Show(
-                "WARNING: Resetting parse tree while in-game may cause crashes!\n\n" +
-                "Are you sure you want to reset the GSC parse tree?",
-                "Confirm Reset",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
+            // Create confirmation options
+            var options = new object[] { "Yes", "No" };
 
-            if (confirm != DialogResult.Yes)
+            // Use CComboDialog for confirmation
+            using (var confirmDialog = new CComboDialog(
+                "Confirm Reset",
+                options,
+                1)) // Default to "No"
             {
-                return;
+                if (confirmDialog.ShowDialog(this) != DialogResult.OK ||
+                    confirmDialog.SelectedValue?.ToString() != "Yes")
+                {
+                    return;
+                }
             }
 
             await Task.Run(() => ClearOutput());
@@ -1092,7 +1168,15 @@ namespace DebugCompiler
             catch (Exception ex)
             {
                 SafeAppendText($"[ERROR] {ex.Message}\n");
-                MessageBox.Show(ex.Message, "Reset Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                // Use CComboDialog for error display (or could use ImportDialog if preferred)
+                using (var errorDialog = new CComboDialog(
+                    "Reset Error",
+                    new object[] { ex.Message },
+                    0))
+                {
+                    errorDialog.ShowDialog(this);
+                }
             }
             finally
             {
@@ -1275,54 +1359,78 @@ namespace DebugCompiler
 
         private void UpdateInjectButtonState()
         {
-            if (IsDisposed || Disposing) return;
+            if (IsDisposed || Disposing || btnInject == null || cmbGame == null || txtScriptPath == null)
+                return;
 
+            // Get current game states
+            var (runningGame, isRunning) = DetectRunningGame();
+
+            // Safely get selected game
+            Games selectedGame = Games.None;
+            if (cmbGame.SelectedItem is KeyValuePair<Games, string> selectedPair)
+            {
+                selectedGame = selectedPair.Key;
+            }
+
+            // Determine if injection should be enabled
             bool shouldEnable = !_isCompiling &&
                                !_isInjecting &&
+                               isRunning &&
+                               selectedGame == runningGame &&
                                !string.IsNullOrEmpty(txtScriptPath.Text) &&
                                File.Exists(txtScriptPath.Text);
 
-            Action updateAction = () => {
-                if (btnInject.Enabled != shouldEnable)
+            void UpdateButtonState()
+            {
+                try
                 {
-                    btnInject.Enabled = shouldEnable;
-                    btnInject.Invalidate();
-                    btnInject.Update();
-
-                    // Only show error dialog if we're disabling the button and it wasn't already disabled
-                    if (!shouldEnable && btnInject.Enabled)
+                    if (btnInject.Enabled != shouldEnable)
                     {
-                        string reason = "";
-                        if (_isCompiling) reason += "• Compilation in progress\n";
-                        if (_isInjecting) reason += "• Injection in progress\n";
-                        if (string.IsNullOrEmpty(txtScriptPath.Text)) reason += "• No script selected\n";
-                        else if (!File.Exists(txtScriptPath.Text)) reason += "• Selected file doesn't exist\n";
+                        btnInject.Enabled = shouldEnable;
+                        btnInject.Invalidate();
+                        btnInject.Update();
 
-                        // Use CErrorDialog instead of tooltip
-                        if (!string.IsNullOrEmpty(reason))
+                        // Show error dialog if disabling from enabled state
+                        if (!shouldEnable && btnInject.Enabled)
                         {
-                            CErrorDialog.Show("Injection Unavailable",
-                                            "Cannot inject because:\n\n" + reason,
-                                            true);
+                            string reason = "";
+                            if (_isCompiling) reason += "• Compilation in progress\n";
+                            if (_isInjecting) reason += "• Injection in progress\n";
+                            if (!isRunning) reason += "• Game is not running\n";
+                            else if (selectedGame != runningGame)
+                                reason += $"• Wrong game selected (Running: {runningGame})\n";
+                            if (string.IsNullOrEmpty(txtScriptPath.Text)) reason += "• No script selected\n";
+                            else if (!File.Exists(txtScriptPath.Text)) reason += "• Selected file doesn't exist\n";
+
+                            if (!string.IsNullOrEmpty(reason))
+                            {
+                                CErrorDialog.Show("Injection Unavailable",
+                                                "Cannot inject because:\n\n" + reason,
+                                                true);
+                            }
                         }
                     }
                 }
-            };
+                catch (ObjectDisposedException)
+                {
+                    // Handle disposed controls gracefully
+                }
+            }
 
             if (btnInject.InvokeRequired)
             {
                 try
                 {
-                    btnInject.BeginInvoke(updateAction);
+                    btnInject.BeginInvoke((Action)UpdateButtonState);
                 }
-                catch (ObjectDisposedException)
+                catch (InvalidOperationException)
                 {
-                    // Silently handle if control is disposed during invoke
+                    // Handle cases where control isn't ready for invocation
                 }
             }
             else
             {
-                updateAction();
+                UpdateButtonState();
             }
         }
 

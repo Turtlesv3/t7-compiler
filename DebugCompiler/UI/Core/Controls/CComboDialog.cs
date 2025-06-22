@@ -1,5 +1,4 @@
-﻿using DebugCompiler.UI.Core.Controls;
-using DebugCompiler.UI.Core.Singletons;
+﻿using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -12,6 +11,7 @@ namespace DebugCompiler.UI.Core.Controls
     {
         private bool _isApplyingTheme = false;
         private Color _borderColor = Color.DimGray;
+        private UIThemeInfo _currentTheme;
 
         [Browsable(true)]
         [Category("Appearance")]
@@ -19,7 +19,11 @@ namespace DebugCompiler.UI.Core.Controls
         public Color BorderColor
         {
             get => _borderColor;
-            set => _borderColor = value;
+            set
+            {
+                _borderColor = value;
+                Invalidate();
+            }
         }
 
         public object SelectedValue { get; private set; }
@@ -39,6 +43,25 @@ namespace DebugCompiler.UI.Core.Controls
             {
                 cComboBox1.SelectedIndex = defaultIndex;
             }
+
+            // Register for theme changes
+            UIThemeManager.RegisterControl(this);
+            UIThemeManager.ThemeChanged += OnThemeChanged;
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            ApplyTheme(UIThemeManager.CurrentTheme);
+        }
+
+        protected override void OnThemeChanged(UIThemeInfo theme)  // Changed to override
+        {
+            if (!IsDisposed && IsHandleCreated)
+            {
+                ApplyTheme(theme);
+            }
+            base.OnThemeChanged(theme);  // Call base implementation
         }
 
         public override void ApplyTheme(UIThemeInfo theme)
@@ -55,21 +78,38 @@ namespace DebugCompiler.UI.Core.Controls
                     return;
                 }
 
+                _currentTheme = theme;
                 base.ApplyTheme(theme);
                 BorderColor = theme.BorderColor;
 
-                // Theme specific controls
+                // Apply theme to all controls
+                BackColor = theme.BackColor;
+                ForeColor = theme.TextColor;
+
                 if (cComboBox1 != null)
                 {
                     cComboBox1.BackColor = theme.TextBoxBackColor;
                     cComboBox1.ForeColor = theme.TextColor;
+                    cComboBox1.FlatStyle = FlatStyle.Flat;
                 }
 
                 if (AcceptButton != null)
                 {
-                    AcceptButton.BackColor = theme.ButtonBackColor;
-                    AcceptButton.ForeColor = theme.TextColor;
+                    AcceptButton.BackColor = theme.AccentColor;
+                    AcceptButton.ForeColor = Color.White;
+                    AcceptButton.FlatStyle = FlatStyle.Flat;
+                    AcceptButton.FlatAppearance.BorderColor = theme.AccentColor;
+                    AcceptButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
+                    AcceptButton.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
                 }
+
+                if (InnerForm != null)
+                {
+                    InnerForm.BackColor = theme.BackColor;
+                    InnerForm.ForeColor = theme.TextColor;
+                }
+
+                Invalidate();
             }
             finally
             {
@@ -82,6 +122,17 @@ namespace DebugCompiler.UI.Core.Controls
             if (InnerForm != null) yield return InnerForm;
             if (cComboBox1 != null) yield return cComboBox1;
             if (AcceptButton != null) yield return AcceptButton;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            // Draw border with themed color
+            using (var pen = new Pen(BorderColor, 1))
+            {
+                e.Graphics.DrawRectangle(pen, new Rectangle(0, 0, Width - 1, Height - 1));
+            }
         }
 
         private void AcceptButton_Click(object sender, EventArgs e)
