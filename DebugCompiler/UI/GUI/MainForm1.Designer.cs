@@ -32,7 +32,9 @@ namespace DebugCompiler
         {
             if (disposing && (components != null))
             {
-                components.Dispose();
+                _processWatcher?.Stop();
+                _processWatcher?.Dispose();
+                // ... other disposals
             }
             base.Dispose(disposing);
         }

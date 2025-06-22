@@ -2,8 +2,9 @@
 {
     public enum Games
     {
-        T6, //BO2
-        T7, //BO3
-        T8  //BO4
+        None = -1,  // Hidden value
+        T6 = 0,
+        T7 = 1,
+        T8 = 2
     }
 }

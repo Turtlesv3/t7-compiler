@@ -1,6 +1,7 @@
 ﻿using DebugCompiler.UI.Core.Controls;
 using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
+using Microsoft.Test.Xbox.XDRPC;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,26 +11,25 @@ using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Design;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
-using TreyarchCompiler.Enums;
-using System.Text;
-using TreyarchCompiler;
-using T7CompilerLib;
-using Games = TreyarchCompiler.Enums.Games;
-using T7CompilerLib.OpCodes;
-using XDevkit;
-using Microsoft.Test.Xbox.XDRPC;
 using System.Windows.Forms.VisualStyles;
-using System.Globalization;
-using System.Net;
+using T7CompilerLib;
+using T7CompilerLib.OpCodes;
 using T89CompilerLib;
+using TreyarchCompiler;
+using TreyarchCompiler.Enums;
+using XDevkit;
+using Games = TreyarchCompiler.Enums.Games;
 
 namespace DebugCompiler
 {
@@ -43,6 +43,12 @@ namespace DebugCompiler
             ReshowDelay = 500,
             ShowAlways = true
         };
+
+        // Add to your class fields
+        private Label _lblGameStatus;
+        private System.Timers.Timer _processWatcher;
+        private Games _currentGame;
+        private ToolTip toolTip1;
 
         // State tracking fields
         private DateTime _lastInjectionTime;
@@ -61,6 +67,9 @@ namespace DebugCompiler
         private readonly Color _infoColor = Color.FromArgb(100, 200, 255);
         private volatile bool _isCompiling = false; // Add volatile for thread safety
         private volatile bool _isInjecting = false;
+        private bool _forceStatusRefresh = false;
+        private Games _lastRunningGame = Games.None;
+        private bool _lastRunningStatus = false;
 
         private ToolStripMenuItem _themeMenu;
         internal static class NativeMethods
@@ -159,65 +168,222 @@ namespace DebugCompiler
 
         public MainForm1()
         {
-            InitializeComponent();
+            InitializeComponent(); // This creates the window handle
 
-            // Add menu items
+            // Initialize core components
+            toolTip1 = new ToolTip();
+
+            // Create status label (after InitializeComponent)
+            InitializeStatusLabel();
+
+            // Theme system initialization
+            InitializeThemeMenu();
+            UIThemeManager.RegisterControl(this);
+            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
+
+            // Process monitoring
+            InitializeProcessMonitoring();
+
+            // Other initializations
+            InitializeCustomComponents();
+            InitializeOutputColors();
+            InitializeButtonStates();
+
+            // Menu system
             var fileMenu = new ToolStripMenuItem("File");
             var exitItem = new ToolStripMenuItem("Exit");
             fileMenu.DropDownItems.Add(exitItem);
-
-            // Add status label
-            var statusLabel = new ToolStripStatusLabel();
-            statusLabel.Text = "Ready";
-
-            // Theme setup
-            InitializeThemeMenu();
             ShowThemeMenu(false);
-            UIThemeManager.RegisterControl(this);
-            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
-            MaximizeBox = true;
-            MinimizeBox = true;
 
+            // Theme change handler
             UIThemeManager.ThemeChanged += (theme) =>
             {
                 btnInject.Invalidate();
                 btnCompile.Invalidate();
                 btnBrowse.Invalidate();
+                UpdateGameStatus();
             };
 
-            // Initial theme apply
-            this.HandleCreated += (s, e) => {
-                ApplyTheme(UIThemeManager.CurrentTheme);
-            };
-
-            // Toggle with Ctrl+T
+            // Key handler
             this.KeyPreview = true;
             this.KeyDown += (s, e) => {
                 if (e.Control && e.KeyCode == Keys.T)
                     ShowThemeMenu(!MainMenuStrip.Visible);
             };
 
+            // Event handlers
             txtScriptPath.TextChanged += TxtScriptPath_TextChanged;
-            UpdateInjectButtonState(); // Initial button state
+            UpdateInjectButtonState();
 
-            // Initialize components
-            InitializeCustomComponents();
-            InitializeOutputColors();
-            InitializeButtonStates();
-
-            // Compiler setup
+            // Compiler system
             compilerRoot = new Root();
             compilerRoot.OnLogMessage += (msg) => SafeAppendText(msg + "\n");
             compilerRoot.OnError += (err) => SafeAppendText("[ERROR] " + err + "\n");
 
+            // Final setup
             CheckRequiredFiles();
             this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
+            UpdateCompilerOptions();
+
+            // Handle initial theme application safely
+            this.HandleCreated += (s, e) => {
+                ApplyTheme(UIThemeManager.CurrentTheme);
+            };
+
+            // Force initial status update after everything is ready
+            this.Shown += (s, e) => UpdateGameStatus();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+
+            // Force initial theme application
+            ApplyTheme(UIThemeManager.CurrentTheme);
+
+            // Force status update after everything is loaded
+            BeginInvoke((MethodInvoker)delegate {
+                UpdateGameStatus();
+                Refresh();
+            });
         }
 
         private void InitializeOutputColors()
         {
             txtOutput.ForeColor = Color.FromKnownColor(KnownColor.WindowText);
             txtOutput.BackColor = Color.FromKnownColor(KnownColor.Window);
+        }
+
+        private void InitializeProcessMonitoring()
+        {
+            _processWatcher = new System.Timers.Timer(2000);
+            _processWatcher.Elapsed += (s, e) => {
+                try
+                {
+                    if (!IsDisposed && IsHandleCreated)
+                    {
+                        BeginInvoke((MethodInvoker)UpdateGameStatus);
+                    }
+                }
+                catch { /* Handle dispose races */ }
+            };
+            _processWatcher.Start();
+        }
+
+        private void InitializeStatusLabel()
+        {
+            _lblGameStatus = new Label
+            {
+                Dock = DockStyle.Bottom,
+                TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+                Height = 25,
+                BackColor = Color.FromArgb(30, 30, 30),
+                ForeColor = Color.Gray, // Default color
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                UseCompatibleTextRendering = true
+            };
+
+            Controls.Add(_lblGameStatus);
+            _lblGameStatus.BringToFront();
+
+            // Directly update status - no BeginInvoke here
+            UpdateGameStatus();
+        }
+
+        private (Games runningGame, bool isRunning) DetectRunningGame()
+        {
+            foreach (Games game in Enum.GetValues(typeof(Games)))
+            {
+                if (game == Games.None) continue;
+
+                var processName = GetProcessNameForGame(game);
+                if (Process.GetProcessesByName(processName).Length > 0)
+                {
+                    return (game, true);
+                }
+            }
+            return (Games.None, false);
+        }
+
+        private void CheckGameProcess()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(CheckGameProcess));
+                return;
+            }
+
+            try
+            {
+                var (currentRunningGame, isRunning) = DetectRunningGame();
+
+                // Only update if status changed
+                if (isRunning != _lastRunningStatus ||
+                    currentRunningGame != _lastRunningGame)
+                {
+                    _lastRunningStatus = isRunning;
+                    _lastRunningGame = currentRunningGame;
+                    UpdateGameStatus();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Game process check failed: {ex.Message}");
+            }
+        }
+
+        private void UpdateGameStatus()
+        {
+            if (_lblGameStatus == null) return;
+
+            // Check if invoke required
+            if (InvokeRequired)
+            {
+                Invoke((MethodInvoker)UpdateGameStatus);
+                return;
+            }
+
+            var (runningGame, isRunning) = DetectRunningGame();
+
+            if (isRunning)
+            {
+                _lblGameStatus.Text = "✓ Running";
+                _lblGameStatus.ForeColor = Color.FromArgb(100, 255, 100);
+            }
+            else
+            {
+                _lblGameStatus.Text = "✗ Not Running";
+                _lblGameStatus.ForeColor = Color.FromArgb(255, 100, 100);
+            }
+        }
+
+        private string GetProcessNameForGame(Games game)
+        {
+            return game switch
+            {
+                Games.T6 => "blackops2",
+                Games.T7 => "blackops3",
+                Games.T8 => "blackops4",
+                _ => "blackops3" // Default fallback
+            };
+        }
+
+        public void RefreshStatus()
+        {
+            _forceStatusRefresh = true;
+            CheckGameProcess();
+        }
+
+        private void cmbGame_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbGame.SelectedIndex < 0) return;
+
+            _currentGame = (Games)cmbGame.SelectedIndex;
+            UpdateGameStatus();
+            UpdateCompilerOptions();
+
+            // Force immediate process check
+            CheckGameProcess();
         }
 
         public void ApplyTheme(UIThemeInfo theme)
@@ -234,6 +400,16 @@ namespace DebugCompiler
                     Invoke(new Action<UIThemeInfo>(ApplyTheme), theme);
                 }
                 return;
+            }
+
+            if (_lblGameStatus != null)
+            {
+                _lblGameStatus.BackColor = theme.IsDarkTheme
+                    ? Color.FromArgb(40, 40, 40)
+                    : Color.FromArgb(240, 240, 240);
+
+                // Update status to apply correct foreground color
+                UpdateGameStatus();
             }
 
             this.SuspendLayout();
@@ -440,6 +616,17 @@ namespace DebugCompiler
                 ApplyTheme(currentTheme);
             }
 
+            if (_lblGameStatus != null)
+            {
+                _lblGameStatus.BackColor = Color.FromArgb(30, 30, 30); // Keep dark background
+                UpdateGameStatus(); // Re-apply status colors
+            }
+
+            UIThemeManager.ThemeChanged += theme => {
+                ApplyTheme(theme);
+                UpdateGameStatus();
+            };
+
             // Special case for tooltips
             resetToolTip.BackColor = currentTheme.BackColor;
             resetToolTip.ForeColor = currentTheme.TextColor;
@@ -462,21 +649,8 @@ namespace DebugCompiler
 
         private void InitializeCustomComponents()
         {
-            var gameDisplayNames = new Dictionary<string, string>
-            {
-                {"t6", "Call of Duty: Black Ops 2"},
-                {"t7", "Call of Duty: Black Ops 3"},
-                {"t8", "Call of Duty: Black Ops 4"}
-            };
 
-            var gameNames = Enum.GetNames(typeof(Games))
-                .Select(name => gameDisplayNames.TryGetValue(name.ToLower(), out var displayName)
-                        ? displayName
-                        : name)
-                .ToArray();
-
-            cmbGame.Items.AddRange(gameNames);
-            cmbGame.SelectedIndex = 1;
+            InitializeGameComboBox();
 
             cmbHotMode.Items.AddRange(new[] { "GSC", "CSC" });
             cmbHotMode.SelectedIndex = 0;
@@ -528,6 +702,32 @@ namespace DebugCompiler
                 "Hot Load Mode\n\n" +
                 "GSC: Standard script hot loading\n" +
                 "CSC: Client-side script hot loading");
+        }
+
+        private void InitializeGameComboBox()
+        {
+            // Get all enum values except None
+            var gameValues = Enum.GetValues(typeof(Games))
+                                .Cast<Games>()
+                                .Where(g => g != Games.None)
+                                .ToArray();
+
+            // Set display names
+            var gameDisplayNames = new Dictionary<Games, string>
+    {
+        {Games.T6, "Black Ops 2 (T6)"},
+        {Games.T7, "Black Ops 3 (T7)"},
+        {Games.T8, "Black Ops 4 (T8)"}
+    };
+
+            // Set up combobox
+            cmbGame.DisplayMember = "Value";
+            cmbGame.ValueMember = "Key";
+            cmbGame.DataSource = gameValues
+                .Select(g => new KeyValuePair<Games, string>(g, gameDisplayNames[g]))
+                .ToList();
+
+            cmbGame.SelectedIndex = 0; // Default to first game
         }
 
         private string GetVersion()
@@ -1145,14 +1345,36 @@ namespace DebugCompiler
 
         private bool IsGameRunning()
         {
+            if (cmbGame.SelectedIndex < 0) return false;
+
+            var game = (Games)cmbGame.SelectedIndex;
+            var processName = GetProcessNameForGame(game);
+
             try
             {
-                string processName = cmbGame.Text switch
-                {
-                    "Call of Duty: Black Ops 3" => "BlackOps3",
-                    "Call of Duty: Black Ops 4" => "BlackOps4",
-                    _ => cmbGame.Text.Replace(" ", "").ToLower()
-                };
+                return Process.GetProcessesByName(processName).Length > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsGameRunning(Games game)
+        {
+            var processName = game switch
+            {
+                Games.T6 => "blackops2",
+                Games.T7 => "blackops3",
+                Games.T8 => "blackops4",
+                _ => string.Empty
+            };
+
+            if (string.IsNullOrEmpty(processName))
+                return false;
+
+            try
+            {
                 return Process.GetProcessesByName(processName).Length > 0;
             }
             catch
@@ -1171,8 +1393,11 @@ namespace DebugCompiler
                     return;
                 }
 
-                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Injecting {Path.GetFileName(outputFile)}...\n", _infoColor);
+                var game = (Games)cmbGame.SelectedIndex;
+                var processName = GetProcessNameForGame(game);
 
+                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Injecting into {processName}...\n", _infoColor);
+            
                 var args = new List<string> { outputFile, cmbGame.Text };
                 var opts = new List<string> { "--inject" };
 
