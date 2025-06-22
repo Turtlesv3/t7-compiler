@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Drawing;
 
 namespace DebugCompiler.UI.Core.Controls
 {
@@ -45,13 +46,10 @@ namespace DebugCompiler.UI.Core.Controls
             this.ErrorRTB = new System.Windows.Forms.RichTextBox();
             this.InnerForm.ControlContents.SuspendLayout();
             this.SuspendLayout();
-            // 
-            // InnerForm
-            // 
-            this.InnerForm.BackColor = System.Drawing.Color.DodgerBlue;
-            // 
+            //
             // InnerForm.ControlContents
             // 
+            this.InnerForm.BackColor = Color.Transparent;
             this.InnerForm.ControlContents.Controls.Add(this.AcceptButton);
             this.InnerForm.ControlContents.Controls.Add(this.ErrorRTB);
             this.InnerForm.ControlContents.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -63,7 +61,7 @@ namespace DebugCompiler.UI.Core.Controls
             this.InnerForm.ControlContents.TabIndex = 1;
             this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.InnerForm.ForeColor = System.Drawing.Color.WhiteSmoke;
+            this.InnerForm.ForeColor = Color.Transparent;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
             this.InnerForm.Size = new System.Drawing.Size(224, 164);
@@ -74,7 +72,7 @@ namespace DebugCompiler.UI.Core.Controls
             // AcceptButton
             // 
             this.AcceptButton.Cursor = System.Windows.Forms.Cursors.Hand;
-            this.AcceptButton.ForeColor = System.Drawing.Color.MediumPurple;
+            this.AcceptButton.ForeColor = Color.Transparent;
             this.AcceptButton.Location = new System.Drawing.Point(143, 89);
             this.AcceptButton.Name = "AcceptButton";
             this.AcceptButton.Size = new System.Drawing.Size(67, 29);
@@ -86,7 +84,6 @@ namespace DebugCompiler.UI.Core.Controls
             // ErrorRTB
             // 
             this.ErrorRTB.DetectUrls = false;
-            this.ErrorRTB.ForeColor = System.Drawing.SystemColors.MenuHighlight;
             this.ErrorRTB.Location = new System.Drawing.Point(10, 11);
             this.ErrorRTB.Name = "ErrorRTB";
             this.ErrorRTB.ReadOnly = true;

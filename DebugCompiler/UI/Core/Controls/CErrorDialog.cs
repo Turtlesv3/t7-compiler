@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Windows.Forms;
 using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
@@ -9,7 +9,6 @@ namespace DebugCompiler.UI.Core.Controls
 {
     public partial class CErrorDialog : ThemedDialog
     {
-        // Theme debugging switch
         private const bool ThemeDebugging = true;
 
         public CErrorDialog(string title, string description)
@@ -18,53 +17,45 @@ namespace DebugCompiler.UI.Core.Controls
             {
                 if (ThemeDebugging) Debug.WriteLine($"Initializing CErrorDialog: {title}");
 
-                InitializeComponent(); // Must be first
+                InitializeComponent();
 
-                // Safe initialization with null checks
+                // Set core properties
                 Text = title ?? "Error";
                 MaximizeBox = MinimizeBox = true;
 
+                // Initialize controls
                 if (InnerForm != null)
                 {
                     InnerForm.TitleBarTitle = title;
-                    if (ThemeDebugging) Debug.WriteLine($"Set InnerForm title: {title}");
+                    InnerForm.BackColor = Color.Transparent; // Critical for proper theming
                 }
 
                 if (ErrorRTB != null)
                 {
                     ErrorRTB.Text = description ?? string.Empty;
-                    if (ThemeDebugging) Debug.WriteLine($"Set ErrorRTB text: {description?.Length ?? 0} chars");
+                    ErrorRTB.BorderStyle = BorderStyle.None; // Remove default border
                 }
 
-                // Force early theme application
-                if (!DesignMode && !UIThemeManager.CurrentTheme.Equals(default(UIThemeInfo)))
+                // Force immediate theme application
+                if (!DesignMode)
                 {
-                    ApplyTheme(UIThemeManager.CurrentTheme);
+                    this.SuspendLayout();
+                    ApplyThemeWithForce(UIThemeManager.CurrentTheme);
+                    this.ResumeLayout(true);
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error initializing CErrorDialog: {ex}");
-                throw new InvalidOperationException("Failed to initialize error dialog", ex);
+                throw;
             }
         }
 
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-
-            // Final theme verification
-            if (!DesignMode)
-            {
-                if (ThemeDebugging) Debug.WriteLine("OnShown - Applying theme");
-                ApplyThemeWithRefresh(UIThemeManager.CurrentTheme);
-            }
-        }
-
-        protected override void OnFormClosed(FormClosedEventArgs e)
-        {
-            // Custom cleanup code here
-            base.OnFormClosed(e);
+            if (ThemeDebugging) Debug.WriteLine("OnShown - Force applying theme");
+            ApplyThemeWithForce(UIThemeManager.CurrentTheme);
         }
 
         public override void ApplyTheme(UIThemeInfo theme)
@@ -76,19 +67,39 @@ namespace DebugCompiler.UI.Core.Controls
             {
                 if (ThemeDebugging) Debug.WriteLine($"Begin ApplyTheme: {theme.Name}");
 
-                base.ApplyTheme(theme); // Critical base call
+                this.SuspendLayout();
 
-                // Theme all registered controls
-                foreach (var control in GetThemedControls())
+                // Apply to main form
+                this.BackColor = theme.BackColor;
+                this.ForeColor = theme.TextColor;
+
+                // Apply to InnerForm and its container
+                if (InnerForm != null)
                 {
-                    ThemeControl(control, theme);
+                    InnerForm.ForeColor = theme.TextColor;
+                    InnerForm.ControlContents.BackColor = theme.BackColor;
                 }
 
-                // Additional theming for known controls
-                ThemeControl(ErrorRTB, theme);
-                ThemeControl(AcceptButton, theme);
+                // Apply to RichTextBox
+                if (ErrorRTB != null)
+                {
+                    ErrorRTB.BackColor = theme.TextBoxBackColor;
+                    ErrorRTB.ForeColor = theme.TextColor;
+                }
 
-                if (ThemeDebugging) Debug.WriteLine($"Applied theme: {theme.Name}");
+                // Apply to Button
+                if (AcceptButton != null)
+                {
+                    AcceptButton.BackColor = theme.ButtonBackColor;
+                    AcceptButton.ForeColor = theme.TextColor;
+                    AcceptButton.FlatStyle = theme.ButtonFlatStyle;
+                }
+
+                if (ThemeDebugging)
+                {
+                    Debug.WriteLine($"Applied theme - BackColor: {BackColor}");
+                    Debug.WriteLine($"ErrorRTB BackColor: {ErrorRTB?.BackColor}");
+                }
             }
             catch (Exception ex)
             {
@@ -96,111 +107,61 @@ namespace DebugCompiler.UI.Core.Controls
             }
             finally
             {
-                Invalidate(true);
+                this.ResumeLayout(true);
+                this.Refresh();
             }
         }
 
-        private void ApplyThemeWithRefresh(UIThemeInfo theme)
+        private void ApplyThemeWithForce(UIThemeInfo theme)
         {
             ApplyTheme(theme);
-            Refresh();
-            Update();
+
+            // Force complete redraw of all elements
+            this.Invalidate(true);
+            this.Update();
+
+            if (InnerForm != null)
+            {
+                InnerForm.Invalidate(true);
+                InnerForm.Update();
+            }
+
+            ErrorRTB?.Invalidate(true);
+            AcceptButton?.Invalidate(true);
+
+            Application.DoEvents(); // Ensure immediate repaint
         }
 
-        private void ThemeControl(Control control, UIThemeInfo theme)
+        protected override void OnPaintBackground(PaintEventArgs e)
         {
-            if (control?.IsDisposed != false) return;
-
-            try
+            // Ensure background is painted with current theme color
+            using (var brush = new SolidBrush(this.BackColor))
             {
-                switch (control)
-                {
-                    case IThemeableControl themedControl:
-                        themedControl.ApplyTheme(theme);
-                        break;
-                    case RichTextBox rtb:
-                        rtb.BackColor = theme.TextBoxBackColor;
-                        rtb.ForeColor = theme.TextColor;
-                        rtb.BorderStyle = theme.TextBoxBorderStyle;
-                        break;
-                    case Button btn:
-                        btn.BackColor = theme.ButtonBackColor;
-                        btn.ForeColor = theme.TextColor;
-                        btn.FlatStyle = theme.ButtonFlatStyle;
-                        break;
-                    case Panel panel:
-                        panel.BackColor = theme.ControlBackColor;
-                        break;
-                }
+                e.Graphics.FillRectangle(brush, this.ClientRectangle);
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error theming {control.Name}: {ex}");
-            }
-        }
 
-        public override IEnumerable<Control> GetThemedControls()
-        {
-            if (InnerForm != null) yield return InnerForm;
-            if (ErrorRTB != null) yield return ErrorRTB;
-            if (AcceptButton != null) yield return AcceptButton;
-
-            // Add any additional controls that need theming
-            foreach (Control ctrl in Controls)
-            {
-                if (ctrl != InnerForm && ctrl != ErrorRTB && ctrl != AcceptButton)
-                    yield return ctrl;
-            }
+            base.OnPaintBackground(e);
         }
 
         private void AcceptButton_Click(object sender, EventArgs e)
         {
-            try
-            {
-                DialogResult = DialogResult.OK;
-                Close();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error closing dialog: {ex}");
-            }
+            this.DialogResult = DialogResult.OK;
+            this.Close();
         }
 
         public static void Show(string title, string description, bool topMost = false)
         {
             try
             {
-                if (Application.OpenForms.Count > 0)
-                {
-                    var form = Application.OpenForms[0];
-                    if (form.InvokeRequired)
-                    {
-                        form.Invoke((Action)(() => ShowDialog(title, description, topMost)));
-                    }
-                    else
-                    {
-                        ShowDialog(title, description, topMost);
-                    }
-                }
-                else
-                {
-                    ShowDialog(title, description, topMost);
-                }
+                var dialog = new CErrorDialog(title, description) { TopMost = topMost };
+                dialog.ApplyThemeWithForce(UIThemeManager.CurrentTheme);
+                dialog.ShowDialog();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error showing dialog: {ex}");
-                MessageBox.Show(description, title,
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                MessageBox.Show(description, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private static void ShowDialog(string title, string description, bool topMost)
-        {
-            using var dialog = new CErrorDialog(title, description) { TopMost = topMost };
-            dialog.ApplyThemeWithRefresh(UIThemeManager.CurrentTheme);
-            dialog.ShowDialog();
         }
     }
 }
