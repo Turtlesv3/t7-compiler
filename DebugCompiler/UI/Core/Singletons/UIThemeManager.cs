@@ -1,20 +1,22 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
+﻿using DebugCompiler.UI.Core.Controls;
+using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.ComponentModel.Design;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Design;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.ComponentModel.Design;
 using System.Windows.Forms.Design;
-using System.Drawing.Design;
-using System.Collections;
-using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler.UI.Core.Singletons
 {
@@ -24,20 +26,61 @@ namespace DebugCompiler.UI.Core.Singletons
         private static readonly HashSet<Control> ThemedControls = new();
         private static readonly Dictionary<Control, Action<UIThemeInfo>> CustomControlHandlers = new();
 
+        private static readonly string ConfigPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "DebugCompiler",
+            "theme.config");
+
         public static event Action<UIThemeInfo> ThemeChanged;
 
         public static void SetTheme(UIThemeInfo theme)
         {
             CurrentTheme = theme;
             ApplyThemeToAllControls();
+            SaveTheme(theme.Name);
             ThemeChanged?.Invoke(theme);
         }
 
         public static void SetTheme(string themeName)
         {
-            var theme = UIThemeInfo.AvailableThemes
-                .FirstOrDefault(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase));
-            if (theme.Name != null) SetTheme(theme);
+            var theme = UIThemeInfo.GetThemeByName(themeName);
+            if (!string.IsNullOrEmpty(theme.Name)) // Check for valid theme
+            {
+                SetTheme(theme);
+            }
+        }
+
+        public static void SaveTheme(string themeName)
+        {
+            try
+            {
+                var configDir = Path.GetDirectoryName(ConfigPath);
+                if (!Directory.Exists(configDir))
+                {
+                    Directory.CreateDirectory(configDir);
+                }
+                File.WriteAllText(ConfigPath, themeName);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to save theme: {ex.Message}");
+            }
+        }
+
+        public static string LoadTheme()
+        {
+            try
+            {
+                if (File.Exists(ConfigPath))
+                {
+                    return File.ReadAllText(ConfigPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to load theme: {ex.Message}");
+            }
+            return "Dark"; // Default theme
         }
 
         public static void RegisterChildControls(Control parent)
@@ -51,7 +94,6 @@ namespace DebugCompiler.UI.Core.Singletons
                 }
             }
         }
-
 
         private static void ApplyThemeToAllControls()
         {

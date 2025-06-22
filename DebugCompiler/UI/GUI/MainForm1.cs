@@ -93,22 +93,39 @@ namespace DebugCompiler
         {
             _themeMenu = new ToolStripMenuItem("Themes");
 
+            // Load saved theme at startup
+            string savedTheme = UIThemeManager.LoadTheme();
+            var savedThemeInfo = UIThemeInfo.GetThemeByName(savedTheme);
+
             foreach (var theme in UIThemeInfo.AvailableThemes)
             {
                 var item = new ToolStripMenuItem(theme.Name)
                 {
                     Tag = theme.Name,
+                    Checked = theme.Name.Equals(savedThemeInfo.Name, StringComparison.OrdinalIgnoreCase)
                 };
-                item.Click += (s, e) => UIThemeManager.SetTheme(theme.Name);
+
+                item.Click += (s, e) =>
+                {
+                    // Update check marks
+                    foreach (ToolStripMenuItem menuItem in _themeMenu.DropDownItems)
+                    {
+                        menuItem.Checked = menuItem == item;
+                    }
+
+                    // Set the new theme
+                    UIThemeManager.SetTheme(theme.Name);
+                };
+
                 _themeMenu.DropDownItems.Add(item);
             }
 
-            // Add to existing menu or create new
+            // Add to menu strip
             if (MainMenuStrip == null)
             {
                 var menuStrip = new MenuStrip();
                 menuStrip.GripStyle = ToolStripGripStyle.Hidden;
-                menuStrip.Visible = false; // Start hidden
+                menuStrip.Visible = false;
                 menuStrip.Items.Add(_themeMenu);
                 Controls.Add(menuStrip);
                 MainMenuStrip = menuStrip;
@@ -116,6 +133,12 @@ namespace DebugCompiler
             else
             {
                 MainMenuStrip.Items.Add(_themeMenu);
+            }
+
+            // Apply the saved theme at startup if valid
+            if (!string.IsNullOrEmpty(savedThemeInfo.Name))
+            {
+                UIThemeManager.SetTheme(savedThemeInfo);
             }
         }
 
@@ -724,6 +747,7 @@ namespace DebugCompiler
             if (File.Exists(outputPath))
             {
                 await AppendColoredTextAsync($"Output file: {outputPath}\n", _infoColor);
+                await AppendColoredTextAsync($"File size: {new FileInfo(outputPath).Length} bytes\n", _infoColor);
 
                 if (!chkCompileOnly.Checked && !chkBuild.Checked)
                 {
@@ -733,15 +757,52 @@ namespace DebugCompiler
             }
             else
             {
-                await AppendColoredTextAsync("[WARNING] No output file was generated\n", _warningColor);
+                // Search for the file in other likely locations
+                string searchDir = Directory.Exists(txtScriptPath.Text) ? txtScriptPath.Text : Path.GetDirectoryName(txtScriptPath.Text);
+                var foundFiles = Directory.GetFiles(searchDir, "*.gscc", SearchOption.AllDirectories);
+
+                if (foundFiles.Length > 0)
+                {
+                    await AppendColoredTextAsync($"[INFO] Found output file at: {foundFiles[0]}\n", _infoColor);
+                    outputPath = foundFiles[0];
+                }
+                else
+                {
+                    await AppendColoredTextAsync("[WARNING] No output file was generated. Check compilation log for errors.\n", _warningColor);
+                    await AppendColoredTextAsync("[INFO] Searched in:\n", _infoColor);
+                    await AppendColoredTextAsync($"- {Path.Combine(searchDir, "bin")}\n", _infoColor);
+                    await AppendColoredTextAsync($"- {searchDir}\n", _infoColor);
+                }
             }
         }
 
         private string GetOutputPath()
         {
-            return Directory.Exists(txtScriptPath.Text)
-                ? Path.Combine(txtScriptPath.Text, "bin", "compiled.gscc")
-                : Path.ChangeExtension(txtScriptPath.Text, ".gscc");
+            string basePath;
+
+            // Determine if we're working with a file or directory
+            if (Directory.Exists(txtScriptPath.Text))
+            {
+                basePath = txtScriptPath.Text;
+            }
+            else
+            {
+                basePath = Path.GetDirectoryName(txtScriptPath.Text);
+            }
+
+            // Create output directory if it doesn't exist
+            string outputDir = Path.Combine(basePath, "bin");
+            if (!Directory.Exists(outputDir))
+            {
+                Directory.CreateDirectory(outputDir);
+            }
+
+            // Determine output filename
+            string outputFile = Directory.Exists(txtScriptPath.Text)
+                ? "compiled.gscc"
+                : Path.GetFileNameWithoutExtension(txtScriptPath.Text) + ".gscc";
+
+            return Path.Combine(outputDir, outputFile);
         }
 
         private async void BtnResetParseTree_Click(object sender, EventArgs e)

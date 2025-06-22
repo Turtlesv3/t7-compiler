@@ -33,12 +33,13 @@ using DebugCompiler.UI.Core.Controls;
 
 namespace DebugCompiler
 {
-    public class Root
+    public class Root : IDisposable
     {
         // Events for logging
         public delegate void LogHandler(string message);
         public event LogHandler OnLogMessage;
         public event LogHandler OnError;
+        private bool _disposed = false;
 
         private struct CommandInfo
         {
@@ -59,8 +60,51 @@ namespace DebugCompiler
         private static Dictionary<uint, string> t7_dword;
         private static Dictionary<ulong, string> t8_qword;
 
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    // Dispose managed resources
+                    // Example: if you have any IDisposable fields
+                    // xboxConsole?.Dispose();
+                }
+
+                // Free unmanaged resources
+                // Example: if you have any handles
+                // if (_someHandle != IntPtr.Zero)
+                // {
+                //     Kernel32.CloseHandle(_someHandle);
+                //     _someHandle = IntPtr.Zero;
+                // }
+
+                _disposed = true;
+            }
+        }
+
+        ~Root()
+        {
+            Dispose(false);
+        }
+
+        private static class Kernel32
+        {
+            [DllImport("kernel32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool CloseHandle(IntPtr hObject);
+        }
+
         public Root()
         {
+
+            AppDomain.CurrentDomain.ProcessExit += (s, e) => Dispose();
             CommandTable = new Dictionary<ConsoleKey, CommandInfo>();
             AddCommand(ConsoleKey.Q, "Quit Program", Cmd_Exit);
             AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", Cmd_HashString);

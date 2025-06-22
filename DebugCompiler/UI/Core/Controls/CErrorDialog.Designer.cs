@@ -46,10 +46,13 @@ namespace DebugCompiler.UI.Core.Controls
             this.ErrorRTB = new System.Windows.Forms.RichTextBox();
             this.InnerForm.ControlContents.SuspendLayout();
             this.SuspendLayout();
-            //
+            // 
+            // InnerForm
+            // 
+            this.InnerForm.BackColor = System.Drawing.Color.Transparent;
+            // 
             // InnerForm.ControlContents
             // 
-            this.InnerForm.BackColor = Color.Transparent;
             this.InnerForm.ControlContents.Controls.Add(this.AcceptButton);
             this.InnerForm.ControlContents.Controls.Add(this.ErrorRTB);
             this.InnerForm.ControlContents.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -61,7 +64,7 @@ namespace DebugCompiler.UI.Core.Controls
             this.InnerForm.ControlContents.TabIndex = 1;
             this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.InnerForm.ForeColor = Color.Transparent;
+            this.InnerForm.ForeColor = System.Drawing.Color.Transparent;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
             this.InnerForm.Size = new System.Drawing.Size(224, 164);
@@ -72,7 +75,7 @@ namespace DebugCompiler.UI.Core.Controls
             // AcceptButton
             // 
             this.AcceptButton.Cursor = System.Windows.Forms.Cursors.Hand;
-            this.AcceptButton.ForeColor = Color.Transparent;
+            this.AcceptButton.ForeColor = System.Drawing.Color.Transparent;
             this.AcceptButton.Location = new System.Drawing.Point(143, 89);
             this.AcceptButton.Name = "AcceptButton";
             this.AcceptButton.Size = new System.Drawing.Size(67, 29);
@@ -83,6 +86,7 @@ namespace DebugCompiler.UI.Core.Controls
             // 
             // ErrorRTB
             // 
+            this.ErrorRTB.BackColor = System.Drawing.Color.MediumPurple;
             this.ErrorRTB.DetectUrls = false;
             this.ErrorRTB.Location = new System.Drawing.Point(10, 11);
             this.ErrorRTB.Name = "ErrorRTB";
@@ -97,6 +101,7 @@ namespace DebugCompiler.UI.Core.Controls
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(224, 164);
             this.Controls.Add(this.InnerForm);
+            this.ForeColor = System.Drawing.Color.Transparent;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.Name = "CErrorDialog";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;

@@ -63,6 +63,9 @@ namespace DebugCompiler.UI.Core.Singletons
 
         public static UIThemeInfo GetThemeByName(string name)
         {
+            if (string.IsNullOrEmpty(name))
+                return default(UIThemeInfo);
+
             return AvailableThemes.FirstOrDefault(t =>
                 t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
@@ -216,6 +219,123 @@ namespace DebugCompiler.UI.Core.Singletons
             ButtonFlatStyle = FlatStyle.Flat,
             HeaderFontStyle = FontStyle.Bold
         };
+
+        public static UIThemeInfo MonokaiPro => new()
+        {
+            Name = "Monokai Pro",
+            IsDarkTheme = true,
+            BackColor = Color.FromArgb(45, 42, 46),
+            ControlBackColor = Color.FromArgb(57, 53, 58),
+            TextColor = Color.FromArgb(248, 248, 242),
+            AccentColor = Color.FromArgb(255, 154, 48),
+            TextBoxBackColor = Color.FromArgb(57, 53, 58),
+            ButtonBackColor = Color.FromArgb(87, 82, 89),
+            ButtonHoverColor = Color.FromArgb(121, 113, 124),
+            ButtonActiveColor = Color.FromArgb(249, 38, 114),
+            BorderColor = Color.FromArgb(87, 82, 89),
+            DisabledTextColor = Color.FromArgb(117, 110, 119),
+            HighlightColor = Color.FromArgb(166, 226, 46),
+            MenuBackColor = Color.FromArgb(57, 53, 58),
+            MenuTextColor = Color.FromArgb(248, 248, 242),
+            GridLineColor = Color.FromArgb(87, 82, 89),
+            TextBoxBorderStyle = BorderStyle.FixedSingle,
+            ButtonFlatStyle = FlatStyle.Flat,
+            HeaderFontStyle = FontStyle.Bold
+        };
+
+        public static UIThemeInfo Gruvbox => new()
+        {
+            Name = "Gruvbox",
+            IsDarkTheme = true,
+            BackColor = Color.FromArgb(40, 40, 40),
+            ControlBackColor = Color.FromArgb(60, 56, 54),
+            TextColor = Color.FromArgb(235, 219, 178),
+            AccentColor = Color.FromArgb(254, 128, 25),
+            TextBoxBackColor = Color.FromArgb(50, 48, 47),
+            ButtonBackColor = Color.FromArgb(80, 73, 69),
+            ButtonHoverColor = Color.FromArgb(184, 187, 38),
+            ButtonActiveColor = Color.FromArgb(251, 73, 52),
+            BorderColor = Color.FromArgb(102, 92, 84),
+            DisabledTextColor = Color.FromArgb(146, 131, 116),
+            HighlightColor = Color.FromArgb(215, 153, 33),
+            MenuBackColor = Color.FromArgb(60, 56, 54),
+            MenuTextColor = Color.FromArgb(235, 219, 178),
+            GridLineColor = Color.FromArgb(102, 92, 84),
+            TextBoxBorderStyle = BorderStyle.FixedSingle,
+            ButtonFlatStyle = FlatStyle.Flat,
+            HeaderFontStyle = FontStyle.Bold
+        };
+
+        public static UIThemeInfo OneDark => new()
+        {
+            Name = "One Dark",
+            IsDarkTheme = true,
+            BackColor = Color.FromArgb(40, 44, 52),
+            ControlBackColor = Color.FromArgb(53, 59, 69),
+            TextColor = Color.FromArgb(171, 178, 191),
+            AccentColor = Color.FromArgb(97, 175, 239),
+            TextBoxBackColor = Color.FromArgb(53, 59, 69),
+            ButtonBackColor = Color.FromArgb(56, 63, 78),
+            ButtonHoverColor = Color.FromArgb(152, 195, 121),
+            ButtonActiveColor = Color.FromArgb(209, 154, 102),
+            BorderColor = Color.FromArgb(62, 68, 81),
+            DisabledTextColor = Color.FromArgb(92, 99, 112),
+            HighlightColor = Color.FromArgb(198, 120, 221),
+            MenuBackColor = Color.FromArgb(53, 59, 69),
+            MenuTextColor = Color.FromArgb(171, 178, 191),
+            GridLineColor = Color.FromArgb(62, 68, 81),
+            TextBoxBorderStyle = BorderStyle.FixedSingle,
+            ButtonFlatStyle = FlatStyle.Flat,
+            HeaderFontStyle = FontStyle.Bold
+        };
+
+        public static UIThemeInfo TokyoNight => new()
+        {
+            Name = "Tokyo Night",
+            IsDarkTheme = true,
+            BackColor = Color.FromArgb(26, 27, 38),
+            ControlBackColor = Color.FromArgb(48, 52, 70),
+            TextColor = Color.FromArgb(169, 177, 214),
+            AccentColor = Color.FromArgb(122, 162, 247),
+            TextBoxBackColor = Color.FromArgb(48, 52, 70),
+            ButtonBackColor = Color.FromArgb(65, 72, 104),
+            ButtonHoverColor = Color.FromArgb(180, 142, 173),
+            ButtonActiveColor = Color.FromArgb(247, 118, 142),
+            BorderColor = Color.FromArgb(65, 72, 104),
+            DisabledTextColor = Color.FromArgb(92, 95, 119),
+            HighlightColor = Color.FromArgb(158, 206, 106),
+            MenuBackColor = Color.FromArgb(48, 52, 70),
+            MenuTextColor = Color.FromArgb(169, 177, 214),
+            GridLineColor = Color.FromArgb(65, 72, 104),
+            TextBoxBorderStyle = BorderStyle.FixedSingle,
+            ButtonFlatStyle = FlatStyle.Flat,
+            HeaderFontStyle = FontStyle.Bold
+        };
+
+        public static UIThemeInfo CatppuccinMocha => new()
+        {
+            Name = "Catppuccin Mocha",
+            IsDarkTheme = true,
+            BackColor = Color.FromArgb(30, 30, 46),
+            ControlBackColor = Color.FromArgb(49, 50, 68),
+            TextColor = Color.FromArgb(205, 214, 244),
+            AccentColor = Color.FromArgb(137, 180, 250),
+            TextBoxBackColor = Color.FromArgb(49, 50, 68),
+            ButtonBackColor = Color.FromArgb(69, 71, 90),
+            ButtonHoverColor = Color.FromArgb(166, 227, 161),
+            ButtonActiveColor = Color.FromArgb(243, 139, 168),
+            BorderColor = Color.FromArgb(69, 71, 90),
+            DisabledTextColor = Color.FromArgb(127, 132, 156),
+            HighlightColor = Color.FromArgb(249, 226, 175),
+            MenuBackColor = Color.FromArgb(49, 50, 68),
+            MenuTextColor = Color.FromArgb(205, 214, 244),
+            GridLineColor = Color.FromArgb(69, 71, 90),
+            TextBoxBorderStyle = BorderStyle.FixedSingle,
+            ButtonFlatStyle = FlatStyle.Flat,
+            HeaderFontStyle = FontStyle.Bold
+        };
+
+
         // Add more themes as needed
         public static IEnumerable<UIThemeInfo> AvailableThemes => new[]
         {
@@ -225,7 +345,12 @@ namespace DebugCompiler.UI.Core.Singletons
             SolarizedDark,
             Nord,
             MaterialDeepPurple,
-            Cyberpunk
+            Cyberpunk,
+            MonokaiPro,
+            Gruvbox,
+            OneDark,
+            TokyoNight,
+            CatppuccinMocha
         };
 
         public Color GetDisabledControlColor() =>
