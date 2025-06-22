@@ -621,7 +621,6 @@ namespace DebugCompiler
 
         private int Cmd_Compile(string[] args, string[] opts)
         {
-
             List<string> conditionalSymbols = new();
             string replaceScript = null;
             string scriptLocation = args.Length > 0 ? args[0] : "scripts";
@@ -658,7 +657,10 @@ namespace DebugCompiler
                 catch { }
             }
 
-            string outName = "compiled";
+            // Get the compiler root directory
+            string compilerRootDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            string outName = "compiled"; // Base output name
+
             if (File.Exists("gsc.conf"))
             {
                 foreach (string line in File.ReadAllLines("gsc.conf"))
@@ -707,14 +709,6 @@ namespace DebugCompiler
 
             bool isT7 = game == Games.T7;
 
-            //if (args.Length > 1)
-            //{
-            //    if(!Enum.TryParse(args[1], true, out game))
-            //    {
-            //        game = Games.T7;
-            //    }
-            //}
-
             string source = "";
             CompiledCode code;
             List<SourceTokenDef> SourceTokens = new();
@@ -739,7 +733,6 @@ namespace DebugCompiler
                 }
                 CurrentSource.LineEnd = CurrentLineCount;
                 CurrentSource.CharEnd = CurrentCharCount;
-                // Console.WriteLine($"{CurrentSource.FilePath} start {CurrentSource.LineStart} end {CurrentSource.LineEnd}");
                 SourceTokens.Add(CurrentSource);
                 sb.Append("\n"); // remember that this is here because its going to fuck up irony
             end_loop:;
@@ -812,35 +805,51 @@ namespace DebugCompiler
                 return Error(code.Error);
             }
 
+            // Create output in compiler root directory
+            string outputDir = compilerRootDir;
+            Directory.CreateDirectory(outputDir); // Ensure directory exists
+
             if (code.StubbedScript != null)
             {
-                File.WriteAllBytes($"{outName}.stub.gscc", code.StubScriptData);
+                string stubPath = Path.Combine(outputDir, $"{outName}.stub.gscc");
+                File.WriteAllBytes(stubPath, code.StubScriptData);
+                Log($"Stub script written to: {stubPath}");
             }
 
-            string cpath = $"{outName}.{(code.RequiresGSI ? "gsic" : "gscc")}";
+            string cpath = Path.Combine(outputDir, $"{outName}.{(code.RequiresGSI ? "gsic" : "gscc")}");
             File.WriteAllBytes(cpath, code.CompiledScript);
-            string hpath = "hashes.txt";
+            Success($"Main script written to: {cpath}");
+
+            string hpath = Path.Combine(outputDir, "hashes.txt");
             StringBuilder hashes = new();
             foreach (var kvp in code.HashMap)
             {
                 hashes.AppendLine($"0x{kvp.Key:X}, {kvp.Value}");
             }
             File.WriteAllText(hpath, hashes.ToString());
+            Log($"Hashes written to: {hpath}");
 
             if (code.OpcodeEmissions != null)
             {
+                string omapPath = Path.Combine(outputDir, $"{outName}.omap");
                 byte[] opsRaw = new byte[code.OpcodeEmissions.Count * 4];
                 for (int i = 0; i < code.OpcodeEmissions.Count; i++)
                 {
                     BitConverter.GetBytes(code.OpcodeEmissions[i]).CopyTo(opsRaw, i * 4);
                 }
-                File.WriteAllBytes($"{outName}.omap", opsRaw);
+                File.WriteAllBytes(omapPath, opsRaw);
+                Log($"Opcode map written to: {omapPath}");
             }
 
-            Success(cpath);
+            // Verify output file exists
+            if (!File.Exists(cpath))
+            {
+                return Error("COMPILATION FAILED: No output file was generated");
+            }
+
             if (compileOnly)
             {
-                return Success("Script compiled.");
+                return Success("COMPILATION SUCCESSFUL (Compile Only)");
             }
             else if (buildScript)
             {
@@ -849,12 +858,9 @@ namespace DebugCompiler
             else
             {
                 Success("Script compiled. Press I to inject or anything else to continue");
-
                 if (Console.ReadKey(true).Key != ConsoleKey.I)
                     return 0;
             }
-
-            byte[] data = code.CompiledScript;
 
             PointerEx injresult = InjectScript(replaceScript, code.CompiledScript, game, hot, noruntime);
             Console.WriteLine();
@@ -875,6 +881,11 @@ namespace DebugCompiler
             }
 
             return 0;
+        }
+
+        private void Log(string message)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
         }
 
         private void FreeActiveScript()

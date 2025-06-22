@@ -203,6 +203,7 @@ namespace DebugCompiler
             // Initialize components
             InitializeCustomComponents();
             InitializeOutputColors();
+            InitializeButtonStates();
 
             // Compiler setup
             compilerRoot = new Root();
@@ -592,10 +593,21 @@ namespace DebugCompiler
                 return;
             }
 
+            bool isFolder = Directory.Exists(txtScriptPath.Text);
+            bool isFile = File.Exists(txtScriptPath.Text) &&
+                         (txtScriptPath.Text.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
+                          txtScriptPath.Text.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase));
+
+            // Update compile button state - disabled by default until valid input
             btnCompile.Text = _isCompiling ? "Cancel" : "Compile";
-            btnCompile.Enabled = true;
+            btnCompile.Enabled = !_isCompiling && !_isInjecting &&
+                                ((chkCompileOnly.Checked && isFolder) ||
+                                 (!chkCompileOnly.Checked && (isFolder || isFile)));
+
+            // Update other controls
             btnResetParseTree.Enabled = !_isCompiling && !_isInjecting;
             btnBrowse.Enabled = !_isCompiling && !_isInjecting;
+            btnInject.Enabled = !_isCompiling && !_isInjecting && isFile;
 
             chkBuild.Enabled = !_isCompiling && !_isInjecting;
             chkCompileOnly.Enabled = !_isCompiling && !_isInjecting;
@@ -604,8 +616,16 @@ namespace DebugCompiler
             cmbHotMode.Enabled = !_isCompiling && !_isInjecting && chkHotLoad.Checked;
             cmbGame.Enabled = !_isCompiling && !_isInjecting;
 
+            // Force UI refresh
             btnInject.Refresh();
             btnCompile.Refresh();
+        }
+
+        // Call this in your form constructor after InitializeComponent()
+        private void InitializeButtonStates()
+        {
+            txtScriptPath.Text = ""; // Clear any default text
+            UpdateUIState(); // Set initial button states
         }
 
         private async Task<bool> ValidateInputs()
@@ -635,6 +655,25 @@ namespace DebugCompiler
                 return;
             }
 
+            // Validate input before starting compilation
+            bool isFolder = Directory.Exists(txtScriptPath.Text);
+            bool isFile = File.Exists(txtScriptPath.Text) &&
+                         (txtScriptPath.Text.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
+                          txtScriptPath.Text.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase));
+
+            if (chkCompileOnly.Checked && !isFolder)
+            {
+                await AppendColoredTextAsync("[ERROR] Compile Only requires a folder to be selected\n", _errorColor);
+                return;
+            }
+
+            if (!isFolder && !isFile)
+            {
+                await AppendColoredTextAsync("[ERROR] Please select a valid folder or .gsc/.gscc file\n", _errorColor);
+                btnBrowse.Focus();
+                return;
+            }
+
             _isCompiling = true;
             UpdateUIState();
             ClearOutput();
@@ -642,11 +681,6 @@ namespace DebugCompiler
 
             try
             {
-                if (!await ValidateInputs())
-                {
-                    return;
-                }
-
                 var token = _compilationCts.Token;
                 await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Starting compilation...\n", _infoColor);
 
@@ -742,36 +776,60 @@ namespace DebugCompiler
 
         private async Task HandleSuccessfulCompilation()
         {
-            string outputPath = GetOutputPath();
+            bool isFolderCompilation = Directory.Exists(txtScriptPath.Text);
+            bool isFileCompilation = File.Exists(txtScriptPath.Text) &&
+                                   (txtScriptPath.Text.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
+                                    txtScriptPath.Text.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase));
 
-            if (File.Exists(outputPath))
+            // Validate compile-only mode
+            if (chkCompileOnly.Checked && !isFolderCompilation)
             {
-                await AppendColoredTextAsync($"Output file: {outputPath}\n", _infoColor);
-                await AppendColoredTextAsync($"File size: {new FileInfo(outputPath).Length} bytes\n", _infoColor);
+                await AppendColoredTextAsync("[ERROR] Compile Only mode requires a folder to be selected\n", _errorColor);
+                return;
+            }
+
+            // Set fixed output path in compiler root directory
+            string compilerRootDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            string expectedOutputPath = Path.Combine(compilerRootDir, "compiled.gscc");
+
+            await AppendColoredTextAsync($"[INFO] Output will be at: {expectedOutputPath}\n", _infoColor);
+
+            if (File.Exists(expectedOutputPath))
+            {
+                await AppendColoredTextAsync($"[SUCCESS] Compiled output created: {expectedOutputPath}\n", _successColor);
+                await AppendColoredTextAsync($"- Size: {new FileInfo(expectedOutputPath).Length} bytes\n", _infoColor);
+                await AppendColoredTextAsync($"- Modified: {File.GetLastWriteTime(expectedOutputPath):yyyy-MM-dd HH:mm:ss}\n", _infoColor);
 
                 if (!chkCompileOnly.Checked && !chkBuild.Checked)
                 {
-                    await Task.Delay(300);
-                    await InjectCompiledScript(outputPath);
+                    await Task.Delay(300); // Small delay before injection
+                    await InjectCompiledScript(expectedOutputPath);
                 }
             }
             else
             {
-                // Search for the file in other likely locations
-                string searchDir = Directory.Exists(txtScriptPath.Text) ? txtScriptPath.Text : Path.GetDirectoryName(txtScriptPath.Text);
-                var foundFiles = Directory.GetFiles(searchDir, "*.gscc", SearchOption.AllDirectories);
+                await AppendColoredTextAsync("[ERROR] Compiled output was not created at expected location\n", _errorColor);
 
-                if (foundFiles.Length > 0)
+                // Additional debug information
+                await AppendColoredTextAsync("[DEBUG] Checking compiler directory contents:\n", _infoColor);
+                try
                 {
-                    await AppendColoredTextAsync($"[INFO] Found output file at: {foundFiles[0]}\n", _infoColor);
-                    outputPath = foundFiles[0];
+                    var files = Directory.GetFiles(compilerRootDir, "*.gscc");
+                    if (files.Length > 0)
+                    {
+                        foreach (var file in files)
+                        {
+                            await AppendColoredTextAsync($"- Found: {file}\n", _infoColor);
+                        }
+                    }
+                    else
+                    {
+                        await AppendColoredTextAsync("- No .gscc files found in compiler directory\n", _infoColor);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    await AppendColoredTextAsync("[WARNING] No output file was generated. Check compilation log for errors.\n", _warningColor);
-                    await AppendColoredTextAsync("[INFO] Searched in:\n", _infoColor);
-                    await AppendColoredTextAsync($"- {Path.Combine(searchDir, "bin")}\n", _infoColor);
-                    await AppendColoredTextAsync($"- {searchDir}\n", _infoColor);
+                    await AppendColoredTextAsync($"[DEBUG] Error checking directory: {ex.Message}\n", _infoColor);
                 }
             }
         }
@@ -920,28 +978,12 @@ namespace DebugCompiler
             if (_isInternalUpdate) return;
 
             ClearOutput();
-
             try
             {
                 _isInternalUpdate = true;
-
-                if (chkNoRuntime.Checked)
+                if (chkNoRuntime.Checked) // Only show message when enabled
                 {
-                    if (!chkHotLoad.Checked)
-                    {
-                        chkHotLoad.Checked = true;
-                        cmbHotMode.Enabled = true;
-                        SafeAppendText("[CONFIG] Enabled: No Runtime (auto-enabled Hot Load)\n");
-                        cmbHotMode.SelectedIndex = 0;
-                    }
-                    else
-                    {
-                        SafeAppendText("[CONFIG] Enabled: No Runtime\n");
-                    }
-                }
-                else
-                {
-                    SafeAppendText("[CONFIG] Disabled: No Runtime\n");
+                    SafeAppendText("[CONFIG] Enabled: No Runtime\n");
                 }
                 UpdateCompilerOptions();
             }
@@ -956,25 +998,10 @@ namespace DebugCompiler
             if (_isInternalUpdate) return;
 
             ClearOutput();
-            cmbHotMode.Enabled = chkHotLoad.Checked;
-
             try
             {
                 _isInternalUpdate = true;
-
-                if (!chkHotLoad.Checked)
-                {
-                    if (chkNoRuntime.Checked)
-                    {
-                        chkNoRuntime.Checked = false;
-                        SafeAppendText("[CONFIG] Disabled: Hot Load (auto-disabled No Runtime)\n");
-                    }
-                    else
-                    {
-                        SafeAppendText("[CONFIG] Disabled: Hot Load\n");
-                    }
-                }
-                else
+                if (chkHotLoad.Checked) // Only show message when enabled
                 {
                     SafeAppendText("[CONFIG] Enabled: Hot Load\n");
                 }
@@ -986,6 +1013,7 @@ namespace DebugCompiler
             }
         }
 
+        // Keep your existing cmbHotMode handler as-is
         private void CmbHotMode_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (_isInternalUpdate || !chkHotLoad.Checked) return;
@@ -995,6 +1023,7 @@ namespace DebugCompiler
             UpdateCompilerOptions();
         }
 
+        // Modified build handler to match pattern
         private void ChkBuild_CheckedChanged(object sender, EventArgs e)
         {
             if (_isInternalUpdate) return;
@@ -1003,7 +1032,7 @@ namespace DebugCompiler
             try
             {
                 _isInternalUpdate = true;
-                if (chkBuild.Checked)
+                if (chkBuild.Checked) // Only show message when enabled
                 {
                     chkCompileOnly.Checked = false;
                     SafeAppendText("[CONFIG] Enabled: Full Build\n");
@@ -1016,6 +1045,7 @@ namespace DebugCompiler
             }
         }
 
+        // Modified compile-only handler to match pattern
         private void ChkCompileOnly_CheckedChanged(object sender, EventArgs e)
         {
             if (_isInternalUpdate) return;
@@ -1024,7 +1054,7 @@ namespace DebugCompiler
             try
             {
                 _isInternalUpdate = true;
-                if (chkCompileOnly.Checked)
+                if (chkCompileOnly.Checked) // Only show message when enabled
                 {
                     chkBuild.Checked = false;
                     SafeAppendText("[CONFIG] Enabled: Compile Only\n");
@@ -1137,58 +1167,96 @@ namespace DebugCompiler
             {
                 if (!IsGameRunning())
                 {
-                    SafeAppendText("[INFO] Game not running - injection skipped\n");
+                    await AppendColoredTextAsync("[INFO] Game not running - injection skipped\n", _infoColor);
                     return;
                 }
 
-                SafeAppendText($"Injecting {Path.GetFileName(outputFile)}...\n");
+                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Injecting {Path.GetFileName(outputFile)}...\n", _infoColor);
 
                 var args = new List<string> { outputFile, cmbGame.Text };
                 var opts = new List<string> { "--inject" };
 
-                if (chkHotLoad.Checked)
+                // Handle Hotload independently
+                if (chkHotLoad.Checked && cmbHotMode.SelectedItem != null)
                 {
                     opts.Add("--hot");
                     opts.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
+                    await AppendColoredTextAsync($"[CONFIG] Hotload enabled ({cmbHotMode.SelectedItem})\n", _infoColor);
                 }
-                if (chkNoRuntime.Checked) opts.Add("--noruntime");
 
-                TextReader originalInput = Console.In;
-                TextWriter originalOutput = Console.Out;
-                TextWriter originalError = Console.Error;
-
-                try
+                // Handle No Runtime independently
+                if (chkNoRuntime.Checked)
                 {
-                    Console.SetIn(new StreamReader(Stream.Null));
-                    Console.SetOut(TextWriter.Null);
-                    Console.SetError(TextWriter.Null);
+                    opts.Add("--noruntime");
+                    await AppendColoredTextAsync("[CONFIG] Runtime checks disabled\n", _infoColor);
+                }
 
+                using (var consoleRedirect = new ConsoleOutputRedirect())
+                {
                     int result = await Task.Run(() =>
                         compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
 
                     if (result == 0)
                     {
-                        SafeAppendText("\nINJECTION SUCCESSFUL\n");
+                        await AppendColoredTextAsync("\nINJECTION SUCCESSFUL\n", _successColor);
                         _lastInjectedScript = Path.GetFileName(outputFile);
                         _lastGameMode = cmbGame.Text;
                         _lastInjectionTime = DateTime.Now;
                         UpdateResetButton(true);
+
+                        // Log injection details
+                        await AppendColoredTextAsync($"Injected Script: {_lastInjectedScript}\n", _infoColor);
+                        await AppendColoredTextAsync($"Game Mode: {_lastGameMode}\n", _infoColor);
+                        await AppendColoredTextAsync($"Time: {_lastInjectionTime:HH:mm:ss}\n", _infoColor);
                     }
                     else
                     {
-                        SafeAppendText("\nINJECTION FAILED\n");
+                        await AppendColoredTextAsync("\nINJECTION FAILED\n", _errorColor);
+                        await AppendColoredTextAsync($"Error Code: {result}\n", _errorColor);
+
+                        // Provide troubleshooting tips based on error code
+                        if (result == -1)
+                        {
+                            await AppendColoredTextAsync("Tip: Verify the game process is accessible\n", _warningColor);
+                        }
                     }
-                }
-                finally
-                {
-                    Console.SetIn(originalInput);
-                    Console.SetOut(originalOutput);
-                    Console.SetError(originalError);
                 }
             }
             catch (Exception ex)
             {
-                SafeAppendText($"[INJECTION ERROR] {ex.Message}\n");
+                await AppendColoredTextAsync($"[INJECTION ERROR] {ex.Message}\n", _errorColor);
+
+                // Special handling for common exceptions
+                if (ex is UnauthorizedAccessException)
+                {
+                    await AppendColoredTextAsync("Tip: Run the compiler as administrator\n", _warningColor);
+                }
+            }
+        }
+
+        // Helper class for console redirection
+        private class ConsoleOutputRedirect : IDisposable
+        {
+            private readonly TextReader _originalIn;
+            private readonly TextWriter _originalOut;
+            private readonly TextWriter _originalErr;
+
+            public ConsoleOutputRedirect()
+            {
+                _originalIn = Console.In;
+                _originalOut = Console.Out;
+                _originalErr = Console.Error;
+
+                Console.SetIn(new StreamReader(Stream.Null));
+                Console.SetOut(TextWriter.Null);
+                Console.SetError(TextWriter.Null);
+            }
+
+            public void Dispose()
+            {
+                Console.SetIn(_originalIn);
+                Console.SetOut(_originalOut);
+                Console.SetError(_originalErr);
             }
         }
 
