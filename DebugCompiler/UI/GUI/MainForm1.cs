@@ -49,6 +49,7 @@ namespace DebugCompiler
         private System.Timers.Timer _processWatcher;
         private Games _currentGame;
         private ToolTip toolTip1;
+        private ToolStripMenuItem _themeMenu;
 
         // State tracking fields
         private DateTime _lastInjectionTime;
@@ -65,17 +66,23 @@ namespace DebugCompiler
         private readonly Color _warningColor = Color.FromArgb(255, 203, 107);
         private readonly Color _successColor = Color.FromArgb(100, 255, 100);
         private readonly Color _infoColor = Color.FromArgb(100, 200, 255);
-        private volatile bool _isCompiling = false; // Add volatile for thread safety
+        private volatile bool _isCompiling = false;
         private volatile bool _isInjecting = false;
         private bool _forceStatusRefresh = false;
         private Games _lastRunningGame = Games.None;
         private bool _lastRunningStatus = false;
 
-        private ToolStripMenuItem _themeMenu;
+        // DLL imports
+        [DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        private static extern int SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+
         internal static class NativeMethods
         {
             [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
-            private static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
+            public static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
 
             public static void SetDarkScrollBars(IntPtr handle)
             {
@@ -92,80 +99,255 @@ namespace DebugCompiler
                 }
                 catch (EntryPointNotFoundException)
                 {
-                    // Fallback if API not available (Windows 7 or older)
-                    // We'll just use default scrollbars
+                    // Fallback if API not available
                 }
             }
         }
 
+        public MainForm1()
+        {
+            // Phase 1: Basic Initialization
+            InitializeComponent();
+
+            // Non-UI components
+            compilerRoot = new Root();
+            toolTip1 = new ToolTip();
+
+            // Phase 2: Theme System Setup
+            UIThemeManager.ThemeChanged += OnThemeChanged;
+            this.KeyPreview = true;
+            this.KeyDown += MainForm_KeyDown;
+
+            // Load saved theme before creating controls
+            string savedTheme = UIThemeManager.LoadTheme();
+            if (!string.IsNullOrEmpty(savedTheme))
+            {
+                UIThemeManager.SetTheme(savedTheme);
+            }
+
+            // Phase 3: Handle-Created Initialization
+            this.HandleCreated += (s, e) =>
+            {
+                SafeInvoke(() =>
+                {
+                    InitializeThemeMenu();
+                    InitializeGameComboBox();
+                    InitializeCustomComponents();
+
+                    // ComboBox Styling
+                    cmbHotMode.DropDownStyle = ComboBoxStyle.DropDownList;
+                    cmbGame.DropDownStyle = ComboBoxStyle.DropDownList;
+                    cmbGame.FlatStyle = FlatStyle.Flat;
+                    cmbGame.FlatStyle = FlatStyle.Standard;
+                    cmbHotMode.Visible = chkHotLoad.Checked;
+                    cmbHotMode.Enabled = chkHotLoad.Checked;
+
+                    // Initial Game Detection
+                    var (initialGame, _) = DetectRunningGame();
+                    if (initialGame != Games.None)
+                    {
+                        cmbGame.SelectedItem = cmbGame.Items.Cast<KeyValuePair<Games, string>>()
+                            .FirstOrDefault(item => item.Key == initialGame);
+                    }
+
+                    // Additional UI Initialization
+                    InitializeStatusLabel();
+                    InitializeProcessMonitoring();
+                    InitializeOutputColors();
+                    InitializeButtonStates();
+                });
+            };
+
+            // Phase 4: Event Subscriptions
+            this.Load += (s, e) => SafeInvoke(() =>
+            {
+                UpdateGameStatus();
+                CheckRequiredFiles();
+            });
+
+            // Phase 5: Final Configuration
+            this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
+            UpdateCompilerOptions();
+
+            // Safe event subscriptions
+            SafeInvoke(() =>
+            {
+                txtScriptPath.TextChanged += TxtScriptPath_TextChanged;
+                compilerRoot.OnLogMessage += (msg) => SafeAppendText(msg + "\n");
+                compilerRoot.OnError += (err) => SafeAppendText("[ERROR] " + err + "\n");
+            });
+        }
+
+        // Helper method for safe invocation
+        private void SafeInvoke(Action action)
+        {
+            if (IsDisposed || !IsHandleCreated)
+                return;
+
+            try
+            {
+                if (InvokeRequired)
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        if (!IsDisposed && IsHandleCreated)
+                        {
+                            action();
+                        }
+                    }));
+                }
+                else
+                {
+                    action();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Handle cases where control is being disposed
+            }
+        } 
+
+        private void OnThemeChanged(UIThemeInfo theme)
+        {
+            SafeInvoke(() =>
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+
+                ApplyTheme(theme);
+                RefreshComboBoxStyles();
+                UpdateGameStatus();
+
+                if (MainMenuStrip != null && !MainMenuStrip.IsDisposed)
+                {
+                    MainMenuStrip.Visible = false;
+                }
+            });
+        }
+
         private void InitializeThemeMenu()
         {
+            // Clear existing menu safely
+            if (MainMenuStrip != null)
+            {
+                MainMenuStrip.Visible = false;
+                Controls.Remove(MainMenuStrip);
+                MainMenuStrip.Dispose();
+            }
+
+            // Create new menu
+            MainMenuStrip = new MenuStrip
+            {
+                GripStyle = ToolStripGripStyle.Hidden,
+                Visible = false,
+                Renderer = new CustomToolStripRenderer()
+            };
+
             _themeMenu = new ToolStripMenuItem("Themes");
 
-            // Load saved theme at startup
-            string savedTheme = UIThemeManager.LoadTheme();
-            var savedThemeInfo = UIThemeInfo.GetThemeByName(savedTheme);
-            var defaultTheme = new UIThemeInfo(); // Default struct value
+            // Get distinct themes only once
+            var savedTheme = UIThemeManager.LoadTheme();
+            var themes = UIThemeInfo.AvailableThemes
+                .GroupBy(t => t.Name)
+                .Select(g => g.First())
+                .OrderBy(t => t.Name);
 
-            foreach (var theme in UIThemeInfo.AvailableThemes)
+            foreach (var theme in themes)
             {
-                bool isChecked = EqualityComparer<UIThemeInfo>.Default.Equals(savedThemeInfo, defaultTheme)
-                    ? false
-                    : theme.Name.Equals(savedThemeInfo.Name, StringComparison.OrdinalIgnoreCase);
-
                 var item = new ToolStripMenuItem(theme.Name)
                 {
                     Tag = theme.Name,
-                    Checked = isChecked
+                    Checked = theme.Name.Equals(savedTheme, StringComparison.OrdinalIgnoreCase)
                 };
 
                 item.Click += (s, e) =>
                 {
-                    // Update check marks
+                    // Uncheck all items
                     foreach (ToolStripMenuItem menuItem in _themeMenu.DropDownItems)
                     {
-                        menuItem.Checked = menuItem == item;
+                        menuItem.Checked = false;
                     }
 
+                    // Check selected and apply theme
+                    item.Checked = true;
                     UIThemeManager.SetTheme(theme.Name);
                 };
 
                 _themeMenu.DropDownItems.Add(item);
             }
 
-            // Add to menu strip
-            if (MainMenuStrip == null)
+            // Add drag functionality
+            MainMenuStrip.MouseDown += (s, e) =>
             {
-                var menuStrip = new MenuStrip();
-                menuStrip.GripStyle = ToolStripGripStyle.Hidden;
-                menuStrip.Visible = false;
-                menuStrip.Items.Add(_themeMenu);
-                Controls.Add(menuStrip);
-                MainMenuStrip = menuStrip;
-            }
-            else
-            {
-                MainMenuStrip.Items.Add(_themeMenu);
-            }
+                if (e.Button == MouseButtons.Left)
+                {
+                    ReleaseCapture();
+                    SendMessage(Handle, 0xA1, 0x2, 0);
+                }
+            };
 
-            // Apply saved theme if not default
-            if (!EqualityComparer<UIThemeInfo>.Default.Equals(savedThemeInfo, defaultTheme) &&
-                !string.IsNullOrEmpty(savedThemeInfo.Name))
+            MainMenuStrip.Items.Add(_themeMenu);
+            Controls.Add(MainMenuStrip);
+            MainMenuStrip.BringToFront();
+        }
+
+        private void MenuStrip_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
             {
-                UIThemeManager.SetTheme(savedThemeInfo);
+                MainMenuStrip.Cursor = Cursors.SizeAll;
+                ReleaseCapture();
+                SendMessage(Handle, 0xA1, 0x2, 0);
             }
         }
 
-        // Optional helper method for theme preview icons
-        private Image CreateThemePreviewImage(UIThemeInfo theme)
+        private void MenuStrip_MouseUp(object sender, MouseEventArgs e)
         {
-            var bmp = new Bitmap(16, 16);
-            using (var g = Graphics.FromImage(bmp))
+            MainMenuStrip.Cursor = Cursors.Default;
+        }
+
+        private void MainForm_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.T && !e.Alt && !e.Shift)
             {
-                g.FillRectangle(new SolidBrush(theme.BackColor), 0, 0, 8, 16);
-                g.FillRectangle(new SolidBrush(theme.AccentColor), 8, 0, 8, 16);
+                e.SuppressKeyPress = true;
+                ToggleThemeMenu();
             }
-            return bmp;
+        }
+
+        private void ToggleThemeMenu()
+        {
+            if (MainMenuStrip == null || MainMenuStrip.IsDisposed)
+                return;
+
+            MainMenuStrip.Visible = !MainMenuStrip.Visible;
+
+            if (MainMenuStrip.Visible)
+            {
+                MainMenuStrip.Location = new Point(
+                    ClientSize.Width - MainMenuStrip.Width - 10,
+                    10);
+                MainMenuStrip.BringToFront();
+            }
+        }
+
+        public void ShowThemeMenu(bool show)
+        {
+            if (this.IsDisposed || !this.IsHandleCreated) return;
+
+            SafeInvoke(() =>
+            {
+                if (MainMenuStrip != null && !MainMenuStrip.IsDisposed)
+                {
+                    MainMenuStrip.Visible = show;
+                    if (show)
+                    {
+                        MainMenuStrip.Location = new Point(
+                            this.ClientSize.Width - MainMenuStrip.Width - 10,
+                            10);
+                        MainMenuStrip.BringToFront();
+                    }
+                }
+            });
         }
 
         // Custom renderer for theme menu
@@ -185,112 +367,131 @@ namespace DebugCompiler
             }
         }
 
-        public void ShowThemeMenu(bool show)
+        public void ApplyTheme(UIThemeInfo theme)
         {
-            if (MainMenuStrip != null)
+            if (IsDisposed || !IsHandleCreated) return;
+
+            SafeInvoke(() =>
             {
-                MainMenuStrip.Visible = show;
-                if (show)
+                try
                 {
-                    MainMenuStrip.Location = new Point(
-                        this.ClientSize.Width - 120,
-                        0);
-                    MainMenuStrip.BringToFront();
+                    this.SuspendLayout();
+
+                    // Apply to main form
+                    this.BackColor = theme.BackColor;
+                    this.ForeColor = theme.TextColor;
+
+                    // Apply to custom border form if exists
+                    if (this.InnerForm != null && !this.InnerForm.IsDisposed)
+                    {
+                        this.InnerForm.BackColor = theme.AccentColor;
+                        this.InnerForm.ForeColor = theme.TextColor;
+                    }
+
+                    // Apply to all child controls
+                    UIThemeManager.RegisterChildControls(this);
+
+                    // Special handling for status label
+                    if (_lblGameStatus != null && !_lblGameStatus.IsDisposed)
+                    {
+                        _lblGameStatus.BackColor = theme.IsDarkTheme
+                            ? Color.FromArgb(40, 40, 40)
+                            : Color.FromArgb(240, 240, 240);
+                        _lblGameStatus.ForeColor = theme.TextColor;
+                    }
+
+                    // Force complete refresh
+                    this.Invalidate(true);
+                }
+                finally
+                {
+                    this.ResumeLayout(true);
+                }
+            });
+        }
+
+        private void ApplyThemeToControls(Control.ControlCollection controls, UIThemeInfo theme)
+        {
+            foreach (Control control in controls)
+            {
+                if (control is Button button && (button == btnInject || button == btnCompile || button == btnBrowse))
+                {
+                    // Special theming for action buttons
+                    button.BackColor = theme.AccentColor;
+                    button.ForeColor = Color.White; // High contrast text
+                    button.FlatStyle = FlatStyle.Flat;
+                    button.FlatAppearance.BorderColor = theme.AccentColor;
+                    button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
+                    button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
+                    button.Font = new Font(button.Font, FontStyle.Bold);
+                }
+                else if (control is Button standardButton)
+                {
+                    // Standard button theming
+                    standardButton.BackColor = theme.ButtonBackColor;
+                    standardButton.ForeColor = theme.TextColor;
+                    standardButton.FlatStyle = theme.ButtonFlatStyle;
+                    standardButton.FlatAppearance.BorderColor = theme.BorderColor;
+                    standardButton.FlatAppearance.MouseOverBackColor = theme.ButtonHoverColor;
+                    standardButton.FlatAppearance.MouseDownBackColor = theme.ButtonActiveColor;
+                }
+                else if (control is RichTextBox rtb)
+                {
+                    rtb.BackColor = theme.TextBoxBackColor;
+                    rtb.ForeColor = theme.TextColor;
+                    rtb.BorderStyle = theme.TextBoxBorderStyle;
+                    NativeMethods.SetDarkScrollBars(rtb.Handle);
+                }
+                else if (control is TextBox txt)
+                {
+                    txt.BackColor = theme.TextBoxBackColor;
+                    txt.ForeColor = theme.TextColor;
+                    txt.BorderStyle = theme.TextBoxBorderStyle;
+                }
+                else if (control is ComboBox cmb)
+                {
+                    cmb.BackColor = theme.TextBoxBackColor;
+                    cmb.ForeColor = theme.TextColor;
+                    cmb.FlatStyle = theme.ButtonFlatStyle;
+                    // Maintain DropDownList style
+                    if (cmb == cmbHotMode || cmb == cmbGame)
+                    {
+                        cmb.DropDownStyle = ComboBoxStyle.DropDownList;
+                    }
+                }
+                else if (control is Label || control is CheckBox || control is RadioButton)
+                {
+                    control.ForeColor = theme.TextColor;
+                }
+                else if (control is Panel || control is GroupBox)
+                {
+                    control.BackColor = theme.ControlBackColor;
+                    control.ForeColor = theme.TextColor;
+                }
+                else if (control is ToolStrip toolStrip)
+                {
+                    toolStrip.BackColor = theme.BackColor;
+                    toolStrip.ForeColor = theme.TextColor;
+                }
+
+                // Recursively apply to children
+                if (control.HasChildren)
+                {
+                    ApplyThemeToControls(control.Controls, theme);
                 }
             }
         }
 
-        public MainForm1()
+        // Optional helper method for theme preview icons
+        private Image CreateThemePreviewImage(UIThemeInfo theme)
         {
-            InitializeComponent(); // This creates the window handle
-            InitializeGameComboBox();
-
-            // Set initial selection based on running game
-            var (initialGame, _) = DetectRunningGame();
-            if (initialGame != Games.None)
+            var bmp = new Bitmap(16, 16);
+            using (var g = Graphics.FromImage(bmp))
             {
-                foreach (KeyValuePair<Games, string> item in cmbGame.Items)
-                {
-                    if (item.Key == initialGame)
-                    {
-                        cmbGame.SelectedItem = item;
-                        break;
-                    }
-                }
+                g.FillRectangle(new SolidBrush(theme.BackColor), 0, 0, 8, 16);
+                g.FillRectangle(new SolidBrush(theme.AccentColor), 8, 0, 8, 16);
             }
-
-            // Initialize core components
-            toolTip1 = new ToolTip();
-            // After InitializeComponent()
-            cmbGame.SelectedIndex -= cmbGame.SelectedIndex; // Prevent duplicate binding
-            cmbGame.SelectedIndex += cmbGame.SelectedIndex;
-
-            // Theme system initialization
-            InitializeThemeMenu();
-            UIThemeManager.RegisterControl(this);
-            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
-
-            // Create status label (after InitializeComponent)
-            InitializeStatusLabel();
-
-            // Force initial theme application
-            this.Load += (sender, e) =>
-            {
-                ApplyTheme(UIThemeManager.CurrentTheme);
-                UpdateGameStatus();
-            };
-
-            // Process monitoring
-            InitializeProcessMonitoring();
-
-            // Other initializations
-            InitializeCustomComponents();
-            InitializeOutputColors();
-            InitializeButtonStates();
-
-            // Menu system
-            var fileMenu = new ToolStripMenuItem("File");
-            var exitItem = new ToolStripMenuItem("Exit");
-            fileMenu.DropDownItems.Add(exitItem);
-            ShowThemeMenu(false);
-
-            // Theme change handler
-            UIThemeManager.ThemeChanged += (theme) =>
-            {
-                btnInject.Invalidate();
-                btnCompile.Invalidate();
-                btnBrowse.Invalidate();
-                UpdateGameStatus();
-            };
-
-            // Key handler
-            this.KeyPreview = true;
-            this.KeyDown += (s, e) => {
-                if (e.Control && e.KeyCode == Keys.T)
-                    ShowThemeMenu(!MainMenuStrip.Visible);
-            };
-
-            // Event handlers
-            txtScriptPath.TextChanged += TxtScriptPath_TextChanged;
-            UpdateInjectButtonState();
-
-            // Compiler system
-            compilerRoot = new Root();
-            compilerRoot.OnLogMessage += (msg) => SafeAppendText(msg + "\n");
-            compilerRoot.OnError += (err) => SafeAppendText("[ERROR] " + err + "\n");
-
-            // Final setup
-            CheckRequiredFiles();
-            this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
-            UpdateCompilerOptions();
-
-            // Handle initial theme application safely
-            this.HandleCreated += (s, e) => {
-                ApplyTheme(UIThemeManager.CurrentTheme);
-            };
-
-            // Force initial status update after everything is ready
-            this.Shown += (s, e) => UpdateGameStatus();
+            return bmp;
         }
 
         protected override void OnLoad(EventArgs e)
@@ -361,6 +562,23 @@ namespace DebugCompiler
                 }
             }
             return (Games.None, false);
+        }
+
+        private void RefreshComboBoxStyles()
+        {
+            void RefreshCombo(ComboBox comboBox)
+            {
+                if (comboBox != null && !comboBox.IsDisposed && comboBox.IsHandleCreated)
+                {
+                    comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                    comboBox.FlatStyle = FlatStyle.Flat;
+                    comboBox.FlatStyle = FlatStyle.Standard;
+                    comboBox.Refresh();
+                }
+            }
+
+            RefreshCombo(cmbGame);
+            RefreshCombo(cmbHotMode);
         }
 
         private void CheckGameProcess()
@@ -440,158 +658,23 @@ namespace DebugCompiler
             CheckGameProcess();
         }
 
-        private void CmbGame_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (cmbGame == null || cmbGame.SelectedIndex < 0)
-                return;
-
-            try
-            {
-                if (cmbGame.SelectedItem is KeyValuePair<Games, string> selectedPair)
-                {
-                    _currentGame = selectedPair.Key;
-
-                    // Update UI states
-                    UpdateGameStatus();
-                    UpdateCompilerOptions();
-                    UpdateInjectButtonState();
-
-                    // Force immediate process check with thread safety
-                    if (InvokeRequired)
-                    {
-                        BeginInvoke((MethodInvoker)CheckGameProcess);
-                    }
-                    else
-                    {
-                        CheckGameProcess();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Game selection change error: {ex.Message}");
-                SafeAppendText($"[ERROR] Failed to process game selection: {ex.Message}\n");
-            }
-        }
-
-        public void ApplyTheme(UIThemeInfo theme)
-        {
-            if (IsDisposed || !IsHandleCreated) return;
-
-            this.SuspendLayout();
-            try
-            {
-                // Apply to main form
-                this.BackColor = theme.BackColor;
-                this.ForeColor = theme.TextColor;
-
-                // Apply to custom border form if exists
-                if (this.InnerForm != null)
-                {
-                    this.InnerForm.BackColor = theme.AccentColor;
-                    this.InnerForm.ForeColor = theme.TextColor;
-                    this.InnerForm.Invalidate();
-                }
-
-                // Apply to all controls
-                ApplyThemeToControls(this.Controls, theme);
-
-                // Special handling for status label
-                if (_lblGameStatus != null)
-                {
-                    _lblGameStatus.BackColor = theme.IsDarkTheme
-                        ? Color.FromArgb(40, 40, 40)
-                        : Color.FromArgb(240, 240, 240);
-                    UpdateGameStatus();
-                }
-            }
-            finally
-            {
-                this.ResumeLayout(true);
-                this.Refresh();
-            }
-        }
-
-        private void ApplyThemeToControls(Control.ControlCollection controls, UIThemeInfo theme)
-        {
-            foreach (Control control in controls)
-            {
-                if (control is Button button && (button == btnInject || button == btnCompile || button == btnBrowse))
-                {
-                    // Special theming for action buttons
-                    button.BackColor = theme.AccentColor;
-                    button.ForeColor = Color.White; // High contrast text
-                    button.FlatStyle = FlatStyle.Flat;
-                    button.FlatAppearance.BorderColor = theme.AccentColor;
-                    button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
-                    button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
-                    button.Font = new Font(button.Font, FontStyle.Bold);
-                }
-                else if (control is Button standardButton)
-                {
-                    // Standard button theming
-                    standardButton.BackColor = theme.ButtonBackColor;
-                    standardButton.ForeColor = theme.TextColor;
-                    standardButton.FlatStyle = theme.ButtonFlatStyle;
-                    standardButton.FlatAppearance.BorderColor = theme.BorderColor;
-                    standardButton.FlatAppearance.MouseOverBackColor = theme.ButtonHoverColor;
-                    standardButton.FlatAppearance.MouseDownBackColor = theme.ButtonActiveColor;
-                }
-                else if (control is RichTextBox rtb)
-                {
-                    rtb.BackColor = theme.TextBoxBackColor;
-                    rtb.ForeColor = theme.TextColor;
-                    rtb.BorderStyle = theme.TextBoxBorderStyle;
-                    NativeMethods.SetDarkScrollBars(rtb.Handle);
-                }
-                else if (control is TextBox txt)
-                {
-                    txt.BackColor = theme.TextBoxBackColor;
-                    txt.ForeColor = theme.TextColor;
-                    txt.BorderStyle = theme.TextBoxBorderStyle;
-                }
-                else if (control is ComboBox cmb)
-                {
-                    cmb.BackColor = theme.TextBoxBackColor;
-                    cmb.ForeColor = theme.TextColor;
-                    cmb.FlatStyle = theme.ButtonFlatStyle;
-                }
-                else if (control is Label || control is CheckBox || control is RadioButton)
-                {
-                    control.ForeColor = theme.TextColor;
-                }
-                else if (control is Panel || control is GroupBox)
-                {
-                    control.BackColor = theme.ControlBackColor;
-                    control.ForeColor = theme.TextColor;
-                }
-                else if (control is ToolStrip toolStrip)
-                {
-                    toolStrip.BackColor = theme.BackColor;
-                    toolStrip.ForeColor = theme.TextColor;
-                }
-
-                // Recursively apply to children
-                if (control.HasChildren)
-                {
-                    ApplyThemeToControls(control.Controls, theme);
-                }
-            }
-        }
 
         private void SafeAppendText(string text)
         {
-            if (txtOutput.InvokeRequired)
-            {
-                txtOutput.Invoke(new Action<string>(SafeAppendText), text);
-            }
-            else
+            if (string.IsNullOrEmpty(text) || IsDisposed || !IsHandleCreated)
+                return;
+
+            void AppendTextInternal()
             {
                 lock (_outputLock)
                 {
-                    txtOutput.SuspendLayout();
                     try
                     {
+                        if (txtOutput.IsDisposed || !txtOutput.IsHandleCreated)
+                            return;
+
+                        txtOutput.SuspendLayout();
+
                         // Determine color based on message content
                         Color color = txtOutput.ForeColor; // Default color
                         if (text.Contains("[ERROR]")) color = _errorColor;
@@ -612,9 +695,28 @@ namespace DebugCompiler
                     }
                     finally
                     {
-                        txtOutput.ResumeLayout();
+                        if (!txtOutput.IsDisposed && txtOutput.IsHandleCreated)
+                        {
+                            txtOutput.ResumeLayout();
+                        }
                     }
                 }
+            }
+
+            if (txtOutput.InvokeRequired)
+            {
+                try
+                {
+                    BeginInvoke((Action)AppendTextInternal);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Handle invoke after control disposed
+                }
+            }
+            else
+            {
+                AppendTextInternal();
             }
         }
 
@@ -728,9 +830,15 @@ namespace DebugCompiler
 
             InitializeGameComboBox();
 
+
             cmbHotMode.Items.AddRange(new[] { "GSC", "CSC" });
             cmbHotMode.SelectedIndex = 0;
-            cmbHotMode.Enabled = false;
+            cmbHotMode.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbHotMode.Visible = false;
+
+            // Force style update
+            cmbHotMode.FlatStyle = FlatStyle.Standard;
+            cmbHotMode.Refresh();
 
             resetToolTip.SetToolTip(btnResetParseTree,
                 "Reset GSC Parse Tree\n\n" +
@@ -776,21 +884,23 @@ namespace DebugCompiler
 
             resetToolTip.SetToolTip(cmbHotMode,
                 "Hot Load Mode\n\n" +
-                "GSC: Standard script hot loading\n" +
-                "CSC: Client-side script hot loading");
+                "GSC: Standard script hot loading (Server/Shared)\n" +
+                "CSC: Client-side script hot loading\n\n" +
+                "Only available when Hot Load is enabled");
         }
 
         private void InitializeGameComboBox()
         {
             var gameDisplayNames = new Dictionary<Games, string>
-    {
-        {Games.T6, "Black Ops 2 (T6)"},
-        {Games.T7, "Black Ops 3 (T7)"},
-        {Games.T8, "Black Ops 4 (T8)"}
-    };
+            {
+                {Games.T6, "Black Ops 2 (T6)"},
+                {Games.T7, "Black Ops 3 (T7)"},
+                {Games.T8, "Black Ops 4 (T8)"}
+            };
 
             cmbGame.DisplayMember = "Value";
             cmbGame.ValueMember = "Key";
+            cmbGame.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbGame.DataSource = Enum.GetValues(typeof(Games))
                 .Cast<Games>()
                 .Where(g => g != Games.None)
@@ -800,6 +910,9 @@ namespace DebugCompiler
             // Modified event handler to prevent recursive updates
             cmbGame.SelectedIndexChanged -= CmbGame_SelectedIndexChanged;
             cmbGame.SelectedIndexChanged += CmbGame_SelectedIndexChanged;
+
+            UIThemeManager.RegisterSpecialComboBox(cmbGame);
+            UIThemeManager.RegisterSpecialComboBox(cmbHotMode);
         }
 
         private string GetVersion()
@@ -886,6 +999,7 @@ namespace DebugCompiler
             chkHotLoad.Enabled = !_isCompiling && !_isInjecting;
             chkNoRuntime.Enabled = !_isCompiling && !_isInjecting;
             cmbHotMode.Enabled = !_isCompiling && !_isInjecting && chkHotLoad.Checked;
+            cmbHotMode.Visible = chkHotLoad.Checked;
             cmbGame.Enabled = !_isCompiling && !_isInjecting;
 
             // Force UI refresh
@@ -893,7 +1007,6 @@ namespace DebugCompiler
             btnCompile.Refresh();
         }
 
-        // Call this in your form constructor after InitializeComponent()
         private void InitializeButtonStates()
         {
             txtScriptPath.Text = ""; // Clear any default text
@@ -1281,33 +1394,82 @@ namespace DebugCompiler
         {
             if (_isInternalUpdate) return;
 
-            ClearOutput();
+            SafeInvoke(() => {
+                cmbHotMode.Visible = chkHotLoad.Checked;
+                cmbHotMode.Enabled = chkHotLoad.Checked;
+
+                // Force style refresh when made visible
+                if (chkHotLoad.Checked)
+                {
+                    cmbHotMode.DropDownStyle = ComboBoxStyle.DropDownList;
+                    cmbHotMode.FlatStyle = FlatStyle.Flat;
+                    cmbHotMode.FlatStyle = FlatStyle.Standard;
+                    cmbHotMode.Refresh();
+                }
+
+                ClearOutput();
+                SafeAppendText($"[CONFIG] Hot Load {(chkHotLoad.Checked ? "Enabled" : "Disabled")}\n");
+                UpdateCompilerOptions();
+            });
+        }
+
+        private void CmbGame_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbGame == null || cmbGame.SelectedIndex < 0 || !IsHandleCreated)
+                return;
+
             try
             {
-                _isInternalUpdate = true;
-                if (chkHotLoad.Checked) // Only show message when enabled
+                if (cmbGame.SelectedItem is KeyValuePair<Games, string> selectedPair)
                 {
-                    SafeAppendText("[CONFIG] Enabled: Hot Load\n");
+                    _currentGame = selectedPair.Key;
+
+                    // Safe UI updates
+                    if (IsHandleCreated)
+                    {
+                        BeginInvoke((MethodInvoker)delegate {
+                            UpdateGameStatus();
+                            UpdateCompilerOptions();
+                            UpdateInjectButtonState();
+
+                            // Clear selection highlight
+                            cmbGame.SelectionLength = 0;
+                        });
+                    }
+
+                    // Non-UI operation can run directly
+                    CheckGameProcess();
                 }
-                UpdateCompilerOptions();
             }
-            finally
+            catch (Exception ex)
             {
-                _isInternalUpdate = false;
+                Debug.WriteLine($"Game selection change error: {ex.Message}");
+                SafeAppendText($"[ERROR] Failed to process game selection: {ex.Message}\n");
             }
         }
 
-        // Keep your existing cmbHotMode handler as-is
         private void CmbHotMode_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_isInternalUpdate || !chkHotLoad.Checked) return;
+            if (_isInternalUpdate || !chkHotLoad.Checked || !IsHandleCreated)
+                return;
 
             ClearOutput();
             SafeAppendText($"[CONFIG] Hot Load Mode: {(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc")}\n");
             UpdateCompilerOptions();
+
+            if (IsHandleCreated)
+            {
+                BeginInvoke((MethodInvoker)delegate {
+                    cmbHotMode.SelectionLength = 0;
+                    if (cmbHotMode.DropDownStyle == ComboBoxStyle.DropDownList)
+                    {
+                        cmbHotMode.FlatStyle = FlatStyle.Flat;
+                        cmbHotMode.FlatStyle = FlatStyle.Standard;
+                    }
+                });
+            }
         }
 
-        // Modified build handler to match pattern
         private void ChkBuild_CheckedChanged(object sender, EventArgs e)
         {
             if (_isInternalUpdate) return;
@@ -1329,7 +1491,6 @@ namespace DebugCompiler
             }
         }
 
-        // Modified compile-only handler to match pattern
         private void ChkCompileOnly_CheckedChanged(object sender, EventArgs e)
         {
             if (_isInternalUpdate) return;

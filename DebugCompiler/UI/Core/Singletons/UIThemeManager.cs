@@ -1,28 +1,24 @@
 ﻿using DebugCompiler.UI.Core.Controls;
 using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.ComponentModel.Design;
-using System.Data;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Design;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Windows.Forms.Design;
 
 namespace DebugCompiler.UI.Core.Singletons
 {
     public static class UIThemeManager
     {
-        public static UIThemeInfo CurrentTheme { get; private set; } = UIThemeInfo.Dark;
+        private static UIThemeInfo _currentTheme = UIThemeInfo.Dark;
+        public static UIThemeInfo CurrentTheme
+        {
+            get => _currentTheme;
+            private set => _currentTheme = value;
+        }
+
         private static readonly HashSet<Control> ThemedControls = new();
         private static readonly Dictionary<Control, Action<UIThemeInfo>> CustomControlHandlers = new();
 
@@ -44,10 +40,10 @@ namespace DebugCompiler.UI.Core.Singletons
         public static void SetTheme(string themeName)
         {
             var theme = UIThemeInfo.GetThemeByName(themeName);
-            if (!string.IsNullOrEmpty(theme.Name)) // Check for valid theme
-            {
-                SetTheme(theme);
-            }
+            if (EqualityComparer<UIThemeInfo>.Default.Equals(theme, default(UIThemeInfo)))
+                return;
+
+            SetTheme(theme); // Now calls the UIThemeInfo version to ensure consistent behavior
         }
 
         public static void SaveTheme(string themeName)
@@ -71,16 +67,9 @@ namespace DebugCompiler.UI.Core.Singletons
         {
             try
             {
-                if (File.Exists(ConfigPath))
-                {
-                    return File.ReadAllText(ConfigPath);
-                }
+                return File.Exists(ConfigPath) ? File.ReadAllText(ConfigPath) : string.Empty;
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to load theme: {ex.Message}");
-            }
-            return "Dark"; // Default theme
+            catch { return string.Empty; }
         }
 
         public static void RegisterChildControls(Control parent)
@@ -110,6 +99,12 @@ namespace DebugCompiler.UI.Core.Singletons
 
         private static void ApplyThemeToControl(Control control)
         {
+            if (control.InvokeRequired)
+            {
+                control.Invoke((Action)(() => ApplyThemeToControl(control)));
+                return;
+            }
+
             control.SuspendLayout();
             try
             {
@@ -126,10 +121,20 @@ namespace DebugCompiler.UI.Core.Singletons
                 {
                     handler(CurrentTheme);
                 }
+
+                // Special handling for ComboBox to maintain DropDownStyle
+                if (control is ComboBox comboBox)
+                {
+                    if (comboBox.Tag?.ToString() == "ForceDropDownList")
+                    {
+                        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                    }
+                    comboBox.Refresh();
+                }
             }
             finally
             {
-                control.ResumeLayout();
+                control.ResumeLayout(true);
             }
         }
 
@@ -138,7 +143,6 @@ namespace DebugCompiler.UI.Core.Singletons
             control.SuspendLayout();
             try
             {
-                // Handle Form first
                 if (control is Form form)
                 {
                     form.BackColor = CurrentTheme.BackColor;
@@ -146,7 +150,6 @@ namespace DebugCompiler.UI.Core.Singletons
                     return;
                 }
 
-                // Handle specific controls with explicit type checks
                 if (control is GroupBox groupBox)
                 {
                     groupBox.Paint -= ThemedGroupBoxPaint;
@@ -166,7 +169,6 @@ namespace DebugCompiler.UI.Core.Singletons
                     return;
                 }
 
-                // Handle TextBox and RichTextBox separately
                 if (control is TextBox textBox)
                 {
                     textBox.BackColor = CurrentTheme.TextBoxBackColor;
@@ -200,6 +202,12 @@ namespace DebugCompiler.UI.Core.Singletons
                     comboBox.BackColor = CurrentTheme.TextBoxBackColor;
                     comboBox.ForeColor = CurrentTheme.TextColor;
                     comboBox.FlatStyle = CurrentTheme.ButtonFlatStyle;
+
+                    // Special handling to maintain DropDownStyle
+                    if (comboBox.Tag?.ToString() == "ForceDropDownList")
+                    {
+                        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                    }
                     return;
                 }
 
@@ -210,7 +218,6 @@ namespace DebugCompiler.UI.Core.Singletons
                     return;
                 }
 
-                // Handle DataGridView if needed
                 if (control is DataGridView dataGridView)
                 {
                     dataGridView.BackgroundColor = CurrentTheme.BackColor;
@@ -218,10 +225,17 @@ namespace DebugCompiler.UI.Core.Singletons
                     dataGridView.GridColor = CurrentTheme.GridLineColor;
                     return;
                 }
+
+                if (control is ToolStrip toolStrip)
+                {
+                    toolStrip.BackColor = CurrentTheme.BackColor;
+                    toolStrip.ForeColor = CurrentTheme.TextColor;
+                    return;
+                }
             }
             finally
             {
-                control.ResumeLayout();
+                control.ResumeLayout(true);
             }
         }
 
@@ -246,6 +260,15 @@ namespace DebugCompiler.UI.Core.Singletons
             }
         }
 
+        public static void RegisterSpecialComboBox(ComboBox comboBox)
+        {
+            if (comboBox != null)
+            {
+                comboBox.Tag = "ForceDropDownList";
+                RegisterControl(comboBox);
+            }
+        }
+
         private static void ThemedGroupBoxPaint(object sender, PaintEventArgs e)
         {
             if (sender is GroupBox box)
@@ -260,34 +283,24 @@ namespace DebugCompiler.UI.Core.Singletons
                         box.ClientRectangle.Width - 1,
                         box.ClientRectangle.Height - (int)(strSize.Height / 2) - 1);
 
-                    // Clear background
                     e.Graphics.Clear(CurrentTheme.BackColor);
-
-                    // Draw text
                     e.Graphics.DrawString(box.Text, box.Font, textBrush, box.Padding.Left, 0);
 
-                    // Draw border
-                    // Left
                     e.Graphics.DrawLine(borderPen, rect.Location, new Point(rect.X, rect.Y + rect.Height));
-                    // Right
                     e.Graphics.DrawLine(borderPen,
                         new Point(rect.X + rect.Width, rect.Y),
                         new Point(rect.X + rect.Width, rect.Y + rect.Height));
-                    // Bottom
                     e.Graphics.DrawLine(borderPen,
                         new Point(rect.X, rect.Y + rect.Height),
                         new Point(rect.X + rect.Width, rect.Y + rect.Height));
-                    // Top left
                     e.Graphics.DrawLine(borderPen,
                         new Point(rect.X, rect.Y),
                         new Point(rect.X + box.Padding.Left, rect.Y));
-                    // Top right
                     e.Graphics.DrawLine(borderPen,
                         new Point(rect.X + box.Padding.Left + (int)strSize.Width, rect.Y),
                         new Point(rect.X + rect.Width, rect.Y));
                 }
             }
         }
-
     }
 }

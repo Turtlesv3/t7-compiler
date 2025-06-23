@@ -23,6 +23,19 @@ namespace DebugCompiler.UI.Core.Controls
     public partial class CBorderedForm : UserControl, IThemeableControl
     {
 
+        private const int WM_NCHITTEST = 0x84;
+        private const int HTCLIENT = 1;
+        private const int HTCAPTION = 2;
+
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (m.Msg == WM_NCHITTEST && (int)m.Result == HTCLIENT)
+            {
+                m.Result = (IntPtr)HTCAPTION;
+            }
+        }
+
         #region designer
         private bool __useTitleBar = true;
         [
