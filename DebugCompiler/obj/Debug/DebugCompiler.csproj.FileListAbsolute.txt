@@ -84,4 +84,3 @@ C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCom.5A0FFFEE.Up2Date
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.exe
 C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.pdb
-C:\Users\golia\Source\Repos\t7-compilerv2\DebugCompiler\obj\Debug\DebugCompiler.exe.config

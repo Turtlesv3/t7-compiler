@@ -50,6 +50,7 @@ namespace DebugCompiler
         private Games _currentGame;
         private ToolTip toolTip1;
         private ToolStripMenuItem _themeMenu;
+        private MenuStrip MainMenuStrip;
 
         // State tracking fields
         private DateTime _lastInjectionTime;
@@ -234,29 +235,31 @@ namespace DebugCompiler
                 MainMenuStrip.Dispose();
             }
 
-            // Create new menu
+            // Create new menu strip with proper theming (initially hidden)
             MainMenuStrip = new MenuStrip
             {
-                GripStyle = ToolStripGripStyle.Hidden,
-                Visible = false,
-                Renderer = new CustomToolStripRenderer()
+                Visible = false,  // Hidden on startup
+                Renderer = new CustomToolStripRenderer(UIThemeManager.CurrentTheme)
             };
 
+            // Initialize theme menu item
             _themeMenu = new ToolStripMenuItem("Themes");
 
-            // Get distinct themes only once
+            // Get distinct themes
             var savedTheme = UIThemeManager.LoadTheme();
             var themes = UIThemeInfo.AvailableThemes
                 .GroupBy(t => t.Name)
                 .Select(g => g.First())
                 .OrderBy(t => t.Name);
 
+            // Add theme items with proper theming
             foreach (var theme in themes)
             {
                 var item = new ToolStripMenuItem(theme.Name)
                 {
-                    Tag = theme.Name,
-                    Checked = theme.Name.Equals(savedTheme, StringComparison.OrdinalIgnoreCase)
+                    Tag = theme,
+                    Checked = theme.Name.Equals(savedTheme, StringComparison.OrdinalIgnoreCase),
+                    ForeColor = UIThemeManager.CurrentTheme.MenuTextColor
                 };
 
                 item.Click += (s, e) =>
@@ -269,7 +272,10 @@ namespace DebugCompiler
 
                     // Check selected and apply theme
                     item.Checked = true;
-                    UIThemeManager.SetTheme(theme.Name);
+                    UIThemeManager.SetTheme(theme);
+
+                    // Update menu renderer with new theme
+                    MainMenuStrip.Renderer = new CustomToolStripRenderer(theme);
                 };
 
                 _themeMenu.DropDownItems.Add(item);
@@ -285,9 +291,16 @@ namespace DebugCompiler
                 }
             };
 
+            // Add menu to form (still hidden)
             MainMenuStrip.Items.Add(_themeMenu);
             Controls.Add(MainMenuStrip);
             MainMenuStrip.BringToFront();
+
+            // Ensure proper menu theming
+            UIThemeManager.ThemeChanged += theme =>
+            {
+                MainMenuStrip.Renderer = new CustomToolStripRenderer(theme);
+            };
         }
 
         private void MenuStrip_MouseDown(object sender, MouseEventArgs e)
@@ -348,24 +361,7 @@ namespace DebugCompiler
                     }
                 }
             });
-        }
-
-        // Custom renderer for theme menu
-        private class CustomToolStripRenderer : ToolStripProfessionalRenderer
-        {
-            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
-            {
-                if (e.Item.Selected)
-                {
-                    e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(70, 70, 70)),
-                        new Rectangle(Point.Empty, e.Item.Size));
-                }
-                else
-                {
-                    base.OnRenderMenuItemBackground(e);
-                }
-            }
-        }
+        }        
 
         public void ApplyTheme(UIThemeInfo theme)
         {

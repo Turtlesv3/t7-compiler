@@ -39,6 +39,61 @@ namespace DebugCompiler
             base.Dispose(disposing);
         }
 
+        private class CustomToolStripRenderer : ToolStripProfessionalRenderer
+        {
+            private readonly UIThemeInfo _theme;
+
+            public CustomToolStripRenderer(UIThemeInfo theme) : base(new ThemeColors(theme))
+            {
+                _theme = theme;
+            }
+
+            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.Item.Selected)
+                {
+                    using (var brush = new SolidBrush(_theme.ButtonHoverColor))
+                    {
+                        e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
+                    }
+                }
+                else
+                {
+                    base.OnRenderMenuItemBackground(e);
+                }
+            }
+
+            protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+            {
+                e.TextColor = _theme.MenuTextColor;
+                base.OnRenderItemText(e);
+            }
+
+            private class ThemeColors : ProfessionalColorTable
+            {
+                private readonly UIThemeInfo _theme;
+
+                public ThemeColors(UIThemeInfo theme)
+                {
+                    _theme = theme;
+                }
+
+                public override Color MenuItemSelected => _theme.ButtonHoverColor;
+                public override Color MenuItemBorder => _theme.BorderColor;
+                public override Color MenuBorder => _theme.BorderColor;
+                public override Color MenuItemSelectedGradientBegin => _theme.ButtonHoverColor;
+                public override Color MenuItemSelectedGradientEnd => _theme.ButtonHoverColor;
+                public override Color MenuItemPressedGradientBegin => _theme.ButtonActiveColor;
+                public override Color MenuItemPressedGradientEnd => _theme.ButtonActiveColor;
+                public override Color ToolStripDropDownBackground => _theme.MenuBackColor;
+
+                // These are the correct color properties for menu items
+                public override Color ImageMarginGradientBegin => _theme.MenuBackColor;
+                public override Color ImageMarginGradientMiddle => _theme.MenuBackColor;
+                public override Color ImageMarginGradientEnd => _theme.MenuBackColor;
+            }
+        }
+
         #region Windows Form Designer generated code
 
         /// <summary>
@@ -223,6 +278,7 @@ namespace DebugCompiler
             this.cmbHotMode.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.cmbHotMode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.cmbHotMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbHotMode.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.cmbHotMode.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.cmbHotMode.ForeColor = System.Drawing.Color.White;
@@ -231,7 +287,6 @@ namespace DebugCompiler
             this.cmbHotMode.Name = "cmbHotMode";
             this.cmbHotMode.Size = new System.Drawing.Size(52, 25);
             this.cmbHotMode.TabIndex = 9;
-            this.cmbHotMode.Text = "GSC";
             this.cmbHotMode.SelectedIndexChanged += new System.EventHandler(this.CmbHotMode_SelectedIndexChanged);
             // 
             // cmbGame
@@ -239,6 +294,7 @@ namespace DebugCompiler
             this.cmbGame.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.cmbGame.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.cmbGame.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbGame.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.cmbGame.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.cmbGame.ForeColor = System.Drawing.Color.White;
@@ -297,9 +353,6 @@ namespace DebugCompiler
             this.InnerForm.ControlContents.ResumeLayout(false);
             this.InnerForm.ControlContents.PerformLayout();
             this.ResumeLayout(false);
-            // In InitializeComponent()
-            this.cmbHotMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.cmbGame.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
 
         }
 
