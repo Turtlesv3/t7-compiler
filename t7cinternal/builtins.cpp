@@ -2,6 +2,8 @@
 #include "offsets.h"
 #include "detours.h"
 
+
+
 std::unordered_map<int, void*> GSCBuiltins::CustomFunctions;
 tScrVm_GetString GSCBuiltins::ScrVm_GetString;
 tScrVm_GetInt GSCBuiltins::ScrVm_GetInt;
@@ -96,11 +98,16 @@ void GSCBuiltins::Exec(int scriptInst)
 
 void Scr_Error(uint32_t inst, const char* error, uint8_t force_terminal)
 {
+	if (!error) return;  // Add null check
+
 	if (IS_WINSTORE)
 	{
-		((void(__fastcall*)(uint32_t, const char*))REBASE(NULL, 0x1392DF0))(inst, error); // Scr_SetErrorMessage
-		*((uint8_t*)REBASE(NULL, 0x3F66B50) + 0x8A40llu * inst + 43) = force_terminal;
-		((void(__fastcall*)(uint32_t))REBASE(NULL, 0x138E030))(inst); // Scr_ErrorInternal (__noreturn btw)
+		((void(__fastcall*)(uint32_t, const char*))REBASE(NULL, 0x1392DF0))(inst, error);
+		if (REBASE(NULL, 0x3F66B50))  // Add null check
+		{
+			*((uint8_t*)REBASE(NULL, 0x3F66B50) + 0x8A40llu * inst + 43) = force_terminal;
+		}
+		((void(__fastcall*)(uint32_t))REBASE(NULL, 0x138E030))(inst);
 		return;
 	}
 	((void(__fastcall*)(uint32_t, const char*, uint32_t))REBASE(0x12EA430, NULL))(inst, error, force_terminal);
@@ -365,7 +372,7 @@ void GSCBuiltins::GScr_setmempool(int scriptInst)
 
 	void* oldPool = newVarMemPool;
 	newVarMemPool = (char*)_aligned_malloc(numBytes, 128);
-	if (newVarMemPool <= 0)
+	if (newVarMemPool == nullptr)
 	{
 		nlog("Failed to allocate memory! Pointer was null");
 		return;
@@ -382,7 +389,7 @@ void GSCBuiltins::GScr_setmempool(int scriptInst)
 	currentRef[(scriptInst ? MEM_SCRVAR_CSC_COUNT : MEM_SCRVAR_COUNT) - 1].value.type = VAR_FREE;
 	currentRef[(scriptInst ? MEM_SCRVAR_CSC_COUNT : MEM_SCRVAR_COUNT) - 1].o.size = scriptInst ? MEM_SCRVAR_CSC_COUNT : MEM_SCRVAR_COUNT;
 
-	for (int i = (scriptInst ? MEM_SCRVAR_CSC_COUNT : MEM_SCRVAR_COUNT); i < newCount; i++)
+	for (int i = (scriptInst ? MEM_SCRVAR_CSC_COUNT : MEM_SCRVAR_COUNT); i < newCount && i < (numBytes / sizeof(ScrVar_t)); i++)
 	{
 		currentRef[i].value.type = VAR_FREE;
 		currentRef[i].o.size = i + 1;
@@ -477,17 +484,24 @@ void GSCBuiltins::nlog(const char* str, ...)
 {
 	va_list ap;
 	HWND notepad, edit;
-	char buf[256];
+	char buf[256] = { 0 };  // Initialize buffer
 
 	va_start(ap, str);
-	vsprintf(buf, str, ap);
+	vsprintf_s(buf, sizeof(buf) - 1, str, ap);  // Added -1 to ensure space for null terminator
 	va_end(ap);
-	strcat_s(buf, 256, "\r\n");
+
+	strncat_s(buf, sizeof(buf), "\r\n", _TRUNCATE);
 	notepad = FindWindow(NULL, "Untitled - Notepad");
 	if (!notepad)
 	{
 		notepad = FindWindow(NULL, "*Untitled - Notepad");
 	}
-	edit = FindWindowEx(notepad, NULL, "EDIT", NULL);
-	SendMessage(edit, EM_REPLACESEL, TRUE, (LPARAM)buf);
+	if (notepad)  // Added null check
+	{
+		edit = FindWindowEx(notepad, NULL, "EDIT", NULL);
+		if (edit)  // Added null check
+		{
+			SendMessage(edit, EM_REPLACESEL, TRUE, (LPARAM)buf);
+		}
+	}
 }

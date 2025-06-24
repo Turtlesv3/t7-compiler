@@ -46,6 +46,9 @@ namespace DebugCompiler
         private static Dictionary<uint, string> t7_dword;
         private static Dictionary<ulong, string> t8_qword;
 
+        private string _lastError = string.Empty;
+        private string _lastOutput = string.Empty;
+
         public void Dispose()
         {
             Dispose(true);
@@ -87,9 +90,30 @@ namespace DebugCompiler
             public static extern bool CloseHandle(IntPtr hObject);
         }
 
+        public string GetLastErrorInfo()
+        {
+            return _lastError;
+        }
+
+        public string GetLastOutput()
+        {
+            return _lastOutput;
+        }
+
+        private void SetLastError(string error)
+        {
+            _lastError = error;
+            OnError?.Invoke(error);
+        }
+
+        private void SetLastOutput(string output)
+        {
+            _lastOutput = output;
+            OnLogMessage?.Invoke(output);
+        }
+
         public Root()
         {
-
             AppDomain.CurrentDomain.ProcessExit += (s, e) => Dispose();
             CommandTable = new Dictionary<ConsoleKey, CommandInfo>();
             AddCommand(ConsoleKey.Q, "Quit Program", Cmd_Exit);
@@ -105,6 +129,7 @@ namespace DebugCompiler
 
             LoadHashTable();
         }
+
         public int ExecuteCommandLine(string[] args)
         {
             ParseCmdArgs(args, out string[] arguments, out string[] options);
@@ -118,7 +143,10 @@ namespace DebugCompiler
             return 0;
         }
 
-        public void PublicFreeActiveScript(bool forceReset) => FreeActiveScript();
+        public void PublicFreeActiveScript(bool forceReset)
+        {
+            FreeActiveScript();
+        }
 
         public static int RunCommandLine(string[] args)
         {
@@ -257,7 +285,6 @@ namespace DebugCompiler
 
         public static IEnumerable<string> ParseArgs(string line, char delimiter, char textQualifier)
         {
-
             if (line == null)
                 yield break;
 
@@ -302,11 +329,9 @@ namespace DebugCompiler
                     }
 
                     token = token.Append(currentChar);
-
                 }
 
                 yield return token.ToString();
-
             }
         }
 
@@ -365,7 +390,7 @@ namespace DebugCompiler
         {
             var old = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Red;
-            OnError?.Invoke(msg);  // Changed from Error(msg) to OnError?.Invoke(msg)
+            SetLastError(msg);
             Console.WriteLine(msg);
             Console.ForegroundColor = old;
             return 1;
@@ -375,7 +400,7 @@ namespace DebugCompiler
         {
             var old = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Green;
-            OnLogMessage?.Invoke(msg);  // Changed from Log(msg) to OnLogMessage?.Invoke(msg)
+            SetLastOutput(msg);
             Console.WriteLine(msg);
             Console.ForegroundColor = old;
             return 0;
@@ -383,21 +408,21 @@ namespace DebugCompiler
 
         #region commands
 
-        private static void LoadHashTable(bool force = false)
+        private static void LoadHashTable(bool _ = false)
         {
-
+            // Implementation remains the same
         }
 
-        private int Cmd_Inject(string[] args, string[] opts)
+        private int Cmd_Inject(string[] args, string[] _)
         {
             if (args.Length < 1)
             {
-                return Error("Invalid arguments. Please specify a file to inject.");
+                return Error("Invalid arguments. Usage: --inject [file] <T7|T8>");
             }
 
             if (!File.Exists(args[0]))
             {
-                return Error("Specified file does not exist.");
+                return Error($"File not found: {args[0]}");
             }
 
             Games game = Games.T7;
@@ -418,46 +443,43 @@ namespace DebugCompiler
 
                 PointerEx injresult = InjectScript(path, buffer, game, Hotmode.none, false);
 
-                // Modified output handling
                 string resultMessage = !injresult ?
                     $"\t[{path}]: Injected" :
                     $"\t[{path}]: Failed to Inject ({injresult:X})";
 
-                OnLogMessage?.Invoke(resultMessage);
-                Console.WriteLine(resultMessage);
+                Success(resultMessage);
 
                 if (!injresult)
                 {
                     string resetMessage = "Press any key to reset gsc parsetree... If in game, you may crash.";
-                    OnLogMessage?.Invoke(resetMessage);
+                    Log(resetMessage);
 
-                    // Only wait for key press in console mode
                     if (Environment.UserInteractive && Console.OpenStandardInput(1) != Stream.Null)
                     {
                         Console.ReadKey(true);
                         NoExcept(FreeActiveScript);
-                        OnLogMessage?.Invoke("\tScript parsetree has been reset");
+                        Log("\tScript parsetree has been reset");
                     }
                 }
                 return 0;
             }
             catch (Exception ex)
             {
-                return Error($"Failed to inject: {ex.Message}");
+                return Error($"Failed to inject: {ex.GetType().Name} - {ex.Message}");
             }
         }
 
-        private int Cmd_DumpEmptySlots(string[] args, string[] opts)
+        private int Cmd_DumpEmptySlots(string[] _, string[] _1)
         {
             return -1;
         }
 
-        private int Cmd_migrateMap(string[] args, string[] opts)
+        private int Cmd_migrateMap(string[] _, string[] _1)
         {
             return -1;
         }
 
-        private int Cmd_ExtractStrings(string[] args, string[] opts)
+        private int Cmd_ExtractStrings(string[] _, string[] _1)
         {
             return -1;
         }
@@ -470,17 +492,17 @@ namespace DebugCompiler
             }
         }
 
-        private int Cmd_Collect(string[] args, string[] opts)
+        private int Cmd_Collect(string[] _, string[] _1)
         {
             return -1;
         }
 
-        private int Cmd_Automap(string[] args, string[] opts)
+        private int Cmd_Automap(string[] _, string[] _1)
         {
             return -1;
         }
 
-        private int Cmd_HashString(string[] args, string[] opts)
+        private int Cmd_HashString(string[] args, string[] _)
         {
             if (args.Length != 2 && args.Length != 4)
                 return Error("Invalid arguments");
@@ -541,23 +563,22 @@ namespace DebugCompiler
                     Console.WriteLine(Com_Hash(input, baseline, prime).ToString("X4"));
                     return 0;
 
-
                 default:
                     return Error($"Invalid method '{method}'");
             }
         }
 
-        private int Cmd_GenerateHashMap(string[] args, string[] opts)
+        private int Cmd_GenerateHashMap(string[] _, string[] _1)
         {
             return -1;
         }
 
-        private int Cmd_Permute(string[] args, string[] opts)
+        private int Cmd_Permute(string[] _, string[] _1)
         {
             return -1;
         }
 
-        private int Cmd_StatDump(string[] args, string[] opts)
+        private int Cmd_StatDump(string[] _, string[] _1)
         {
             return -1;
         }
@@ -570,13 +591,13 @@ namespace DebugCompiler
             return tok;
         }
 
-        private int Cmd_Exit(string[] args, string[] opts)
+        private int Cmd_Exit(string[] _, string[] _1)
         {
             Environment.Exit(0);
             return 0;
         }
 
-        private int Cmd_ToggleNoClear(string[] args, string[] opts)
+        private int Cmd_ToggleNoClear(string[] _, string[] _1)
         {
             ClearHistory = !ClearHistory;
 
@@ -585,12 +606,12 @@ namespace DebugCompiler
             return 0;
         }
 
-        private int Cmd_MapFileNS(string[] args, string[] opts)
+        private int Cmd_MapFileNS(string[] _, string[] _1)
         {
             return -1;
         }
 
-        private int Cmd_IncludeMapper(string[] args, string[] opts)
+        private int Cmd_IncludeMapper(string[] _, string[] _1)
         {
             return -1;
         }
@@ -1022,7 +1043,6 @@ namespace DebugCompiler
                             OriginalSourceChecksum = bo3.GetValue<int>(llpOriginalBuffer + 0x8);
                         }
 
-
                         // patch script into memory
                         entry.lpBuffer = bo3.QuickAlloc(buffer.Length);
                         BitConverter.GetBytes(OriginalSourceChecksum).CopyTo(buffer, 0x8);
@@ -1364,7 +1384,7 @@ namespace DebugCompiler
             public int Unk0;
         };
 
-        private int Cmd_Dump(string[] args, string[] opts)
+        private int Cmd_Dump(string[] _, string[] _1)
         {
             return -1;
         }
@@ -1416,7 +1436,7 @@ namespace DebugCompiler
             return hash;
         }
 
-        private ulong FS_HashFileName(string input, ulong hashSize)
+        private ulong FS_HashFileName(string _1, ulong _2)
         {
             return 0;
         }
@@ -1426,6 +1446,5 @@ namespace DebugCompiler
         }
 
         private static readonly Dictionary<byte, ScriptOpCode> XboxCodes = null;
-
     }
 }

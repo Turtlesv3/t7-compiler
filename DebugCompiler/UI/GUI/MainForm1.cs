@@ -107,6 +107,73 @@ namespace DebugCompiler
             }
         }
 
+        public class ErrorDetailsForm : Form
+        {
+            public ErrorDetailsForm(string title, string message, string details)
+            {
+                this.Text = title;
+                this.StartPosition = FormStartPosition.CenterParent;
+                this.Size = new Size(600, 400);
+                this.MinimizeBox = false;
+                this.MaximizeBox = false;
+                this.FormBorderStyle = FormBorderStyle.FixedDialog;
+
+                var mainPanel = new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 3,
+                    Padding = new Padding(10)
+                };
+
+                // Message label - using fully qualified enum
+                var lblMessage = new Label
+                {
+                    Text = message,
+                    Dock = DockStyle.Fill,
+                    TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+                    Font = new Font(this.Font, FontStyle.Bold)
+                };
+                mainPanel.Controls.Add(lblMessage, 0, 0);
+
+                // Details textbox
+                var txtDetails = new RichTextBox
+                {
+                    Text = details,
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    BackColor = SystemColors.Window,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    ScrollBars = RichTextBoxScrollBars.Both
+                };
+                mainPanel.Controls.Add(txtDetails, 0, 1);
+
+                // Buttons panel
+                var btnPanel = new FlowLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    FlowDirection = FlowDirection.RightToLeft
+                };
+
+                var btnCopy = new Button { Text = "Copy Details", Width = 100 };
+                btnCopy.Click += (s, e) => Clipboard.SetText(details);
+
+                var btnClose = new Button { Text = "Close", Width = 100 };
+                btnClose.Click += (s, e) => this.Close();
+
+                btnPanel.Controls.Add(btnClose);
+                btnPanel.Controls.Add(btnCopy);
+                mainPanel.Controls.Add(btnPanel, 0, 2);
+
+                this.Controls.Add(mainPanel);
+            }
+        }
+
+        private System.Drawing.ContentAlignment GetMiddleLeftAlignment()
+        {
+            return System.Drawing.ContentAlignment.MiddleLeft;
+        }
+
         public MainForm1()
         {
             // Phase 1: Basic Initialization
@@ -115,6 +182,10 @@ namespace DebugCompiler
             // Non-UI components
             compilerRoot = new Root();
             toolTip1 = new ToolTip();
+
+            // Redirect console output
+            Console.SetOut(new ConsoleOutputWriter(this));
+            Console.SetError(new ConsoleOutputWriter(this));
 
             // Phase 2: Theme System Setup
             UIThemeManager.ThemeChanged += OnThemeChanged;
@@ -549,16 +620,31 @@ namespace DebugCompiler
 
         private (Games runningGame, bool isRunning) DetectRunningGame()
         {
-            foreach (Games game in Enum.GetValues(typeof(Games)))
+            try
             {
-                if (game == Games.None) continue;
-
-                var processName = GetProcessNameForGame(game);
-                if (Process.GetProcessesByName(processName).Length > 0)
+                foreach (Games game in Enum.GetValues(typeof(Games)))
                 {
-                    return (game, true);
+                    if (game == Games.None) continue;
+
+                    try
+                    {
+                        var processName = GetProcessNameForGame(game);
+                        if (Process.GetProcessesByName(processName).Length > 0)
+                        {
+                            return (game, true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        DisplayWarning($"Failed to check process for {game}: {ex.Message}");
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                DisplayError("Game detection failed", "Detection Error", ex);
+            }
+
             return (Games.None, false);
         }
 
@@ -656,46 +742,37 @@ namespace DebugCompiler
             CheckGameProcess();
         }
 
-        private void SafeAppendText(string text)
+        private void SafeAppendText(string text, Color? color = null)
         {
-            if (string.IsNullOrEmpty(text) || IsDisposed || !IsHandleCreated)
-                return;
+            if (string.IsNullOrEmpty(text))return;
 
-            void AppendTextInternal()
+            void Append()
             {
                 lock (_outputLock)
                 {
                     try
                     {
-                        if (txtOutput.IsDisposed || !txtOutput.IsHandleCreated)
-                            return;
-
                         txtOutput.SuspendLayout();
 
-                        // Determine color based on message content
-                        Color color = txtOutput.ForeColor; // Default color
-                        if (text.Contains("[ERROR]")) color = _errorColor;
-                        else if (text.Contains("[WARNING]")) color = _warningColor;
-                        else if (text.Contains("SUCCESS")) color = _successColor;
-                        else if (text.Contains("[INFO]") || text.Contains("[CONFIG]")) color = _infoColor;
-
-                        // Save current selection
+                        // Save current position
                         int start = txtOutput.TextLength;
                         txtOutput.AppendText(text);
                         int end = txtOutput.TextLength;
 
-                        // Apply color
-                        txtOutput.Select(start, end - start);
-                        txtOutput.SelectionColor = color;
-                        txtOutput.SelectionLength = 0; // Clear selection
+                        // Apply color if specified
+                        if (color.HasValue)
+                        {
+                            txtOutput.Select(start, end - start);
+                            txtOutput.SelectionColor = color.Value;
+                            txtOutput.SelectionLength = 0;
+                        }
+
+                        // Auto-scroll
                         txtOutput.ScrollToCaret();
                     }
                     finally
                     {
-                        if (!txtOutput.IsDisposed && txtOutput.IsHandleCreated)
-                        {
-                            txtOutput.ResumeLayout();
-                        }
+                        txtOutput.ResumeLayout();
                     }
                 }
             }
@@ -704,16 +781,13 @@ namespace DebugCompiler
             {
                 try
                 {
-                    BeginInvoke((Action)AppendTextInternal);
+                    txtOutput.BeginInvoke((Action)(() => Append()));
                 }
-                catch (InvalidOperationException)
-                {
-                    // Handle invoke after control disposed
-                }
+                catch (InvalidOperationException) { /* Handle disposed control */ }
             }
             else
             {
-                AppendTextInternal();
+                Append();
             }
         }
 
@@ -1037,34 +1111,16 @@ namespace DebugCompiler
                 return;
             }
 
-            // Validate input before starting compilation
-            bool isFolder = Directory.Exists(txtScriptPath.Text);
-            bool isFile = File.Exists(txtScriptPath.Text) &&
-                         (txtScriptPath.Text.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
-                          txtScriptPath.Text.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase));
-
-            if (chkCompileOnly.Checked && !isFolder)
-            {
-                await AppendColoredTextAsync("[ERROR] Compile Only requires a folder to be selected\n", _errorColor);
-                return;
-            }
-
-            if (!isFolder && !isFile)
-            {
-                await AppendColoredTextAsync("[ERROR] Please select a valid folder or .gsc/.gscc file\n", _errorColor);
-                btnBrowse.Focus();
-                return;
-            }
-
-            _isCompiling = true;
-            UpdateUIState();
-            ClearOutput();
-            _compilationCts = new CancellationTokenSource();
-
             try
             {
-                var token = _compilationCts.Token;
-                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Starting compilation...\n", _infoColor);
+                // Validate input
+                if (!await ValidateInputs())
+                    return;
+
+                _isCompiling = true;
+                UpdateUIState();
+                ClearOutput();
+                _compilationCts = new CancellationTokenSource();
 
                 var args = BuildCompilerArguments();
                 await LogCompilerConfiguration(args);
@@ -1081,20 +1137,16 @@ namespace DebugCompiler
                     }
                     catch (Exception ex)
                     {
-                        SafeAppendText($"[COMPILER ERROR] {ex.Message}\n");
+                        DisplayError("Compiler execution failed", "Compilation Error", ex);
                         return -1;
                     }
-                }, token);
+                }, _compilationCts.Token);
 
                 await HandleCompilationResult(result);
             }
-            catch (OperationCanceledException)
-            {
-                await AppendColoredTextAsync("[INFO] Compilation was cancelled\n", _infoColor);
-            }
             catch (Exception ex)
             {
-                await AppendColoredTextAsync($"[SYSTEM ERROR] {ex.Message}\n", _errorColor);
+                DisplayError("Unexpected error during compilation", "Compilation Error", ex);
             }
             finally
             {
@@ -1102,7 +1154,104 @@ namespace DebugCompiler
                 UpdateUIState();
                 _compilationCts?.Dispose();
                 _compilationCts = null;
-                UpdateInjectButtonState();
+            }
+        }
+
+        private async void BtnInject_Click(object sender, EventArgs e)
+        {
+            if (_isCompiling || _isInjecting)
+            {
+                DisplayWarning("Operation already in progress");
+                return;
+            }
+
+            _isInjecting = true;
+            UpdateUIState();
+
+            try
+            {
+                await ClearOutputAsync();
+
+                // Validate inputs
+                if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
+                {
+                    DisplayError("Please select a script file first");
+                    btnBrowse.Focus();
+                    return;
+                }
+
+                if (Directory.Exists(txtScriptPath.Text))
+                {
+                    DisplayError("Cannot inject a folder. Please select a single script file.");
+                    return;
+                }
+
+                if (!IsGameRunning())
+                {
+                    DisplayError($"{cmbGame.Text} is not running. Please start the game first.");
+                    return;
+                }
+
+                Cursor = Cursors.WaitCursor;
+                DisplayInfo("Starting injection...");
+
+                var args = new List<string> { txtScriptPath.Text, cmbGame.Text };
+                var opts = new List<string> { "--inject" };
+
+                if (chkHotLoad.Checked)
+                {
+                    opts.Add("--hot");
+                    opts.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
+                }
+                if (chkNoRuntime.Checked) opts.Add("--noruntime");
+
+                int injectionResult = await Task.Run(() =>
+                {
+                    try
+                    {
+                        return compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray());
+                    }
+                    catch (Exception ex)
+                    {
+                        DisplayError("Injection failed", "Injection Error", ex);
+                        return -1;
+                    }
+                });
+
+                if (injectionResult != 0)
+                {
+                    DisplayError($"Injection failed with code {injectionResult}");
+
+                    // Get detailed error from compiler if available
+                    string errorInfo = compilerRoot.GetLastErrorInfo();
+                    if (!string.IsNullOrEmpty(errorInfo))
+                    {
+                        DisplayError(errorInfo);
+                    }
+                }
+                else
+                {
+                    DisplaySuccess("Injection completed successfully");
+
+                    // Update injection tracking
+                    _lastInjectedScript = Path.GetFileName(txtScriptPath.Text);
+                    _lastGameMode = cmbGame.Text;
+                    _lastInjectionTime = DateTime.Now;
+                    UpdateResetButton(true);
+
+                    // Track successful injection
+                    AppSettings.AddSuccessfullyProcessedFile(txtScriptPath.Text);
+                }
+            }
+            catch (Exception ex)
+            {
+                DisplayError("Unexpected error during injection", "Injection Error", ex);
+            }
+            finally
+            {
+                _isInjecting = false;
+                Cursor = Cursors.Default;
+                UpdateUIState();
             }
         }
 
@@ -1152,6 +1301,11 @@ namespace DebugCompiler
                 default:
                     await AppendColoredTextAsync("\nCOMPILATION FAILED\n", _errorColor);
                     await AppendColoredTextAsync($"[ERROR] Exit code: {result}\n", _errorColor);
+
+                    // Provide additional error info from compiler
+                    var errorInfo = compilerRoot.GetLastErrorInfo();
+                    if (!string.IsNullOrEmpty(errorInfo))
+                        await AppendColoredTextAsync($"[COMPILER ERROR] {errorInfo}\n", _errorColor);
                     break;
             }
         }
@@ -1162,13 +1316,6 @@ namespace DebugCompiler
             bool isFileCompilation = File.Exists(txtScriptPath.Text) &&
                                    (txtScriptPath.Text.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
                                     txtScriptPath.Text.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase));
-
-            // Validate compile-only mode
-            if (chkCompileOnly.Checked && !isFolderCompilation)
-            {
-                await AppendColoredTextAsync("[ERROR] Compile Only mode requires a folder to be selected\n", _errorColor);
-                return;
-            }
 
             // Set fixed output path in compiler root directory
             string compilerRootDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -1182,6 +1329,9 @@ namespace DebugCompiler
                 await AppendColoredTextAsync($"- Size: {new FileInfo(expectedOutputPath).Length} bytes\n", _infoColor);
                 await AppendColoredTextAsync($"- Modified: {File.GetLastWriteTime(expectedOutputPath):yyyy-MM-dd HH:mm:ss}\n", _infoColor);
 
+                // Track successful compilation
+                AppSettings.AddSuccessfullyProcessedFile(isFileCompilation ? txtScriptPath.Text : expectedOutputPath);
+
                 if (!chkCompileOnly.Checked && !chkBuild.Checked)
                 {
                     await Task.Delay(300); // Small delay before injection
@@ -1191,28 +1341,6 @@ namespace DebugCompiler
             else
             {
                 await AppendColoredTextAsync("[ERROR] Compiled output was not created at expected location\n", _errorColor);
-
-                // Additional debug information
-                await AppendColoredTextAsync("[DEBUG] Checking compiler directory contents:\n", _infoColor);
-                try
-                {
-                    var files = Directory.GetFiles(compilerRootDir, "*.gscc");
-                    if (files.Length > 0)
-                    {
-                        foreach (var file in files)
-                        {
-                            await AppendColoredTextAsync($"- Found: {file}\n", _infoColor);
-                        }
-                    }
-                    else
-                    {
-                        await AppendColoredTextAsync("- No .gscc files found in compiler directory\n", _infoColor);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await AppendColoredTextAsync($"[DEBUG] Error checking directory: {ex.Message}\n", _infoColor);
-                }
             }
         }
 
@@ -1359,45 +1487,34 @@ namespace DebugCompiler
                 return;
             }
 
-            using (var dialog = new Form())
+            using (var dialog = new ImportDialog())
             {
                 dialog.Text = "Select Previously Successful File";
                 dialog.StartPosition = FormStartPosition.CenterParent;
-                dialog.Width = 500;
-                dialog.Height = 400;
 
-                var listView = new ListView
-                {
-                    Dock = DockStyle.Fill,
-                    View = View.Details,
-                    FullRowSelect = true
-                };
-                listView.Columns.Add("File", 300);
-                listView.Columns.Add("Modified", 150);
+                // Configure the ListView
+                dialog.FileListView.View = View.Details;
+                dialog.FileListView.FullRowSelect = true;
 
-                foreach (var file in successFiles)
+                // Add columns
+                dialog.FileListView.Columns.Clear();
+                dialog.FileListView.Columns.Add("File", 200);
+                dialog.FileListView.Columns.Add("Size", 80);
+                dialog.FileListView.Columns.Add("Modified", 150);
+
+                // Add items
+                foreach (var fileInfo in successFiles)
                 {
-                    var item = new ListViewItem(Path.GetFileName(file));
-                    item.SubItems.Add(File.GetLastWriteTime(file).ToString("g"));
-                    item.Tag = file;
-                    listView.Items.Add(item);
+                    var item = new ListViewItem(Path.GetFileName(fileInfo.FilePath));
+                    item.SubItems.Add(fileInfo.DisplaySize);
+                    item.SubItems.Add(File.GetLastWriteTime(fileInfo.FilePath).ToString("g"));
+                    item.Tag = fileInfo.FilePath;
+                    dialog.FileListView.Items.Add(item);
                 }
 
-                var btnSelect = new Button
+                if (dialog.ShowDialog(this) == DialogResult.OK && dialog.FileListView.SelectedItems.Count > 0)
                 {
-                    Text = "Select",
-                    Dock = DockStyle.Bottom,
-                    Height = 40,
-                    DialogResult = DialogResult.OK
-                };
-
-                dialog.Controls.Add(listView);
-                dialog.Controls.Add(btnSelect);
-                dialog.AcceptButton = btnSelect;
-
-                if (dialog.ShowDialog(this) == DialogResult.OK && listView.SelectedItems.Count > 0)
-                {
-                    string selectedFile = listView.SelectedItems[0].Tag.ToString();
+                    string selectedFile = dialog.FileListView.SelectedItems[0].Tag.ToString();
                     txtScriptPath.Text = selectedFile;
                     AppSettings.LastScriptDirectory = Path.GetDirectoryName(selectedFile);
                 }
@@ -1714,7 +1831,7 @@ namespace DebugCompiler
                 var processName = GetProcessNameForGame(game);
 
                 await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Injecting into {processName}...\n", _infoColor);
-            
+
                 var args = new List<string> { outputFile, cmbGame.Text };
                 var opts = new List<string> { "--inject" };
 
@@ -1733,34 +1850,47 @@ namespace DebugCompiler
                     await AppendColoredTextAsync("[CONFIG] Runtime checks disabled\n", _infoColor);
                 }
 
-                using (var consoleRedirect = new ConsoleOutputRedirect())
+                int result = await Task.Run(() => compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
+
+                // Get detailed error/output from compiler
+                string errorInfo = compilerRoot.GetLastErrorInfo();
+                string outputInfo = compilerRoot.GetLastOutput();
+
+                if (!string.IsNullOrEmpty(outputInfo))
                 {
-                    int result = await Task.Run(() =>
-                        compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
+                    await AppendColoredTextAsync(outputInfo + "\n", _infoColor);
+                }
 
-                    if (result == 0)
+                if (result == 0)
+                {
+                    await AppendColoredTextAsync("\nINJECTION SUCCESSFUL\n", _successColor);
+                    _lastInjectedScript = Path.GetFileName(outputFile);
+                    _lastGameMode = cmbGame.Text;
+                    _lastInjectionTime = DateTime.Now;
+                    UpdateResetButton(true);
+
+                    // Track successful injection
+                    AppSettings.AddSuccessfullyProcessedFile(outputFile);
+
+                    // Log injection details
+                    await AppendColoredTextAsync($"Injected Script: {_lastInjectedScript}\n", _infoColor);
+                    await AppendColoredTextAsync($"Game Mode: {_lastGameMode}\n", _infoColor);
+                    await AppendColoredTextAsync($"Time: {_lastInjectionTime:HH:mm:ss}\n", _infoColor);
+                }
+                else
+                {
+                    await AppendColoredTextAsync("\nINJECTION FAILED\n", _errorColor);
+                    await AppendColoredTextAsync($"Error Code: {result}\n", _errorColor);
+
+                    if (!string.IsNullOrEmpty(errorInfo))
                     {
-                        await AppendColoredTextAsync("\nINJECTION SUCCESSFUL\n", _successColor);
-                        _lastInjectedScript = Path.GetFileName(outputFile);
-                        _lastGameMode = cmbGame.Text;
-                        _lastInjectionTime = DateTime.Now;
-                        UpdateResetButton(true);
-
-                        // Log injection details
-                        await AppendColoredTextAsync($"Injected Script: {_lastInjectedScript}\n", _infoColor);
-                        await AppendColoredTextAsync($"Game Mode: {_lastGameMode}\n", _infoColor);
-                        await AppendColoredTextAsync($"Time: {_lastInjectionTime:HH:mm:ss}\n", _infoColor);
+                        await AppendColoredTextAsync($"[DETAILS] {errorInfo}\n", _errorColor);
                     }
-                    else
-                    {
-                        await AppendColoredTextAsync("\nINJECTION FAILED\n", _errorColor);
-                        await AppendColoredTextAsync($"Error Code: {result}\n", _errorColor);
 
-                        // Provide troubleshooting tips based on error code
-                        if (result == -1)
-                        {
-                            await AppendColoredTextAsync("Tip: Verify the game process is accessible\n", _warningColor);
-                        }
+                    // Provide troubleshooting tips based on error code
+                    if (result == -1)
+                    {
+                        await AppendColoredTextAsync("Tip: Verify the game process is accessible\n", _warningColor);
                     }
                 }
             }
@@ -1776,7 +1906,6 @@ namespace DebugCompiler
             }
         }
 
-        // Helper class for console redirection
         private class ConsoleOutputRedirect : IDisposable
         {
             private readonly TextReader _originalIn;
@@ -1802,84 +1931,103 @@ namespace DebugCompiler
             }
         }
 
-        private async void BtnInject_Click(object sender, EventArgs e)
+        private class ConsoleOutputWriter : TextWriter
         {
-            if (_isCompiling || _isInjecting)
+            private readonly MainForm1 _form;
+            private readonly StringBuilder _buffer = new StringBuilder();
+
+            public ConsoleOutputWriter(MainForm1 form)
             {
-                await AppendColoredTextAsync("[INFO] Operation already in progress\n", _infoColor);
-                return;
+                _form = form;
             }
 
-            _isInjecting = true;
-            UpdateUIState();
+            public override Encoding Encoding => Encoding.UTF8;
 
+            public override void Write(char value)
+            {
+                _buffer.Append(value);
+                if (value == '\n')
+                {
+                    _form.SafeAppendText(_buffer.ToString());
+                    _buffer.Clear();
+                }
+            }
+
+            public override void Write(string value)
+            {
+                _form.SafeAppendText(value);
+            }
+        }
+
+        private void DisplayError(string message, string title = "Error", Exception ex = null)
+        {
+            SafeInvoke(() =>
+            {
+                SafeAppendText($"[ERROR] {message}\n", _errorColor);
+
+                if (ex != null)
+                {
+                    string details = $"{ex.Message}\n\nStack Trace:\n{ex.StackTrace}";
+
+                    // For complex errors, show the detailed form
+                    if (ex is not OperationCanceledException) // Skip for cancellations
+                    {
+                        var errorForm = new ErrorDetailsForm(
+                            title,
+                            message,
+                            details);
+
+                        errorForm.ShowDialog(this);
+                    }
+                    else
+                    {
+                        SafeAppendText($"[DETAILS] {details}\n", Color.DarkGray);
+                    }
+                }
+            });
+        }
+
+        private void LogErrorToFile(string message, Exception ex = null)
+        {
             try
             {
-                await ClearOutputAsync();
+                string logPath = Path.Combine(Application.StartupPath, "compiler_errors.log");
+                string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n";
 
-                if (string.IsNullOrWhiteSpace(txtScriptPath.Text))
+                if (ex != null)
                 {
-                    CErrorDialog.Show("Error", "Please select a script file first", true);
-                    btnBrowse.Focus();
-                    return;
+                    logMessage += $"Exception: {ex.GetType().Name}\n";
+                    logMessage += $"Message: {ex.Message}\n";
+                    logMessage += $"Stack Trace:\n{ex.StackTrace}\n\n";
                 }
 
-                if (Directory.Exists(txtScriptPath.Text))
-                {
-                    CErrorDialog.Show("Error", "Cannot inject a folder. Please select a single script file.", true);
-                    return;
-                }
-
-                if (!IsGameRunning())
-                {
-                    CErrorDialog.Show("Game Not Running",
-                           $"{cmbGame.Text} is not running. Please start the game first.",
-                           true);
-                    return;
-                }
-
-                Cursor = Cursors.WaitCursor;
-                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Starting injection...\n", _infoColor);
-
-                var args = new List<string> { txtScriptPath.Text, cmbGame.Text };
-                var opts = new List<string> { "--inject" };
-
-                if (chkHotLoad.Checked)
-                {
-                    opts.Add("--hot");
-                    opts.Add(cmbHotMode.SelectedIndex == 0 ? "gsc" : "csc");
-                }
-                if (chkNoRuntime.Checked) opts.Add("--noruntime");
-
-                int injectionResult = await Task.Run(() => compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
-
-                if (injectionResult != 0 || txtOutput.Text.Contains("[ERROR] No game process found"))
-                {
-                    await AppendColoredTextAsync("\nINJECTION FAILED\n", _errorColor);
-                    CErrorDialog.Show("Injection Failed", "The injection process failed. Check the output for details.", true);
-                    UpdateResetButton(false);
-                }
-                else
-                {
-                    await AppendColoredTextAsync("\nINJECTION SUCCESSFUL\n", _successColor);
-                    _lastInjectedScript = Path.GetFileName(txtScriptPath.Text);
-                    _lastGameMode = cmbGame.Text;
-                    _lastInjectionTime = DateTime.Now;
-                    UpdateResetButton(true);
-                }
+                File.AppendAllText(logPath, logMessage);
             }
-            catch (Exception ex)
+            catch { /* Don't fail if logging fails */ }
+        }
+
+        private void DisplayWarning(string message)
+        {
+            SafeInvoke(() =>
             {
-                await AppendColoredTextAsync($"[ERROR] {ex.Message}\n", _errorColor);
-                CErrorDialog.Show("Injection Error", $"An error occurred during injection:\n{ex.Message}", true);
-            }
-            finally
+                SafeAppendText($"[WARNING] {message}\n");
+            });
+        }
+
+        private void DisplayInfo(string message)
+        {
+            SafeInvoke(() =>
             {
-                _isInjecting = false;
-                Cursor = Cursors.Default;
-                UpdateUIState();
-                UpdateInjectButtonState();
-            }
+                SafeAppendText($"[INFO] {message}\n");
+            });
+        }
+
+        private void DisplaySuccess(string message)
+        {
+            SafeInvoke(() =>
+            {
+                SafeAppendText($"[SUCCESS] {message}\n");
+            });
         }
 
         private async Task ClearOutputAsync()

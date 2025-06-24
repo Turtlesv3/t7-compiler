@@ -1,20 +1,34 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
+﻿using DebugCompiler.Properties;
+using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using DebugCompiler.Properties;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace DebugCompiler
 {
     public partial class ImportDialog : Form, IThemeableControl
     {
+
+        public System.Windows.Forms.ListView FileListView => listView1;
+
         public ImportDialog()
         {
             InitializeComponent();
             UIThemeManager.RegisterControl(this);
             MaximizeBox = true;
             MinimizeBox = true;
+
+            // Initialize the ListView if it's not in the designer
+            if (listView1 == null)
+            {
+                listView1 = new System.Windows.Forms.ListView();
+                listView1.Name = "listView1";
+                listView1.Dock = DockStyle.Fill;
+                listView1.View = View.Details;
+                this.Controls.Add(listView1);
+            }
         }
 
         public IEnumerable<Control> GetThemedControls()
@@ -25,15 +39,27 @@ namespace DebugCompiler
             yield return OutputLabel;
             yield return OutputBtn;
             yield return StartImportButton;
+
+            // Add the ListView to themed controls if it exists
+            if (listView1 != null)
+            {
+                yield return listView1;
+            }
         }
 
         public void ApplyTheme(UIThemeInfo theme)
         {
-            // Implement control-specific theming
             this.BackColor = theme.BackColor;
             this.ForeColor = theme.TextColor;
-            // ... other properties
+
+            // Apply theme to ListView if it exists
+            if (listView1 != null)
+            {
+                listView1.BackColor = theme.TextBoxBackColor;
+                listView1.ForeColor = theme.TextColor;
+            }
         }
+
 
         private void OnThemeChanged(UIThemeInfo theme)
         {

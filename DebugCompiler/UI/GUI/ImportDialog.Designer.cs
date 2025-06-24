@@ -55,6 +55,7 @@ namespace DebugCompiler
         /// </summary>
         private void InitializeComponent()
         {
+            this.listView1 = new System.Windows.Forms.ListView();
             this.InnerForm = new DebugCompiler.UI.Core.Controls.CBorderedForm();
             this.StartImportButton = new System.Windows.Forms.Button();
             this.panel2 = new System.Windows.Forms.Panel();
@@ -65,6 +66,17 @@ namespace DebugCompiler
             this.SelectImportBtn = new System.Windows.Forms.Button();
             this.InnerForm.ControlContents.SuspendLayout();
             this.SuspendLayout();
+            // 
+            // listView1
+            // 
+            this.listView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.listView1.HideSelection = false;
+            this.listView1.Location = new System.Drawing.Point(0, 0);
+            this.listView1.Name = "listView1";
+            this.listView1.Size = new System.Drawing.Size(446, 222);
+            this.listView1.TabIndex = 0;
+            this.listView1.UseCompatibleStateImageBehavior = false;
+            this.listView1.View = System.Windows.Forms.View.Details;
             // 
             // InnerForm
             // 
@@ -83,14 +95,14 @@ namespace DebugCompiler
             this.InnerForm.ControlContents.Enabled = true;
             this.InnerForm.ControlContents.Location = new System.Drawing.Point(0, 32);
             this.InnerForm.ControlContents.Name = "ControlContents";
-            this.InnerForm.ControlContents.Size = new System.Drawing.Size(609, 254);
+            this.InnerForm.ControlContents.Size = new System.Drawing.Size(442, 186);
             this.InnerForm.ControlContents.TabIndex = 1;
             this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
             this.InnerForm.ForeColor = System.Drawing.Color.WhiteSmoke;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
-            this.InnerForm.Size = new System.Drawing.Size(613, 290);
+            this.InnerForm.Size = new System.Drawing.Size(446, 222);
             this.InnerForm.TabIndex = 0;
             this.InnerForm.TitleBarTitle = "Project Migration Utility";
             this.InnerForm.UseTitleBar = true;
@@ -123,7 +135,7 @@ namespace DebugCompiler
             this.OutputLabel.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.OutputLabel.Location = new System.Drawing.Point(122, 41);
             this.OutputLabel.Name = "OutputLabel";
-            this.OutputLabel.Size = new System.Drawing.Size(480, 17);
+            this.OutputLabel.Size = new System.Drawing.Size(313, 17);
             this.OutputLabel.TabIndex = 3;
             this.OutputLabel.Text = "No Output Folder Selected";
             // 
@@ -155,7 +167,7 @@ namespace DebugCompiler
             this.ImportLabel.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.ImportLabel.Location = new System.Drawing.Point(122, 7);
             this.ImportLabel.Name = "ImportLabel";
-            this.ImportLabel.Size = new System.Drawing.Size(480, 17);
+            this.ImportLabel.Size = new System.Drawing.Size(313, 17);
             this.ImportLabel.TabIndex = 1;
             this.ImportLabel.Text = "No Project Selected";
             // 
@@ -176,7 +188,8 @@ namespace DebugCompiler
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(613, 290);
+            this.ClientSize = new System.Drawing.Size(446, 222);
+            this.Controls.Add(this.listView1);
             this.Controls.Add(this.InnerForm);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.MaximizeBox = false;
@@ -199,6 +212,7 @@ namespace DebugCompiler
         private System.Windows.Forms.Button OutputBtn;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.Button StartImportButton;
+        private System.Windows.Forms.ListView listView1;
     }
 }
 

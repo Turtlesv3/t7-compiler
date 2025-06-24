@@ -18,8 +18,12 @@
 #include <windows.h>
 #include <stdio.h>
 
-#define NT_SUCCESS(x) ((x) >= 0)
+//#define NT_SUCCESS(x) ((x) >= 0)
 #define STATUS_INFO_LENGTH_MISMATCH 0xc0000004
+
+#ifndef NT_SUCCESS
+#define NT_SUCCESS(x) ((x) >= 0)
+#endif
 
 #define SystemHandleInformation 16
 #define ObjectBasicInformation 0
@@ -27,34 +31,35 @@
 #define ObjectTypeInformation 2
 #define EXPORT extern "C" __declspec(dllexport)
 
+// TLS callback declaration
+extern "C" void NTAPI tls_callback(PVOID DllHandle, DWORD dwReason, PVOID Reserved);
+
 constexpr uint32_t fnv_base_32 = 0x4B9ACE2F;
 
 inline uint32_t fnv1a(const char* key) {
-
-	const char* data = key;
-	uint32_t hash = 0x4B9ACE2F;
-	while (*data)
-	{
-		hash ^= *data;
-		hash *= 0x1000193;
-		data++;
-	}
-	hash *= 0x1000193; // bo3 wtf lol
-	return hash;
-
+    const char* data = key;
+    uint32_t hash = 0x4B9ACE2F;
+    while (*data)
+    {
+        hash ^= *data;
+        hash *= 0x1000193;
+        data++;
+    }
+    hash *= 0x1000193; // bo3 wtf lol
+    return hash;
 }
 
 template <typename T> void chgmem(__int64 addy, T copy)
 {
-	DWORD oldprotect;
-	VirtualProtect((void*)addy, sizeof(T), PAGE_EXECUTE_READWRITE, &oldprotect);
-	*(T*)addy = copy;
-	VirtualProtect((void*)addy, sizeof(T), oldprotect, &oldprotect);
+    DWORD oldprotect;
+    VirtualProtect((void*)addy, sizeof(T), PAGE_EXECUTE_READWRITE, &oldprotect);
+    *(T*)addy = copy;
+    VirtualProtect((void*)addy, sizeof(T), oldprotect, &oldprotect);
 }
 
 void chgmem(__int64 addy, __int32 size, void* copy);
 
-extern const char MSELECT[];
+extern const unsigned char MSELECT[];  // Changed from char to unsigned char
 
 #define IS_WINSTORE (*(uint8_t*)(MSELECT + 0xC) == (uint8_t)0xd0)
 #define OFFSET_S(off) (*(uint64_t*)((uint64_t)(NtCurrentTeb()->ProcessEnvironmentBlock) + 0x10) + (uint64_t)off)

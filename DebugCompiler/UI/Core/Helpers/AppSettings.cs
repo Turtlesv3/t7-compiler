@@ -10,11 +10,11 @@ namespace DebugCompiler.UI.Core.Helpers
     {
         private static string _lastScriptDirectory;
         private static readonly string AppDataFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DebugCompiler");
 
         private static readonly string SettingsFilePath = Path.Combine(AppDataFolder, "settings.ini");
-        private static readonly string MenusFilePath = Path.Combine(AppDataFolder, "saved_menus.ini");
+        private static readonly string ProcessedFilesPath = Path.Combine(AppDataFolder, "processed_files.ini");
 
         static AppSettings()
         {
@@ -39,38 +39,33 @@ namespace DebugCompiler.UI.Core.Helpers
             }
         }
 
-        public static List<string> SavedMenus
-        {
-            get
-            {
-                try
-                {
-                    if (File.Exists(MenusFilePath))
-                    {
-                        return File.ReadAllLines(MenusFilePath)
-                                   .Where(line => !string.IsNullOrWhiteSpace(line))
-                                   .ToList();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error loading saved menus: {ex.Message}");
-                }
-                return new List<string>();
-            }
-        }
-
         public static void AddSuccessfullyProcessedFile(string filePath)
         {
             try
             {
-                var processedFiles = SavedMenus;
-                if (!processedFiles.Contains(filePath))
+                if (!File.Exists(filePath))
                 {
-                    processedFiles.Insert(0, filePath);
-                    // Keep only the last 20 successful files
-                    File.WriteAllLines(MenusFilePath, processedFiles.Take(20));
+                    Debug.WriteLine($"File doesn't exist, not tracking: {filePath}");
+                    return;
                 }
+
+                var processedFiles = new List<string>();
+                if (File.Exists(ProcessedFilesPath))
+                {
+                    processedFiles = File.ReadAllLines(ProcessedFilesPath)
+                        .Where(line => !string.IsNullOrWhiteSpace(line))
+                        .ToList();
+                }
+
+                // Remove existing entries for this file
+                processedFiles.RemoveAll(x => x.StartsWith(filePath + "|"));
+
+                // Add new entry with timestamp
+                string entry = $"{filePath}|{DateTime.Now:yyyy-MM-dd HH:mm:ss}|{new FileInfo(filePath).Length}";
+                processedFiles.Insert(0, entry);
+
+                // Keep only the last 20 entries
+                File.WriteAllLines(ProcessedFilesPath, processedFiles.Take(20));
             }
             catch (Exception ex)
             {
@@ -78,25 +73,46 @@ namespace DebugCompiler.UI.Core.Helpers
             }
         }
 
-        public static List<string> GetSuccessfullyProcessedFiles()
-        {
-            return SavedMenus.Where(f => File.Exists(f)).ToList();
-        }
-
-        public static void AddSavedMenu(string menuPath)
+        public static List<ProcessedFileInfo> GetSuccessfullyProcessedFiles()
         {
             try
             {
-                var menus = SavedMenus;
-                if (!menus.Contains(menuPath))
+                if (File.Exists(ProcessedFilesPath))
                 {
-                    menus.Insert(0, menuPath);
-                    File.WriteAllLines(MenusFilePath, menus.Take(10)); // Keep last 10 menus
+                    return File.ReadAllLines(ProcessedFilesPath)
+                        .Select(line =>
+                        {
+                            var parts = line.Split('|');
+                            return new ProcessedFileInfo
+                            {
+                                FilePath = parts[0],
+                                Timestamp = DateTime.Parse(parts[1]),
+                                FileSize = long.Parse(parts[2])
+                            };
+                        })
+                        .Where(x => File.Exists(x.FilePath))
+                        .ToList();
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error saving menu: {ex.Message}");
+                Debug.WriteLine($"Error loading processed files: {ex.Message}");
+            }
+            return new List<ProcessedFileInfo>();
+        }
+
+        public static void ClearProcessedFilesHistory()
+        {
+            try
+            {
+                if (File.Exists(ProcessedFilesPath))
+                {
+                    File.Delete(ProcessedFilesPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error clearing processed files: {ex.Message}");
             }
         }
 
@@ -128,6 +144,30 @@ namespace DebugCompiler.UI.Core.Helpers
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error saving settings: {ex.Message}");
+            }
+        }
+
+        public class ProcessedFileInfo
+        {
+            public string FilePath { get; set; }
+            public DateTime Timestamp { get; set; }
+            public long FileSize { get; set; }
+
+            public string DisplayName => Path.GetFileName(FilePath);
+            public string DisplaySize => FormatFileSize(FileSize);
+            public string DisplayDate => Timestamp.ToString("yyyy-MM-dd HH:mm");
+
+            private static string FormatFileSize(long bytes)
+            {
+                string[] sizes = { "B", "KB", "MB", "GB" };
+                int order = 0;
+                double len = bytes;
+                while (len >= 1024 && order < sizes.Length - 1)
+                {
+                    order++;
+                    len /= 1024;
+                }
+                return $"{len:0.##} {sizes[order]}";
             }
         }
     }
