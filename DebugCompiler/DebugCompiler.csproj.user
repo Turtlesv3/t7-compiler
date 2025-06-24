@@ -36,7 +36,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Update="UI\GUI\ImportDialog.cs">
-      <SubType>Form</SubType>
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Update="UI\GUI\MainForm1.cs">
       <SubType>Form</SubType>

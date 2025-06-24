@@ -111,7 +111,6 @@ namespace t7c_installer
                 DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject"),
                              Path.Combine(InstallRoot, "t7compiler", "defaultproject"), true);
 
-                NoExcept(InstallVSCExtensionsCached);
             }
             finally
             {

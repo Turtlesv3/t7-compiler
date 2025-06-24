@@ -38,7 +38,7 @@ namespace DebugCompiler
     public partial class MainForm1 : Form, IThemeableControl
     {
         private readonly Root compilerRoot;
-        private readonly ToolTip resetToolTip = new ToolTip
+        private readonly ToolTip resetToolTip = new()
         {
             AutoPopDelay = 5000,
             InitialDelay = 500,
@@ -59,9 +59,9 @@ namespace DebugCompiler
         private string _lastInjectedScript;
         private string _lastGameMode;
         private readonly TextWriter _originalOut = Console.Out;
-        private readonly object _outputLock = new object();
+        private readonly object _outputLock = new();
         private bool _isInternalUpdate = false;
-        private List<string> _currentOptions = new List<string>();
+        private List<string> _currentOptions = new();
 
         // New fields for enhanced functionality
         private CancellationTokenSource _compilationCts;
@@ -169,11 +169,6 @@ namespace DebugCompiler
             }
         }
 
-        private System.Drawing.ContentAlignment GetMiddleLeftAlignment()
-        {
-            return System.Drawing.ContentAlignment.MiddleLeft;
-        }
-
         public MainForm1()
         {
             // Phase 1: Basic Initialization
@@ -182,6 +177,9 @@ namespace DebugCompiler
             // Non-UI components
             compilerRoot = new Root();
             toolTip1 = new ToolTip();
+            InnerForm.Dock = DockStyle.Fill;
+            InnerForm.SetDraggable(true);
+            InnerForm.SetExitHidden(false);
 
             // Redirect console output
             Console.SetOut(new ConsoleOutputWriter(this));
@@ -279,7 +277,7 @@ namespace DebugCompiler
             {
                 // Handle cases where control is being disposed
             }
-        } 
+        }
 
         private void OnThemeChanged(UIThemeInfo theme)
         {
@@ -434,7 +432,7 @@ namespace DebugCompiler
                     }
                 }
             });
-        }        
+        }
 
         public void ApplyTheme(UIThemeInfo theme)
         {
@@ -650,7 +648,7 @@ namespace DebugCompiler
 
         private void RefreshComboBoxStyles()
         {
-            void RefreshCombo(ComboBox comboBox)
+            static void RefreshCombo(ComboBox comboBox)
             {
                 if (comboBox != null && !comboBox.IsDisposed && comboBox.IsHandleCreated)
                 {
@@ -742,10 +740,9 @@ namespace DebugCompiler
             CheckGameProcess();
         }
 
-
         private void SafeAppendText(string text, Color? color = null)
         {
-            if (string.IsNullOrEmpty(text))return;
+            if (string.IsNullOrEmpty(text)) return;
 
             void Append()
             {
@@ -900,9 +897,6 @@ namespace DebugCompiler
         private void InitializeCustomComponents()
         {
 
-            InitializeGameComboBox();
-
-
             cmbHotMode.Items.AddRange(new[] { "GSC", "CSC" });
             cmbHotMode.SelectedIndex = 0;
             cmbHotMode.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -992,15 +986,11 @@ namespace DebugCompiler
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
-                using (var stream = assembly.GetManifestResourceStream("DebugCompiler.version"))
+                using var stream = assembly.GetManifestResourceStream("DebugCompiler.version");
+                if (stream != null)
                 {
-                    if (stream != null)
-                    {
-                        using (var reader = new StreamReader(stream))
-                        {
-                            return reader.ReadToEnd().Trim();
-                        }
-                    }
+                    using var reader = new StreamReader(stream);
+                    return reader.ReadToEnd().Trim();
                 }
             }
             catch
@@ -1345,51 +1335,21 @@ namespace DebugCompiler
             }
         }
 
-        private string GetOutputPath()
-        {
-            string basePath;
-
-            // Determine if we're working with a file or directory
-            if (Directory.Exists(txtScriptPath.Text))
-            {
-                basePath = txtScriptPath.Text;
-            }
-            else
-            {
-                basePath = Path.GetDirectoryName(txtScriptPath.Text);
-            }
-
-            // Create output directory if it doesn't exist
-            string outputDir = Path.Combine(basePath, "bin");
-            if (!Directory.Exists(outputDir))
-            {
-                Directory.CreateDirectory(outputDir);
-            }
-
-            // Determine output filename
-            string outputFile = Directory.Exists(txtScriptPath.Text)
-                ? "compiled.gscc"
-                : Path.GetFileNameWithoutExtension(txtScriptPath.Text) + ".gscc";
-
-            return Path.Combine(outputDir, outputFile);
-        }
-
         private async void BtnResetParseTree_Click(object sender, EventArgs e)
         {
             // Create confirmation options
             var options = new object[] { "Yes", "No" };
 
             // Use CComboDialog for confirmation
-            using (var confirmDialog = new CComboDialog(
+            using var confirmDialog = new CComboDialog(
                 "Confirm Reset",
                 options,
-                1)) // Default to "No"
+                1); // Default to "No"
+
+            if (confirmDialog.ShowDialog(this) != DialogResult.OK ||
+                confirmDialog.SelectedValue?.ToString() != "Yes")
             {
-                if (confirmDialog.ShowDialog(this) != DialogResult.OK ||
-                    confirmDialog.SelectedValue?.ToString() != "Yes")
-                {
-                    return;
-                }
+                return;
             }
 
             await Task.Run(() => ClearOutput());
@@ -1409,13 +1369,11 @@ namespace DebugCompiler
                 SafeAppendText($"[ERROR] {ex.Message}\n");
 
                 // Use CComboDialog for error display (or could use ImportDialog if preferred)
-                using (var errorDialog = new CComboDialog(
+                using var errorDialog = new CComboDialog(
                     "Reset Error",
                     new object[] { ex.Message },
-                    0))
-                {
-                    errorDialog.ShowDialog(this);
-                }
+                    0);
+                errorDialog.ShowDialog(this);
             }
             finally
             {
@@ -1488,36 +1446,15 @@ namespace DebugCompiler
                 return;
             }
 
-            using (var dialog = new ImportDialog())
+            using (var importDialog = new ImportDialog())
             {
-                dialog.Text = "Select Previously Successful File";
-                dialog.StartPosition = FormStartPosition.CenterParent;
+                importDialog.LoadFiles(successFiles.Select(f => f.FilePath));
 
-                // Configure the ListView
-                dialog.FileListView.View = View.Details;
-                dialog.FileListView.FullRowSelect = true;
-
-                // Add columns
-                dialog.FileListView.Columns.Clear();
-                dialog.FileListView.Columns.Add("File", 200);
-                dialog.FileListView.Columns.Add("Size", 80);
-                dialog.FileListView.Columns.Add("Modified", 150);
-
-                // Add items
-                foreach (var fileInfo in successFiles)
+                if (importDialog.ShowDialog(this) == DialogResult.OK &&
+                    !string.IsNullOrEmpty(importDialog.SelectedFilePath))
                 {
-                    var item = new ListViewItem(Path.GetFileName(fileInfo.FilePath));
-                    item.SubItems.Add(fileInfo.DisplaySize);
-                    item.SubItems.Add(File.GetLastWriteTime(fileInfo.FilePath).ToString("g"));
-                    item.Tag = fileInfo.FilePath;
-                    dialog.FileListView.Items.Add(item);
-                }
-
-                if (dialog.ShowDialog(this) == DialogResult.OK && dialog.FileListView.SelectedItems.Count > 0)
-                {
-                    string selectedFile = dialog.FileListView.SelectedItems[0].Tag.ToString();
-                    txtScriptPath.Text = selectedFile;
-                    AppSettings.LastScriptDirectory = Path.GetDirectoryName(selectedFile);
+                    txtScriptPath.Text = importDialog.SelectedFilePath;
+                    AppSettings.LastScriptDirectory = Path.GetDirectoryName(importDialog.SelectedFilePath);
                 }
             }
         }
@@ -1935,7 +1872,7 @@ namespace DebugCompiler
         private class ConsoleOutputWriter : TextWriter
         {
             private readonly MainForm1 _form;
-            private readonly StringBuilder _buffer = new StringBuilder();
+            private readonly StringBuilder _buffer = new();
 
             public ConsoleOutputWriter(MainForm1 form)
             {

@@ -64,23 +64,25 @@ namespace DebugCompiler.UI.Core.Controls
             // 
             // MainPanel
             // 
-            this.MainPanel.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
             this.MainPanel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(28)))), ((int)(((byte)(28)))), ((int)(((byte)(28)))));
             this.MainPanel.Controls.Add(this.DesignerContents);
             this.MainPanel.Controls.Add(this.TitleBar);
-            this.MainPanel.Location = new System.Drawing.Point(2, 2);
+            this.MainPanel.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.MainPanel.Location = new System.Drawing.Point(0, 0);
+            this.MainPanel.Margin = new System.Windows.Forms.Padding(0);
             this.MainPanel.Name = "MainPanel";
-            this.MainPanel.Size = new System.Drawing.Size(696, 496);
+            this.MainPanel.Padding = new System.Windows.Forms.Padding(0);
+            this.MainPanel.Size = new System.Drawing.Size(700, 500);
             this.MainPanel.TabIndex = 0;
             // 
             // DesignerContents
             // 
             this.DesignerContents.Dock = System.Windows.Forms.DockStyle.Fill;
             this.DesignerContents.Location = new System.Drawing.Point(0, 32);
+            this.DesignerContents.Margin = new System.Windows.Forms.Padding(0);
             this.DesignerContents.Name = "DesignerContents";
-            this.DesignerContents.Size = new System.Drawing.Size(696, 464);
+            this.DesignerContents.Padding = new System.Windows.Forms.Padding(0);
+            this.DesignerContents.Size = new System.Drawing.Size(700, 468);
             this.DesignerContents.TabIndex = 1;
             // 
             // TitleBar
@@ -88,8 +90,9 @@ namespace DebugCompiler.UI.Core.Controls
             this.TitleBar.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(36)))), ((int)(((byte)(36)))), ((int)(((byte)(36)))));
             this.TitleBar.Dock = System.Windows.Forms.DockStyle.Top;
             this.TitleBar.Location = new System.Drawing.Point(0, 0);
+            this.TitleBar.Margin = new System.Windows.Forms.Padding(0);
             this.TitleBar.Name = "TitleBar";
-            this.TitleBar.Size = new System.Drawing.Size(696, 32);
+            this.TitleBar.Size = new System.Drawing.Size(700, 32);
             this.TitleBar.TabIndex = 0;
             // 
             // CBorderedForm
@@ -98,12 +101,14 @@ namespace DebugCompiler.UI.Core.Controls
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.MediumPurple;
             this.Controls.Add(this.MainPanel);
+            this.Margin = new System.Windows.Forms.Padding(0);
             this.Name = "CBorderedForm";
+            this.Padding = new System.Windows.Forms.Padding(0);
             this.Size = new System.Drawing.Size(700, 500);
             this.MainPanel.ResumeLayout(false);
             this.ResumeLayout(false);
-
         }
+
 
         #endregion
 

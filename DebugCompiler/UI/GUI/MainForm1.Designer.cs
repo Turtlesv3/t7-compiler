@@ -24,7 +24,6 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
 using System.Windows.Forms.VisualStyles;
-
 using DebugCompiler.Properties;
 
 namespace DebugCompiler
@@ -128,35 +127,12 @@ namespace DebugCompiler
             this.btnBrowse = new System.Windows.Forms.Button();
             this.txtScriptPath = new System.Windows.Forms.RichTextBox();
             this.btnSavedMenus = new System.Windows.Forms.Button();
-            this.InnerForm.ControlContents.SuspendLayout();
+            this.InnerForm.SuspendLayout();
             this.SuspendLayout();
             // 
             // InnerForm
             // 
             this.InnerForm.BackColor = System.Drawing.Color.MediumPurple;
-            // 
-            // InnerForm.ControlContents
-            // 
-            this.InnerForm.ControlContents.Controls.Add(this.btnSavedMenus);
-            this.InnerForm.ControlContents.Controls.Add(this.txtOutput);
-            this.InnerForm.ControlContents.Controls.Add(this.btnResetParseTree);
-            this.InnerForm.ControlContents.Controls.Add(this.btnInject);
-            this.InnerForm.ControlContents.Controls.Add(this.btnCompile);
-            this.InnerForm.ControlContents.Controls.Add(this.chkBuild);
-            this.InnerForm.ControlContents.Controls.Add(this.chkCompileOnly);
-            this.InnerForm.ControlContents.Controls.Add(this.chkHotLoad);
-            this.InnerForm.ControlContents.Controls.Add(this.chkNoRuntime);
-            this.InnerForm.ControlContents.Controls.Add(this.cmbHotMode);
-            this.InnerForm.ControlContents.Controls.Add(this.cmbGame);
-            this.InnerForm.ControlContents.Controls.Add(this.btnBrowse);
-            this.InnerForm.ControlContents.Controls.Add(this.txtScriptPath);
-            this.InnerForm.ControlContents.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.InnerForm.ControlContents.Enabled = true;
-            this.InnerForm.ControlContents.Location = new System.Drawing.Point(0, 32);
-            this.InnerForm.ControlContents.Name = "ControlContents";
-            this.InnerForm.ControlContents.Size = new System.Drawing.Size(758, 412);
-            this.InnerForm.ControlContents.TabIndex = 1;
-            this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
             this.InnerForm.ForeColor = System.Drawing.Color.WhiteSmoke;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
@@ -168,8 +144,8 @@ namespace DebugCompiler
             // 
             // txtOutput
             // 
-            this.txtOutput.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.txtOutput.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.txtOutput.BackColor = System.Drawing.Color.DimGray;
             this.txtOutput.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
@@ -289,7 +265,7 @@ namespace DebugCompiler
             // 
             // cmbHotMode
             // 
-            this.cmbHotMode.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.cmbHotMode.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.cmbHotMode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.cmbHotMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
@@ -305,7 +281,7 @@ namespace DebugCompiler
             // 
             // cmbGame
             // 
-            this.cmbGame.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.cmbGame.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.cmbGame.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.cmbGame.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
@@ -338,7 +314,7 @@ namespace DebugCompiler
             // 
             // txtScriptPath
             // 
-            this.txtScriptPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.txtScriptPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.txtScriptPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.txtScriptPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
@@ -374,8 +350,7 @@ namespace DebugCompiler
             this.Name = "MainForm1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "T7/T8 Compiler";
-            this.InnerForm.ControlContents.ResumeLayout(false);
-            this.InnerForm.ControlContents.PerformLayout();
+            this.InnerForm.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }

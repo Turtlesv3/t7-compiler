@@ -1,34 +1,87 @@
-﻿using DebugCompiler.UI.Core.Interfaces;
+﻿using DebugCompiler.Properties;
+using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Drawing;
 using System.Drawing.Design;
 using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
-using DebugCompiler.Properties;
 
-//http://www.reza-aghaei.com/enable-designer-of-child-panel-in-a-usercontrol/
-//TODO: https://stackoverflow.com/questions/2575216/how-to-move-and-resize-a-form-without-a-border
 namespace DebugCompiler.UI.Core.Controls
 {
     [Designer(typeof(CBorderedFormDesigner))]
     public partial class CBorderedForm : UserControl, IThemeableControl
     {
-
         private const int WM_NCHITTEST = 0x84;
         private const int HTCLIENT = 1;
         private const int HTCAPTION = 2;
+        private const int HTLEFT = 10;
+        private const int HTRIGHT = 11;
+        private const int HTTOP = 12;
+        private const int HTTOPLEFT = 13;
+        private const int HTTOPRIGHT = 14;
+        private const int HTBOTTOM = 15;
+        private const int HTBOTTOMLEFT = 16;
+        private const int HTBOTTOMRIGHT = 17;
+
+        private const int RESIZE_HANDLE_SIZE = 5; // Reduced from 10
 
         protected override void WndProc(ref Message m)
         {
-            base.WndProc(ref m);
-            if (m.Msg == WM_NCHITTEST && (int)m.Result == HTCLIENT)
+            const int WM_NCCALCSIZE = 0x83;
+
+            if (m.Msg == WM_NCCALCSIZE && m.WParam.ToInt32() == 1)
             {
-                m.Result = (IntPtr)HTCAPTION;
+                // Prevent the control from trying to calculate its own non-client area
+                return;
+            }
+
+            base.WndProc(ref m);
+
+            if (m.Msg == WM_NCHITTEST)
+            {
+                if (ParentForm != null && ParentForm.WindowState == FormWindowState.Normal)
+                {
+                    Point pos = PointToClient(new Point(m.LParam.ToInt32()));
+                    int resizeBorderWidth = 5; // Adjust as needed
+
+                    // Only handle resizing if we're at the edge of the parent form
+                    if (pos.X <= resizeBorderWidth)
+                    {
+                        if (pos.Y <= resizeBorderWidth)
+                            m.Result = (IntPtr)HTTOPLEFT;
+                        else if (pos.Y >= ClientSize.Height - resizeBorderWidth)
+                            m.Result = (IntPtr)HTBOTTOMLEFT;
+                        else
+                            m.Result = (IntPtr)HTLEFT;
+                    }
+                    else if (pos.X >= ClientSize.Width - resizeBorderWidth)
+                    {
+                        if (pos.Y <= resizeBorderWidth)
+                            m.Result = (IntPtr)HTTOPRIGHT;
+                        else if (pos.Y >= ClientSize.Height - resizeBorderWidth)
+                            m.Result = (IntPtr)HTBOTTOMRIGHT;
+                        else
+                            m.Result = (IntPtr)HTRIGHT;
+                    }
+                    else if (pos.Y <= resizeBorderWidth)
+                    {
+                        m.Result = (IntPtr)HTTOP;
+                    }
+                    else if (pos.Y >= ClientSize.Height - resizeBorderWidth)
+                    {
+                        m.Result = (IntPtr)HTBOTTOM;
+                    }
+                    else if ((int)m.Result == HTCLIENT && TitleBar.Visible && pos.Y <= TitleBar.Bottom)
+                    {
+                        m.Result = (IntPtr)HTCAPTION;
+                    }
+                }
             }
         }
 
@@ -117,6 +170,30 @@ namespace DebugCompiler.UI.Core.Controls
             {
                 ReleaseCapture();
                 SendMessage(ParentForm.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
+            }
+        }
+
+        // Add this to the CBorderedForm class
+        private DialogResult _dialogResult = DialogResult.None;
+
+        [
+            Category("Behavior"),
+            Description("Gets or sets the dialog result for the form"),
+            Browsable(false)
+        ]
+        public DialogResult DialogResult
+        {
+            get { return _dialogResult; }
+            set
+            {
+                if (_dialogResult != value)
+                {
+                    _dialogResult = value;
+                    if (value != DialogResult.None && ParentForm != null)
+                    {
+                        ParentForm.DialogResult = value;
+                    }
+                }
             }
         }
 
