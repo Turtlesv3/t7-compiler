@@ -63,7 +63,8 @@ INT64 GSCBuiltins::Exec(int scriptInst)
 		return ScrVm_AddBool(scriptInst, 0);
 	}
 
-	INT32 func = ScrVm_GetInt(scriptInst, 0);
+	// Explicitly cast to INT32 to avoid warning
+	INT32 func = static_cast<INT32>(ScrVm_GetInt(scriptInst, 0));
 	if (CustomFunctions.find(func) == CustomFunctions.end())
 	{
 		// unknown builtin
@@ -120,10 +121,11 @@ void GSCBuiltins::GScr_livesplit(int scriptInst)
 	}
 
 	const char* message = ScrVm_GetString(0, 1);
-	WriteFile(livesplit, message, strlen(message), nullptr, NULL);
+	// Explicitly cast strlen result to DWORD
+	DWORD messageLength = static_cast<DWORD>(strlen(message));
+	WriteFile(livesplit, message, messageLength, nullptr, NULL);
 	CloseHandle(livesplit);
 }
-
 
 void GSCBuiltins::nlog(const char* str, ...)
 {

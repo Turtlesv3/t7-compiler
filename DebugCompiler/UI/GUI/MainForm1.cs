@@ -742,6 +742,7 @@ namespace DebugCompiler
             CheckGameProcess();
         }
 
+
         private void SafeAppendText(string text, Color? color = null)
         {
             if (string.IsNullOrEmpty(text))return;

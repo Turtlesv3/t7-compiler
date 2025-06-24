@@ -14,12 +14,12 @@ __declspec(allocate(".offsets")) const unsigned char MSELECT[] =
 // Define the TLS callback array
 #pragma section(".CRT$XLY",long,read)
 extern "C" __declspec(allocate(".CRT$XLY"))
-PIMAGE_TLS_CALLBACK _tls_callback = tls_callback;
+const PIMAGE_TLS_CALLBACK _tls_callback = tls_callback;
 
 // Define the TLS directory section
 #pragma data_seg(".rdata$TLS")
 extern "C" __declspec(allocate(".rdata$TLS"))
-IMAGE_TLS_DIRECTORY _tls_used = {
+const IMAGE_TLS_DIRECTORY _tls_used = {
     (ULONGLONG)&_tls_callback,  // Address of callbacks array
     (ULONGLONG)&_tls_callback,  // Address of last callback
     (ULONGLONG)0,               // Size of tls index

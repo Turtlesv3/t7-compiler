@@ -231,31 +231,6 @@
   </ItemGroup>
   
   <PropertyGroup>
-    <PostBuildEvent>
-if "$(PlatformName)" == "x64" (
-  if exist "$(SolutionDir)t7cinternal\x64\$(Configuration)\t7cinternal.dll" (
-    xcopy /Y /R "$(SolutionDir)t7cinternal\x64\$(Configuration)\t7cinternal.dll" "$(TargetDir)"
-  ) else (
-    echo t7cinternal.dll not found at: $(SolutionDir)t7cinternal\x64\$(Configuration)\
-  )
-  if exist "$(SolutionDir)t8cinternal\x64\$(Configuration)\t8cinternal.dll" (
-    xcopy /Y /R "$(SolutionDir)t8cinternal\x64\$(Configuration)\t8cinternal.dll" "$(TargetDir)"
-  ) else (
-    echo t8cinternal.dll not found at: $(SolutionDir)t8cinternal\x64\$(Configuration)\
-  )
-) else (
-  if exist "$(SolutionDir)t7cinternal\$(PlatformName)\$(Configuration)\t7cinternal.dll" (
-    xcopy /Y /R "$(SolutionDir)t7cinternal\$(PlatformName)\$(Configuration)\t7cinternal.dll" "$(TargetDir)"
-  ) else (
-    echo t7cinternal.dll not found at: $(SolutionDir)t7cinternal\$(PlatformName)\$(Configuration)\
-  )
-  if exist "$(SolutionDir)t8cinternal\$(PlatformName)\$(Configuration)\t8cinternal.dll" (
-    xcopy /Y /R "$(SolutionDir)t8cinternal\$(PlatformName)\$(Configuration)\t8cinternal.dll" "$(TargetDir)"
-  ) else (
-    echo t8cinternal.dll not found at: $(SolutionDir)t8cinternal\$(PlatformName)\$(Configuration)\
-  )
-)
-</PostBuildEvent>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
   </PropertyGroup>
 </Project>

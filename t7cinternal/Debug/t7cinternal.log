@@ -1,15 +1,8 @@
 ﻿  builtins.cpp
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(89,13): warning C4244: 'initializing': conversion from 'INT64' to 'INT32', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(120,13): warning C4101: 'v2': unreferenced local variable
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(122,14): warning C4101: 'v5': unreferenced local variable
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(212,15): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(213,14): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(239,18): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(240,13): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(361,15): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(368,15): warning C4018: '<': signed/unsigned mismatch
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(392,89): warning C4018: '<': signed/unsigned mismatch
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(406,19): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(420,18): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
-C:\Users\golia\Source\Repos\t7-compilerv2\t7cinternal\builtins.cpp(421,13): warning C4244: 'initializing': conversion from 'INT64' to 'int', possible loss of data
+  detours.cpp
+  dllmain.cpp
+  framework.cpp
+  Opcodes.cpp
+  Generating Code...
+     Creating library C:\Users\golia\Source\Repos\t7-compilerv2\Debug\t7cinternal.lib and object C:\Users\golia\Source\Repos\t7-compilerv2\Debug\t7cinternal.exp
   t7cinternal.vcxproj -> C:\Users\golia\Source\Repos\t7-compilerv2\Debug\t7cinternal.dll
