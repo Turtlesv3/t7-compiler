@@ -1,6 +1,7 @@
 ﻿using DebugCompiler.UI.Core.Controls;
 using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Helpers;
 using Microsoft.Test.Xbox.XDRPC;
 using System;
 using System.Collections;
@@ -30,6 +31,7 @@ using TreyarchCompiler;
 using TreyarchCompiler.Enums;
 using XDevkit;
 using Games = TreyarchCompiler.Enums.Games;
+using DebugCompiler.Properties;
 
 namespace DebugCompiler
 {
@@ -50,7 +52,7 @@ namespace DebugCompiler
         private Games _currentGame;
         private ToolTip toolTip1;
         private ToolStripMenuItem _themeMenu;
-        private MenuStrip MainMenuStrip;
+        private new MenuStrip MainMenuStrip;
 
         // State tracking fields
         private DateTime _lastInjectionTime;
@@ -653,7 +655,6 @@ namespace DebugCompiler
             _forceStatusRefresh = true;
             CheckGameProcess();
         }
-
 
         private void SafeAppendText(string text)
         {
@@ -1319,37 +1320,88 @@ namespace DebugCompiler
         {
             var menu = new ContextMenuStrip();
 
+            // File selection menu item
             var fileItem = new ToolStripMenuItem("Select File...");
-            fileItem.Click += (s, args) => {
-                using (var openDialog = new OpenFileDialog())
+            fileItem.Click += (s, args) =>
+            {
+                string filePath = FileDialogHelper.BrowseForGSCFile();
+                if (!string.IsNullOrEmpty(filePath))
                 {
-                    openDialog.Filter = "GSC Files (*.gsc, *.gscc)|*.gsc;*.gscc|All Files (*.*)|*.*";
-                    if (openDialog.ShowDialog() == DialogResult.OK)
-                    {
-                        txtScriptPath.Text = openDialog.FileName;
-                        btnResetParseTree.Visible = false;
-                    }
+                    txtScriptPath.Text = filePath;
+                    btnResetParseTree.Visible = false;
                 }
             };
             menu.Items.Add(fileItem);
 
+            // Folder selection menu item
             var folderItem = new ToolStripMenuItem("Select Folder...");
-            folderItem.Click += (s, args) => {
-                using (var folderDialog = new FolderBrowserDialog())
+            folderItem.Click += (s, args) =>
+            {
+                string folderPath = FileDialogHelper.BrowseForFolder("Select folder containing GSC scripts");
+                if (!string.IsNullOrEmpty(folderPath))
                 {
-                    folderDialog.Description = "Select folder containing GSC scripts";
-                    folderDialog.ShowNewFolderButton = false;
-
-                    if (folderDialog.ShowDialog() == DialogResult.OK)
-                    {
-                        txtScriptPath.Text = folderDialog.SelectedPath;
-                        btnResetParseTree.Visible = false;
-                    }
+                    txtScriptPath.Text = folderPath;
+                    btnResetParseTree.Visible = false;
                 }
             };
             menu.Items.Add(folderItem);
 
             menu.Show(btnBrowse, new Point(0, btnBrowse.Height));
+        }
+
+        private void BtnSavedMenus_Click(object sender, EventArgs e)
+        {
+            var successFiles = AppSettings.GetSuccessfullyProcessedFiles();
+            if (!successFiles.Any())
+            {
+                MessageBox.Show("No successfully compiled/injected files found.", "Information",
+                               MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var dialog = new Form())
+            {
+                dialog.Text = "Select Previously Successful File";
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.Width = 500;
+                dialog.Height = 400;
+
+                var listView = new ListView
+                {
+                    Dock = DockStyle.Fill,
+                    View = View.Details,
+                    FullRowSelect = true
+                };
+                listView.Columns.Add("File", 300);
+                listView.Columns.Add("Modified", 150);
+
+                foreach (var file in successFiles)
+                {
+                    var item = new ListViewItem(Path.GetFileName(file));
+                    item.SubItems.Add(File.GetLastWriteTime(file).ToString("g"));
+                    item.Tag = file;
+                    listView.Items.Add(item);
+                }
+
+                var btnSelect = new Button
+                {
+                    Text = "Select",
+                    Dock = DockStyle.Bottom,
+                    Height = 40,
+                    DialogResult = DialogResult.OK
+                };
+
+                dialog.Controls.Add(listView);
+                dialog.Controls.Add(btnSelect);
+                dialog.AcceptButton = btnSelect;
+
+                if (dialog.ShowDialog(this) == DialogResult.OK && listView.SelectedItems.Count > 0)
+                {
+                    string selectedFile = listView.SelectedItems[0].Tag.ToString();
+                    txtScriptPath.Text = selectedFile;
+                    AppSettings.LastScriptDirectory = Path.GetDirectoryName(selectedFile);
+                }
+            }
         }
 
         private void UpdateCompilerOptions()

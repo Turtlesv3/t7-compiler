@@ -1,15 +1,13 @@
 ﻿using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using TreyarchCompiler;
-using XDevkit;
+using DebugCompiler.Properties;
 
 namespace DebugCompiler
 {
@@ -74,13 +72,41 @@ namespace DebugCompiler
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            var savedTheme = UIThemeManager.LoadTheme();
-            UIThemeManager.SetTheme(savedTheme);
+            // Safe theme loading with proper type handling
+            try
+            {
+                string savedThemeName = UIThemeManager.LoadTheme();
+
+                // Default to Dark theme if no saved theme exists
+                if (string.IsNullOrWhiteSpace(savedThemeName))
+                {
+                    UIThemeManager.SetTheme(UIThemeInfo.Dark);
+                }
+                else
+                {
+                    // Use the proper static method from UIThemeInfo
+                    UIThemeInfo theme = UIThemeInfo.GetThemeByName(savedThemeName);
+
+                    // Check if theme was found
+                    if (theme.Name != null) // Check against default struct
+                    {
+                        UIThemeManager.SetTheme(theme);
+                    }
+                    else
+                    {
+                        UIThemeManager.SetTheme(UIThemeInfo.Dark);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Theme loading error: {ex.Message}");
+                UIThemeManager.SetTheme(UIThemeInfo.Dark);
+            }
 
             // Create and track main form
             var mainForm = new MainForm1();
             RegisterForCleanup(mainForm);
-
             Application.Run(mainForm);
         }
 

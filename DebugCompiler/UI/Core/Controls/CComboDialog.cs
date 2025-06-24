@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
+using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Controls
 {

@@ -1,8 +1,8 @@
 using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
-using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Controls
 {

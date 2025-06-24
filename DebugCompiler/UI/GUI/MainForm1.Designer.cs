@@ -1,19 +1,31 @@
-﻿using System;
+﻿using DebugCompiler.UI.Core.Controls;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Helpers;
+using Microsoft.Test.Xbox.XDRPC;
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.ComponentModel.Design;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Design;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Net;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.ComponentModel.Design;
 using System.Windows.Forms.Design;
-using System.Drawing.Design;
-using System.Collections;
-using DebugCompiler.UI.Core.Singletons;
-using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Controls;
+using System.Windows.Forms.VisualStyles;
+
+using DebugCompiler.Properties;
 
 namespace DebugCompiler
 {
@@ -115,6 +127,7 @@ namespace DebugCompiler
             this.cmbGame = new System.Windows.Forms.ComboBox();
             this.btnBrowse = new System.Windows.Forms.Button();
             this.txtScriptPath = new System.Windows.Forms.RichTextBox();
+            this.btnSavedMenus = new System.Windows.Forms.Button();
             this.InnerForm.ControlContents.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -124,6 +137,7 @@ namespace DebugCompiler
             // 
             // InnerForm.ControlContents
             // 
+            this.InnerForm.ControlContents.Controls.Add(this.btnSavedMenus);
             this.InnerForm.ControlContents.Controls.Add(this.txtOutput);
             this.InnerForm.ControlContents.Controls.Add(this.btnResetParseTree);
             this.InnerForm.ControlContents.Controls.Add(this.btnInject);
@@ -337,6 +351,16 @@ namespace DebugCompiler
             this.txtScriptPath.Text = "";
             this.txtScriptPath.TextChanged += new System.EventHandler(this.TxtScriptPath_TextChanged);
             // 
+            // btnSavedMenus
+            // 
+            this.btnSavedMenus.Location = new System.Drawing.Point(391, 63);
+            this.btnSavedMenus.Name = "btnSavedMenus";
+            this.btnSavedMenus.Size = new System.Drawing.Size(90, 23);
+            this.btnSavedMenus.TabIndex = 10;
+            this.btnSavedMenus.Text = "Saved Menus";
+            this.btnSavedMenus.UseVisualStyleBackColor = true;
+            this.btnSavedMenus.Click += new System.EventHandler(this.BtnSavedMenus_Click);
+            // 
             // MainForm1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -365,6 +389,7 @@ namespace DebugCompiler
         private System.Windows.Forms.Button btnCompile;
         private System.Windows.Forms.Button btnBrowse;
         private System.Windows.Forms.Button btnInject;
+        private System.Windows.Forms.Button btnSavedMenus;
         private System.Windows.Forms.CheckBox chkBuild;
         private System.Windows.Forms.CheckBox chkCompileOnly;
         private System.Windows.Forms.CheckBox chkHotLoad;

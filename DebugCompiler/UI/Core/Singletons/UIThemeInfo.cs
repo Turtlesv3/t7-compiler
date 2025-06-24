@@ -1,20 +1,9 @@
-using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.ComponentModel.Design;
-using System.Windows.Forms.Design;
-using System.Drawing.Design;
-using System.Collections;
-using DebugCompiler.UI.Core.Controls;
+using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Singletons
 {
@@ -63,7 +52,7 @@ namespace DebugCompiler.UI.Core.Singletons
 
         public static UIThemeInfo GetThemeByName(string name)
         {
-            if (string.IsNullOrEmpty(name))
+            if (string.IsNullOrWhiteSpace(name))
                 return default(UIThemeInfo);
 
             return AvailableThemes.FirstOrDefault(t =>

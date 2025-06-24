@@ -1,5 +1,4 @@
-﻿using DebugCompiler.UI.Core.Controls;
-using DebugCompiler.UI.Core.Interfaces;
+﻿using DebugCompiler.UI.Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Singletons
 {
@@ -39,12 +39,29 @@ namespace DebugCompiler.UI.Core.Singletons
 
         public static void SetTheme(string themeName)
         {
-            var theme = UIThemeInfo.GetThemeByName(themeName);
-            if (EqualityComparer<UIThemeInfo>.Default.Equals(theme, default(UIThemeInfo)))
+            if (string.IsNullOrWhiteSpace(themeName))
+            {
+                SetTheme(UIThemeInfo.Dark);
                 return;
+            }
 
-            SetTheme(theme); // Now calls the UIThemeInfo version to ensure consistent behavior
+            UIThemeInfo theme = UIThemeInfo.GetThemeByName(themeName);
+            if (theme.Name != null) // Check against default struct
+            {
+                SetTheme(theme);
+            }
+            else
+            {
+                SetTheme(UIThemeInfo.Dark);
+            }
         }
+
+        public static bool TryGetTheme(string themeName, out UIThemeInfo theme)
+        {
+            theme = UIThemeInfo.GetThemeByName(themeName);
+            return !EqualityComparer<UIThemeInfo>.Default.Equals(theme, default(UIThemeInfo));
+        }
+
 
         public static void SaveTheme(string themeName)
         {

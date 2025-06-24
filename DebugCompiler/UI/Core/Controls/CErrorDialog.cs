@@ -1,9 +1,9 @@
-﻿using System;
+﻿using DebugCompiler.UI.Core.Singletons;
+using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
-using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Controls
 {

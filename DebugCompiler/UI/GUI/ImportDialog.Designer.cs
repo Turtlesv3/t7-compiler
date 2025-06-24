@@ -1,4 +1,30 @@
-﻿
+﻿using DebugCompiler.UI.Core.Controls;
+using DebugCompiler.UI.Core.Interfaces;
+using DebugCompiler.UI.Core.Singletons;
+using DebugCompiler.UI.Core.Helpers;
+using Microsoft.Test.Xbox.XDRPC;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.ComponentModel.Design;
+using System.Data;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Design;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Windows.Forms.Design;
+using System.Windows.Forms.VisualStyles;
+
 namespace DebugCompiler
 {
     partial class ImportDialog
@@ -57,13 +83,14 @@ namespace DebugCompiler
             this.InnerForm.ControlContents.Enabled = true;
             this.InnerForm.ControlContents.Location = new System.Drawing.Point(0, 32);
             this.InnerForm.ControlContents.Name = "ControlContents";
-            this.InnerForm.ControlContents.Size = new System.Drawing.Size(331, 100);
+            this.InnerForm.ControlContents.Size = new System.Drawing.Size(609, 254);
             this.InnerForm.ControlContents.TabIndex = 1;
             this.InnerForm.ControlContents.Visible = true;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.InnerForm.ForeColor = System.Drawing.Color.WhiteSmoke;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
-            this.InnerForm.Size = new System.Drawing.Size(335, 136);
+            this.InnerForm.Size = new System.Drawing.Size(613, 290);
             this.InnerForm.TabIndex = 0;
             this.InnerForm.TitleBarTitle = "Project Migration Utility";
             this.InnerForm.UseTitleBar = true;
@@ -91,12 +118,12 @@ namespace DebugCompiler
             // 
             // OutputLabel
             // 
-            this.OutputLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            this.OutputLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.OutputLabel.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.OutputLabel.Location = new System.Drawing.Point(122, 41);
             this.OutputLabel.Name = "OutputLabel";
-            this.OutputLabel.Size = new System.Drawing.Size(202, 17);
+            this.OutputLabel.Size = new System.Drawing.Size(480, 17);
             this.OutputLabel.TabIndex = 3;
             this.OutputLabel.Text = "No Output Folder Selected";
             // 
@@ -123,12 +150,12 @@ namespace DebugCompiler
             // 
             // ImportLabel
             // 
-            this.ImportLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            this.ImportLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.ImportLabel.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.ImportLabel.Location = new System.Drawing.Point(122, 7);
             this.ImportLabel.Name = "ImportLabel";
-            this.ImportLabel.Size = new System.Drawing.Size(202, 17);
+            this.ImportLabel.Size = new System.Drawing.Size(480, 17);
             this.ImportLabel.TabIndex = 1;
             this.ImportLabel.Text = "No Project Selected";
             // 
@@ -149,7 +176,7 @@ namespace DebugCompiler
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(335, 136);
+            this.ClientSize = new System.Drawing.Size(613, 290);
             this.Controls.Add(this.InnerForm);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.MaximizeBox = false;
