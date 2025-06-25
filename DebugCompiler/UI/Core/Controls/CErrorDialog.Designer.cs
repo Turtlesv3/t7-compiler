@@ -28,7 +28,7 @@ using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Controls
 {
-    partial class CErrorDialog
+    public partial class CErrorDialog
     {
         /// <summary>
         /// Required designer variable.
@@ -80,27 +80,25 @@ namespace DebugCompiler.UI.Core.Controls
             this.InnerForm.ControlContents.Controls.Add(this.AcceptButton);
             this.InnerForm.ControlContents.Controls.Add(this.ErrorRTB);
             this.InnerForm.ControlContents.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.InnerForm.ControlContents.Enabled = true;
             this.InnerForm.ControlContents.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.InnerForm.ControlContents.Location = new System.Drawing.Point(0, 32);
+            this.InnerForm.ControlContents.Location = new System.Drawing.Point(5, 37);
             this.InnerForm.ControlContents.Name = "ControlContents";
-            this.InnerForm.ControlContents.Size = new System.Drawing.Size(220, 128);
+            this.InnerForm.ControlContents.Size = new System.Drawing.Size(222, 137);
             this.InnerForm.ControlContents.TabIndex = 1;
-            this.InnerForm.ControlContents.Visible = true;
+            this.InnerForm.DialogResult = System.Windows.Forms.DialogResult.None;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
             this.InnerForm.ForeColor = System.Drawing.Color.Transparent;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.Name = "InnerForm";
-            this.InnerForm.Size = new System.Drawing.Size(224, 164);
+            this.InnerForm.Size = new System.Drawing.Size(232, 179);
             this.InnerForm.TabIndex = 0;
             this.InnerForm.TitleBarTitle = "Error Dialog";
-            this.InnerForm.UseTitleBar = true;
             // 
             // AcceptButton
             // 
             this.AcceptButton.Cursor = System.Windows.Forms.Cursors.Hand;
             this.AcceptButton.ForeColor = System.Drawing.Color.Transparent;
-            this.AcceptButton.Location = new System.Drawing.Point(143, 89);
+            this.AcceptButton.Location = new System.Drawing.Point(148, 101);
             this.AcceptButton.Name = "AcceptButton";
             this.AcceptButton.Size = new System.Drawing.Size(67, 29);
             this.AcceptButton.TabIndex = 1;
@@ -112,10 +110,10 @@ namespace DebugCompiler.UI.Core.Controls
             // 
             this.ErrorRTB.BackColor = System.Drawing.Color.MediumPurple;
             this.ErrorRTB.DetectUrls = false;
-            this.ErrorRTB.Location = new System.Drawing.Point(10, 11);
+            this.ErrorRTB.Location = new System.Drawing.Point(7, 18);
             this.ErrorRTB.Name = "ErrorRTB";
             this.ErrorRTB.ReadOnly = true;
-            this.ErrorRTB.Size = new System.Drawing.Size(200, 72);
+            this.ErrorRTB.Size = new System.Drawing.Size(208, 77);
             this.ErrorRTB.TabIndex = 0;
             this.ErrorRTB.Text = "Sup Sexy Cunt!";
             // 
@@ -123,7 +121,7 @@ namespace DebugCompiler.UI.Core.Controls
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(224, 164);
+            this.ClientSize = new System.Drawing.Size(232, 179);
             this.Controls.Add(this.InnerForm);
             this.ForeColor = System.Drawing.Color.Transparent;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;

@@ -11,7 +11,7 @@ using DebugCompiler.Properties;
 
 namespace DebugCompiler
 {
-    static class Program
+    public static class Program
     {
         // Track if we're in console mode
         private static bool _isConsoleMode = false;
@@ -107,6 +107,8 @@ namespace DebugCompiler
             // Create and track main form
             var mainForm = new MainForm1();
             RegisterForCleanup(mainForm);
+            mainForm.ApplyTheme(UIThemeManager.CurrentTheme);
+
             Application.Run(mainForm);
         }
 

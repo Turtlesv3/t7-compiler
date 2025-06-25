@@ -101,6 +101,21 @@ namespace DebugCompiler.UI.Core.Singletons
             }
         }
 
+        public static void UnregisterControl(Control control)
+        {
+            if (control != null)
+            {
+                ThemedControls.Remove(control);
+                CustomControlHandlers.Remove(control);
+
+                // Special case for GroupBox to remove paint handler
+                if (control is GroupBox groupBox)
+                {
+                    groupBox.Paint -= ThemedGroupBoxPaint;
+                }
+            }
+        }
+
         private static void ApplyThemeToAllControls()
         {
             foreach (var control in ThemedControls.ToArray())

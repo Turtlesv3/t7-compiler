@@ -7,10 +7,10 @@ namespace DebugCompiler.UI.Core.Singletons
 {
     public static class ThemeExtensions
     {
-        public static void RegisterThemeHandler(this Control control, Action<UIThemeInfo> handler)
+        public static void UnregisterThemeHandler(this Control control, Action<UIThemeInfo> handler)
         {
-            UIThemeManager.RegisterControl(control);
-            UIThemeManager.ThemeChanged += handler;
+            UIThemeManager.UnregisterControl(control);
+            UIThemeManager.ThemeChanged -= handler;
         }
 
         public static void ApplyThemeToChildren(this Control parent, UIThemeInfo theme)

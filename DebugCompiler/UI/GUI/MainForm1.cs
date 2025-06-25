@@ -174,12 +174,19 @@ namespace DebugCompiler
             // Phase 1: Basic Initialization
             InitializeComponent();
 
+            // Load saved theme before creating controls
+            string savedTheme = UIThemeManager.LoadTheme();
+            if (!string.IsNullOrEmpty(savedTheme))
+            {
+                UIThemeManager.SetTheme(savedTheme);
+            }
+
             // Non-UI components
             compilerRoot = new Root();
             toolTip1 = new ToolTip();
             InnerForm.Dock = DockStyle.Fill;
             InnerForm.SetDraggable(true);
-            InnerForm.SetExitHidden(false);
+            InnerForm.SetExitButtonVisible(true);
 
             // Redirect console output
             Console.SetOut(new ConsoleOutputWriter(this));
@@ -190,13 +197,6 @@ namespace DebugCompiler
             this.KeyPreview = true;
             this.KeyDown += MainForm_KeyDown;
 
-            // Load saved theme before creating controls
-            string savedTheme = UIThemeManager.LoadTheme();
-            if (!string.IsNullOrEmpty(savedTheme))
-            {
-                UIThemeManager.SetTheme(savedTheme);
-            }
-
             // Phase 3: Handle-Created Initialization
             this.HandleCreated += (s, e) =>
             {
@@ -205,6 +205,9 @@ namespace DebugCompiler
                     InitializeThemeMenu();
                     InitializeGameComboBox();
                     InitializeCustomComponents();
+
+                    // Apply theme after all controls are created
+                    ApplyTheme(UIThemeManager.CurrentTheme);
 
                     // ComboBox Styling
                     cmbHotMode.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -456,7 +459,7 @@ namespace DebugCompiler
                     }
 
                     // Apply to all child controls
-                    UIThemeManager.RegisterChildControls(this);
+                    ApplyThemeToControls(this.Controls, theme);
 
                     // Special handling for status label
                     if (_lblGameStatus != null && !_lblGameStatus.IsDisposed)
@@ -1438,24 +1441,33 @@ namespace DebugCompiler
 
         private void BtnSavedMenus_Click(object sender, EventArgs e)
         {
-            var successFiles = AppSettings.GetSuccessfullyProcessedFiles();
-            if (!successFiles.Any())
+            try
             {
-                MessageBox.Show("No successfully compiled/injected files found.", "Information",
-                               MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            using (var importDialog = new ImportDialog())
-            {
-                importDialog.LoadFiles(successFiles.Select(f => f.FilePath));
-
-                if (importDialog.ShowDialog(this) == DialogResult.OK &&
-                    !string.IsNullOrEmpty(importDialog.SelectedFilePath))
+                var successFiles = AppSettings.GetSuccessfullyProcessedFiles();
+                if (!successFiles.Any())
                 {
-                    txtScriptPath.Text = importDialog.SelectedFilePath;
-                    AppSettings.LastScriptDirectory = Path.GetDirectoryName(importDialog.SelectedFilePath);
+                    MessageBox.Show("No successfully compiled/injected files found.", "Information",
+                                   MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
+
+                using (var importDialog = new ImportDialog())
+                {
+                    importDialog.LoadFiles(successFiles.Select(f => f.FilePath));
+
+                    var result = importDialog.ShowDialog(this);
+                    if (result == DialogResult.OK && !string.IsNullOrEmpty(importDialog.SelectedFilePath))
+                    {
+                        txtScriptPath.Text = importDialog.SelectedFilePath;
+                        AppSettings.LastScriptDirectory = Path.GetDirectoryName(importDialog.SelectedFilePath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in saved menus click: {ex.Message}");
+                MessageBox.Show($"Error loading saved menus: {ex.Message}", "Error",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

@@ -28,7 +28,7 @@ using DebugCompiler.Properties;
 
 namespace DebugCompiler
 {
-    partial class MainForm1
+    public partial class MainForm1
     {
         /// <summary>
         /// Required designer variable.
@@ -127,12 +127,34 @@ namespace DebugCompiler
             this.btnBrowse = new System.Windows.Forms.Button();
             this.txtScriptPath = new System.Windows.Forms.RichTextBox();
             this.btnSavedMenus = new System.Windows.Forms.Button();
-            this.InnerForm.SuspendLayout();
+            this.InnerForm.ControlContents.SuspendLayout();
             this.SuspendLayout();
             // 
             // InnerForm
             // 
             this.InnerForm.BackColor = System.Drawing.Color.MediumPurple;
+            // 
+            // InnerForm.ControlContents
+            // 
+            this.InnerForm.ControlContents.Controls.Add(this.txtOutput);
+            this.InnerForm.ControlContents.Controls.Add(this.btnResetParseTree);
+            this.InnerForm.ControlContents.Controls.Add(this.btnInject);
+            this.InnerForm.ControlContents.Controls.Add(this.btnCompile);
+            this.InnerForm.ControlContents.Controls.Add(this.chkBuild);
+            this.InnerForm.ControlContents.Controls.Add(this.chkCompileOnly);
+            this.InnerForm.ControlContents.Controls.Add(this.chkHotLoad);
+            this.InnerForm.ControlContents.Controls.Add(this.chkNoRuntime);
+            this.InnerForm.ControlContents.Controls.Add(this.cmbHotMode);
+            this.InnerForm.ControlContents.Controls.Add(this.cmbGame);
+            this.InnerForm.ControlContents.Controls.Add(this.btnBrowse);
+            this.InnerForm.ControlContents.Controls.Add(this.txtScriptPath);
+            this.InnerForm.ControlContents.Controls.Add(this.btnSavedMenus);
+            this.InnerForm.ControlContents.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.InnerForm.ControlContents.Location = new System.Drawing.Point(5, 37);
+            this.InnerForm.ControlContents.Name = "ControlContents";
+            this.InnerForm.ControlContents.Size = new System.Drawing.Size(752, 406);
+            this.InnerForm.ControlContents.TabIndex = 1;
+            this.InnerForm.DialogResult = System.Windows.Forms.DialogResult.None;
             this.InnerForm.Dock = System.Windows.Forms.DockStyle.Fill;
             this.InnerForm.ForeColor = System.Drawing.Color.WhiteSmoke;
             this.InnerForm.Location = new System.Drawing.Point(0, 0);
@@ -140,21 +162,17 @@ namespace DebugCompiler
             this.InnerForm.Size = new System.Drawing.Size(762, 448);
             this.InnerForm.TabIndex = 0;
             this.InnerForm.TitleBarTitle = "Serious\'s T7/T8 Compiler GUI by DoubleG";
-            this.InnerForm.UseTitleBar = true;
             // 
             // txtOutput
             // 
-            this.txtOutput.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Left)
-            | System.Windows.Forms.AnchorStyles.Right)));
             this.txtOutput.BackColor = System.Drawing.Color.DimGray;
             this.txtOutput.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtOutput.ForeColor = System.Drawing.Color.MediumPurple;
             this.txtOutput.HideSelection = false;
-            this.txtOutput.Location = new System.Drawing.Point(132, 113);
+            this.txtOutput.Location = new System.Drawing.Point(123, 125);
             this.txtOutput.Name = "txtOutput";
             this.txtOutput.ReadOnly = true;
-            this.txtOutput.Size = new System.Drawing.Size(610, 277);
+            this.txtOutput.Size = new System.Drawing.Size(627, 255);
             this.txtOutput.TabIndex = 0;
             this.txtOutput.Text = "";
             this.txtOutput.WordWrap = false;
@@ -168,9 +186,9 @@ namespace DebugCompiler
             this.btnResetParseTree.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnResetParseTree.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnResetParseTree.ForeColor = System.Drawing.Color.White;
-            this.btnResetParseTree.Location = new System.Drawing.Point(592, 62);
+            this.btnResetParseTree.Location = new System.Drawing.Point(473, 78);
             this.btnResetParseTree.Name = "btnResetParseTree";
-            this.btnResetParseTree.Size = new System.Drawing.Size(150, 30);
+            this.btnResetParseTree.Size = new System.Drawing.Size(191, 30);
             this.btnResetParseTree.TabIndex = 1;
             this.btnResetParseTree.Text = "Reset GSC Parasetree";
             this.btnResetParseTree.UseVisualStyleBackColor = false;
@@ -186,7 +204,7 @@ namespace DebugCompiler
             this.btnInject.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnInject.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnInject.ForeColor = System.Drawing.Color.White;
-            this.btnInject.Location = new System.Drawing.Point(18, 113);
+            this.btnInject.Location = new System.Drawing.Point(12, 125);
             this.btnInject.Name = "btnInject";
             this.btnInject.Size = new System.Drawing.Size(100, 30);
             this.btnInject.TabIndex = 2;
@@ -203,7 +221,7 @@ namespace DebugCompiler
             this.btnCompile.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnCompile.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnCompile.ForeColor = System.Drawing.Color.White;
-            this.btnCompile.Location = new System.Drawing.Point(18, 360);
+            this.btnCompile.Location = new System.Drawing.Point(12, 350);
             this.btnCompile.Name = "btnCompile";
             this.btnCompile.Size = new System.Drawing.Size(100, 30);
             this.btnCompile.TabIndex = 3;
@@ -216,7 +234,7 @@ namespace DebugCompiler
             this.chkBuild.AutoSize = true;
             this.chkBuild.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkBuild.ForeColor = System.Drawing.Color.White;
-            this.chkBuild.Location = new System.Drawing.Point(21, 333);
+            this.chkBuild.Location = new System.Drawing.Point(12, 323);
             this.chkBuild.Name = "chkBuild";
             this.chkBuild.Size = new System.Drawing.Size(78, 21);
             this.chkBuild.TabIndex = 5;
@@ -229,7 +247,7 @@ namespace DebugCompiler
             this.chkCompileOnly.AutoSize = true;
             this.chkCompileOnly.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkCompileOnly.ForeColor = System.Drawing.Color.White;
-            this.chkCompileOnly.Location = new System.Drawing.Point(21, 306);
+            this.chkCompileOnly.Location = new System.Drawing.Point(12, 296);
             this.chkCompileOnly.Name = "chkCompileOnly";
             this.chkCompileOnly.Size = new System.Drawing.Size(105, 21);
             this.chkCompileOnly.TabIndex = 6;
@@ -242,7 +260,7 @@ namespace DebugCompiler
             this.chkHotLoad.AutoSize = true;
             this.chkHotLoad.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkHotLoad.ForeColor = System.Drawing.Color.White;
-            this.chkHotLoad.Location = new System.Drawing.Point(21, 86);
+            this.chkHotLoad.Location = new System.Drawing.Point(12, 103);
             this.chkHotLoad.Name = "chkHotLoad";
             this.chkHotLoad.Size = new System.Drawing.Size(81, 21);
             this.chkHotLoad.TabIndex = 7;
@@ -255,7 +273,7 @@ namespace DebugCompiler
             this.chkNoRuntime.AutoSize = true;
             this.chkNoRuntime.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkNoRuntime.ForeColor = System.Drawing.Color.White;
-            this.chkNoRuntime.Location = new System.Drawing.Point(21, 149);
+            this.chkNoRuntime.Location = new System.Drawing.Point(12, 161);
             this.chkNoRuntime.Name = "chkNoRuntime";
             this.chkNoRuntime.Size = new System.Drawing.Size(96, 21);
             this.chkNoRuntime.TabIndex = 8;
@@ -265,7 +283,7 @@ namespace DebugCompiler
             // 
             // cmbHotMode
             // 
-            this.cmbHotMode.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            this.cmbHotMode.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.cmbHotMode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.cmbHotMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
@@ -273,25 +291,25 @@ namespace DebugCompiler
             this.cmbHotMode.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.cmbHotMode.ForeColor = System.Drawing.Color.White;
             this.cmbHotMode.FormattingEnabled = true;
-            this.cmbHotMode.Location = new System.Drawing.Point(18, 49);
+            this.cmbHotMode.Location = new System.Drawing.Point(12, 72);
             this.cmbHotMode.Name = "cmbHotMode";
-            this.cmbHotMode.Size = new System.Drawing.Size(48, 25);
+            this.cmbHotMode.Size = new System.Drawing.Size(55, 25);
             this.cmbHotMode.TabIndex = 9;
             this.cmbHotMode.SelectedIndexChanged += new System.EventHandler(this.CmbHotMode_SelectedIndexChanged);
             // 
             // cmbGame
             // 
-            this.cmbGame.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            this.cmbGame.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.cmbGame.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
-            this.cmbGame.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbGame.DropDownStyle = System.Windows.Forms.ComboBoxStyle.Simple;
             this.cmbGame.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.cmbGame.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.cmbGame.ForeColor = System.Drawing.Color.White;
             this.cmbGame.FormattingEnabled = true;
-            this.cmbGame.Location = new System.Drawing.Point(18, 18);
+            this.cmbGame.Location = new System.Drawing.Point(7, 30);
             this.cmbGame.Name = "cmbGame";
-            this.cmbGame.Size = new System.Drawing.Size(150, 25);
+            this.cmbGame.Size = new System.Drawing.Size(133, 25);
             this.cmbGame.TabIndex = 10;
             this.cmbGame.SelectedIndexChanged += new System.EventHandler(this.CmbGame_SelectedIndexChanged);
             // 
@@ -304,7 +322,7 @@ namespace DebugCompiler
             this.btnBrowse.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnBrowse.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnBrowse.ForeColor = System.Drawing.Color.White;
-            this.btnBrowse.Location = new System.Drawing.Point(662, 18);
+            this.btnBrowse.Location = new System.Drawing.Point(670, 30);
             this.btnBrowse.Name = "btnBrowse";
             this.btnBrowse.Size = new System.Drawing.Size(80, 25);
             this.btnBrowse.TabIndex = 11;
@@ -314,24 +332,24 @@ namespace DebugCompiler
             // 
             // txtScriptPath
             // 
-            this.txtScriptPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            this.txtScriptPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.txtScriptPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.txtScriptPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.txtScriptPath.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.txtScriptPath.ForeColor = System.Drawing.Color.White;
-            this.txtScriptPath.Location = new System.Drawing.Point(197, 18);
+            this.txtScriptPath.Location = new System.Drawing.Point(151, 30);
             this.txtScriptPath.Name = "txtScriptPath";
-            this.txtScriptPath.Size = new System.Drawing.Size(445, 25);
+            this.txtScriptPath.Size = new System.Drawing.Size(513, 25);
             this.txtScriptPath.TabIndex = 12;
             this.txtScriptPath.Text = "";
             this.txtScriptPath.TextChanged += new System.EventHandler(this.TxtScriptPath_TextChanged);
             // 
             // btnSavedMenus
             // 
-            this.btnSavedMenus.Location = new System.Drawing.Point(493, 65);
+            this.btnSavedMenus.Location = new System.Drawing.Point(670, 78);
             this.btnSavedMenus.Name = "btnSavedMenus";
-            this.btnSavedMenus.Size = new System.Drawing.Size(92, 25);
+            this.btnSavedMenus.Size = new System.Drawing.Size(80, 30);
             this.btnSavedMenus.TabIndex = 10;
             this.btnSavedMenus.Text = "Saved Menus";
             this.btnSavedMenus.UseVisualStyleBackColor = true;
@@ -344,13 +362,13 @@ namespace DebugCompiler
             this.BackColor = System.Drawing.Color.MediumPurple;
             this.ClientSize = new System.Drawing.Size(762, 448);
             this.Controls.Add(this.InnerForm);
-            this.ForeColor = System.Drawing.SystemColors.ControlText;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.KeyPreview = true;
             this.Name = "MainForm1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "T7/T8 Compiler";
-            this.InnerForm.ResumeLayout(false);
+            this.InnerForm.ControlContents.ResumeLayout(false);
+            this.InnerForm.ControlContents.PerformLayout();
             this.ResumeLayout(false);
 
         }

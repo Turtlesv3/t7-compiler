@@ -28,7 +28,7 @@ using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Controls
 {
-    partial class CThemedTextbox
+    public partial class CThemedTextbox
     {
         /// <summary> 
         /// Required designer variable.

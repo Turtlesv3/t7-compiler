@@ -28,7 +28,7 @@ using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Controls
 {
-    partial class CComboDialog
+    public partial class CComboDialog
     {
         /// <summary>
         /// Required designer variable.

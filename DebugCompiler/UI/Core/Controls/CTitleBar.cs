@@ -2,21 +2,50 @@
 using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Controls
 {
     public partial class CTitleBar : UserControl, IThemeableControl
     {
-        public bool DisableDrag;
+        private bool _disableDrag;
+        private const int WM_NCLBUTTONDOWN = 0xA1;
+        private const int HT_CAPTION = 0x2;
+
+        public bool DisableDrag
+        {
+            get => _disableDrag;
+            set => _disableDrag = value;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern int SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
         public CTitleBar()
         {
             InitializeComponent();
-            MouseDown += MouseDown_Drag;
+            InitializeEventHandlers();
             UIThemeManager.RegisterControl(this);
+        }
+
+        private void InitializeEventHandlers()
+        {
+            MouseDown += MouseDown_Drag;
             UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
-            TitleLabel.MouseDown += MouseDown_Drag;
+
+            if (TitleLabel != null)
+            {
+                TitleLabel.MouseDown += MouseDown_Drag;
+            }
+
+            if (ExitButton != null)
+            {
+                ExitButton.Click += ExitButton_Click;
+            }
         }
 
         private void ExitButton_Click(object sender, EventArgs e)
@@ -24,49 +53,69 @@ namespace DebugCompiler.UI.Core.Controls
             ParentForm?.Close();
         }
 
-        public const int WM_NCLBUTTONDOWN = 0xA1;
-        public const int HT_CAPTION = 0x2;
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        public static extern bool ReleaseCapture();
-
-        private void MouseDown_Drag(object sender, System.Windows.Forms.MouseEventArgs e)
+        private void MouseDown_Drag(object sender, MouseEventArgs e)
         {
-            if (ParentForm == null) return;
-            if (DisableDrag) return;
-            if (e.Button == MouseButtons.Left)
-            {
-                ReleaseCapture();
-                SendMessage(ParentForm.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
-            }
+            if (ParentForm == null || DisableDrag || e.Button != MouseButtons.Left)
+                return;
+
+            ReleaseCapture();
+            SendMessage(ParentForm.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
         }
 
         public void SetExitButtonVisible(bool isVisible)
         {
-            ExitButton.Visible = isVisible;
+            if (ExitButton != null && ExitButton.Visible != isVisible)
+            {
+                ExitButton.Visible = isVisible;
+            }
         }
 
         public void ApplyTheme(UIThemeInfo theme)
         {
-            if (IsDisposed || !IsHandleCreated) return;
+            if (IsDisposed || !IsHandleCreated || theme.Equals(default(UIThemeInfo)))
+                return;
 
-            this.BackColor = theme.AccentColor; // Different color for title bar
-            this.ForeColor = theme.TextColor;
-            ExitButton.BackColor = theme.AccentColor;
-            ExitButton.ForeColor = theme.TextColor;
+            try
+            {
+                this.BackColor = theme.AccentColor;
+                this.ForeColor = theme.TextColor;
+
+                if (TitleLabel != null)
+                {
+                    TitleLabel.ForeColor = theme.TextColor;
+                }
+
+                if (ExitButton != null)
+                {
+                    ExitButton.BackColor = theme.AccentColor;
+                    ExitButton.ForeColor = theme.TextColor;
+                    ExitButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
+                    ExitButton.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // Gracefully handle disposal during theme change
+            }
         }
 
         private void OnThemeChanged_Implementation(UIThemeInfo theme)
         {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<UIThemeInfo>(ApplyTheme), theme);
+                return;
+            }
             ApplyTheme(theme);
         }
 
         public IEnumerable<Control> GetThemedControls()
         {
-            yield return ExitButton;
-            yield return TitleLabel;
+            if (TitleLabel != null)
+                yield return TitleLabel;
+
+            if (ExitButton != null)
+                yield return ExitButton;
         }
     }
 }

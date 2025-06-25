@@ -1,59 +1,23 @@
-﻿using DebugCompiler.UI.Core.Controls;
-using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
-using DebugCompiler.UI.Core.Helpers;
-using Microsoft.Test.Xbox.XDRPC;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.ComponentModel.Design;
-using System.Data;
-using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Design;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Windows.Forms.Design;
-using System.Windows.Forms.VisualStyles;
-using DebugCompiler.Properties;
+﻿using DebugCompiler.UI.Core.Singletons;
 
 namespace DebugCompiler.UI.Core.Controls
 {
     partial class CBorderedForm
     {
-        /// <summary> 
-        /// Required designer variable.
-        /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-        /// <summary> 
-        /// Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                components?.Dispose();
+                UIThemeManager.ThemeChanged -= OnThemeChanged_Implementation;
             }
             base.Dispose(disposing);
         }
 
         #region Component Designer generated code
 
-        /// <summary> 
-        /// Required method for Designer support - do not modify 
-        /// the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
             this.MainPanel = new System.Windows.Forms.Panel();
@@ -61,54 +25,30 @@ namespace DebugCompiler.UI.Core.Controls
             this.TitleBar = new DebugCompiler.UI.Core.Controls.CTitleBar();
             this.MainPanel.SuspendLayout();
             this.SuspendLayout();
-            // 
+
             // MainPanel
-            // 
-            this.MainPanel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(28)))), ((int)(((byte)(28)))), ((int)(((byte)(28)))));
+            this.MainPanel.BackColor = System.Drawing.Color.FromArgb(28, 28, 28);
             this.MainPanel.Controls.Add(this.DesignerContents);
             this.MainPanel.Controls.Add(this.TitleBar);
             this.MainPanel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.MainPanel.Location = new System.Drawing.Point(0, 0);
-            this.MainPanel.Margin = new System.Windows.Forms.Padding(0);
-            this.MainPanel.Name = "MainPanel";
-            this.MainPanel.Padding = new System.Windows.Forms.Padding(0);
-            this.MainPanel.Size = new System.Drawing.Size(700, 500);
-            this.MainPanel.TabIndex = 0;
-            // 
+            this.MainPanel.Padding = new System.Windows.Forms.Padding(5);
+
             // DesignerContents
-            // 
+            this.DesignerContents.BackColor = System.Drawing.Color.Transparent;
             this.DesignerContents.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.DesignerContents.Location = new System.Drawing.Point(0, 32);
-            this.DesignerContents.Margin = new System.Windows.Forms.Padding(0);
-            this.DesignerContents.Name = "DesignerContents";
-            this.DesignerContents.Padding = new System.Windows.Forms.Padding(0);
-            this.DesignerContents.Size = new System.Drawing.Size(700, 468);
-            this.DesignerContents.TabIndex = 1;
-            // 
+            this.DesignerContents.Location = new System.Drawing.Point(5, 37);
+            this.DesignerContents.Padding = new System.Windows.Forms.Padding(3);
+
             // TitleBar
-            // 
-            this.TitleBar.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(36)))), ((int)(((byte)(36)))), ((int)(((byte)(36)))));
+            this.TitleBar.BackColor = System.Drawing.Color.FromArgb(36, 36, 36);
             this.TitleBar.Dock = System.Windows.Forms.DockStyle.Top;
-            this.TitleBar.Location = new System.Drawing.Point(0, 0);
-            this.TitleBar.Margin = new System.Windows.Forms.Padding(0);
-            this.TitleBar.Name = "TitleBar";
-            this.TitleBar.Size = new System.Drawing.Size(700, 32);
-            this.TitleBar.TabIndex = 0;
-            // 
+            this.TitleBar.Location = new System.Drawing.Point(5, 5);
+
             // CBorderedForm
-            // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = System.Drawing.Color.MediumPurple;
             this.Controls.Add(this.MainPanel);
-            this.Margin = new System.Windows.Forms.Padding(0);
-            this.Name = "CBorderedForm";
-            this.Padding = new System.Windows.Forms.Padding(0);
-            this.Size = new System.Drawing.Size(700, 500);
             this.MainPanel.ResumeLayout(false);
             this.ResumeLayout(false);
         }
-
 
         #endregion
 

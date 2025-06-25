@@ -1,41 +1,12 @@
-﻿using DebugCompiler.UI.Core.Controls;
-using DebugCompiler.UI.Core.Interfaces;
-using DebugCompiler.UI.Core.Singletons;
-using DebugCompiler.UI.Core.Helpers;
-using Microsoft.Test.Xbox.XDRPC;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.ComponentModel.Design;
-using System.Data;
-using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Design;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Windows.Forms.Design;
-using System.Windows.Forms.VisualStyles;
-
-using DebugCompiler.Properties;
-
+﻿using DebugCompiler.UI.Core.Singletons;
 
 namespace DebugCompiler.UI.Core.Controls
 {
-    partial class CTitleBar
+    public partial class CTitleBar
     {
         /// <summary> 
         /// Required designer variable.
         /// </summary>
-        private System.ComponentModel.IContainer components = null;
 
         /// <summary> 
         /// Clean up any resources being used.
@@ -43,19 +14,33 @@ namespace DebugCompiler.UI.Core.Controls
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                // Clean up event handlers
+                MouseDown -= MouseDown_Drag;
+                UIThemeManager.ThemeChanged -= OnThemeChanged_Implementation;
+
+                // Clean up child controls
+                if (TitleLabel != null)
+                {
+                    TitleLabel.MouseDown -= MouseDown_Drag;
+                    UIThemeManager.UnregisterControl(TitleLabel);
+                }
+
+                if (ExitButton != null)
+                {
+                    ExitButton.Click -= ExitButton_Click;
+                    UIThemeManager.UnregisterControl(ExitButton);
+                }
+
+                // Unregister self
+                UIThemeManager.UnregisterControl(this);
             }
             base.Dispose(disposing);
         }
 
         #region Component Designer generated code
 
-        /// <summary> 
-        /// Required method for Designer support - do not modify 
-        /// the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
             this.TitleLabel = new System.Windows.Forms.Label();
@@ -67,31 +52,32 @@ namespace DebugCompiler.UI.Core.Controls
             this.TitleLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
             | System.Windows.Forms.AnchorStyles.Left)));
             this.TitleLabel.AutoSize = true;
-            this.TitleLabel.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.TitleLabel.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.TitleLabel.ForeColor = System.Drawing.Color.WhiteSmoke;
-            this.TitleLabel.Location = new System.Drawing.Point(4, 4);
+            this.TitleLabel.Location = new System.Drawing.Point(8, 6);
+            this.TitleLabel.Margin = new System.Windows.Forms.Padding(0);
             this.TitleLabel.Name = "TitleLabel";
-            this.TitleLabel.Size = new System.Drawing.Size(39, 21);
+            this.TitleLabel.Size = new System.Drawing.Size(30, 17);
             this.TitleLabel.TabIndex = 0;
             this.TitleLabel.Text = "Title";
+            this.TitleLabel.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // ExitButton
             // 
-            this.ExitButton.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Right)));
+            this.ExitButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.ExitButton.FlatAppearance.BorderSize = 0;
-            this.ExitButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.ExitButton.FlatAppearance.MouseDownBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(80)))), ((int)(((byte)(80)))), ((int)(((byte)(80)))));
+            this.ExitButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
             this.ExitButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.ExitButton.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.ExitButton.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.ExitButton.ForeColor = System.Drawing.Color.WhiteSmoke;
             this.ExitButton.Location = new System.Drawing.Point(268, 0);
             this.ExitButton.Margin = new System.Windows.Forms.Padding(0);
             this.ExitButton.Name = "ExitButton";
             this.ExitButton.Size = new System.Drawing.Size(32, 32);
             this.ExitButton.TabIndex = 1;
-            this.ExitButton.Text = "x";
-            this.ExitButton.UseVisualStyleBackColor = true;
-            this.ExitButton.Click += new System.EventHandler(this.ExitButton_Click);
+            this.ExitButton.Text = "×";
+            this.ExitButton.UseVisualStyleBackColor = false;
             // 
             // CTitleBar
             // 
@@ -104,11 +90,11 @@ namespace DebugCompiler.UI.Core.Controls
             this.Size = new System.Drawing.Size(300, 32);
             this.ResumeLayout(false);
             this.PerformLayout();
-
         }
 
         #endregion
-        private System.Windows.Forms.Button ExitButton;
+
         internal System.Windows.Forms.Label TitleLabel;
+        internal System.Windows.Forms.Button ExitButton;
     }
 }
