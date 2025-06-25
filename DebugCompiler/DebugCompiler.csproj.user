@@ -35,10 +35,10 @@
     <Compile Update="UI\Core\Controls\ThemedDialog.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Update="UI\GUI\ImportDialog.cs">
+    <Compile Update="UI\ImportDialog.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Update="UI\GUI\MainForm1.cs">
+    <Compile Update="UI\MainForm1.cs">
       <SubType>Form</SubType>
     </Compile>
   </ItemGroup>

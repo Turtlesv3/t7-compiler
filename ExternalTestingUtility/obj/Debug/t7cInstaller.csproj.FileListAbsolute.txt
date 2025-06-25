@@ -24,3 +24,4 @@ C:\Users\golia\Source\Repos\t7-compilerv2\ExternalTestingUtility\obj\Debug\t7mpf
 C:\Users\golia\Source\Repos\t7-compilerv2\ExternalTestingUtility\obj\Debug\t7cInstaller.csproj.GenerateResource.cache
 C:\Users\golia\Source\Repos\t7-compilerv2\ExternalTestingUtility\obj\Debug\t7cInstaller.csproj.CoreCompileInputs.cache
 C:\Users\golia\Source\Repos\t7-compilerv2\ExternalTestingUtility\obj\Debug\t7c_installer.exe
+C:\Users\golia\Source\Repos\t7-compilerv2\ExternalTestingUtility\obj\Debug\t7c_installer.exe.config

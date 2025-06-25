@@ -137,7 +137,7 @@
   <ItemGroup>
     <!-- Main source files -->
     <Compile Include="ConditionalBlocks.cs" />
-    <Compile Include="Program.cs" />
+    <Compile Include="UI\Program.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <AutoGen>True</AutoGen>
@@ -155,12 +155,12 @@
     <Compile Include="UI\Core\Singletons\UIThemeInfo.cs" />
 
     <!-- Forms with designer files -->
-    <Compile Include="UI\GUI\MainForm1.cs" />
-    <Compile Include="UI\GUI\MainForm1.Designer.cs">
+    <Compile Include="UI\MainForm1.cs" />
+    <Compile Include="UI\MainForm1.Designer.cs">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </Compile>
-    <Compile Include="UI\GUI\ImportDialog.cs" />
-    <Compile Include="UI\GUI\ImportDialog.Designer.cs">
+    <Compile Include="UI\ImportDialog.cs" />
+    <Compile Include="UI\ImportDialog.Designer.cs">
       <DependentUpon>ImportDialog.cs</DependentUpon>
     </Compile>
 
@@ -196,7 +196,7 @@
   <ItemGroup>
     <!-- Resource files -->
     <EmbeddedResource Include="UI\Core\Controls\ThemedDialog.resx" />
-    <EmbeddedResource Include="UI\GUI\MainForm1.resx">
+    <EmbeddedResource Include="UI\MainForm1.resx">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="UI\Core\Controls\CBorderedForm.resx">
@@ -211,7 +211,7 @@
     <EmbeddedResource Include="UI\Core\Controls\CTitleBar.resx">
       <DependentUpon>CTitleBar.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="UI\GUI\ImportDialog.resx">
+    <EmbeddedResource Include="UI\ImportDialog.resx">
       <DependentUpon>ImportDialog.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="version" />

@@ -143,7 +143,7 @@ namespace DebugCompiler
             return 0;
         }
 
-        public void PublicFreeActiveScript(bool forceReset)
+        public void PublicFreeActiveScript()
         {
             FreeActiveScript();
         }
@@ -865,8 +865,18 @@ namespace DebugCompiler
             else
             {
                 Success("Script compiled. Press I to inject or anything else to continue");
-                if (Console.ReadKey(true).Key != ConsoleKey.I)
+
+                // Only try to read key if we have a console
+                if (Environment.UserInteractive && Console.OpenStandardInput(1) != Stream.Null)
+                {
+                    if (Console.ReadKey(true).Key != ConsoleKey.I)
+                        return 0;
+                }
+                else
+                {
+                    // In GUI mode, just proceed with injection
                     return 0;
+                }
             }
 
             PointerEx injresult = InjectScript(replaceScript, code.CompiledScript, game, hot, noruntime);
