@@ -4,5 +4,5 @@
   framework.cpp
   Opcodes.cpp
   Generating Code...
-     Creating library C:\Users\golia\Source\Repos\t7-compilerv2\Debug\t7cinternal.lib and object C:\Users\golia\Source\Repos\t7-compilerv2\Debug\t7cinternal.exp
-  t7cinternal.vcxproj -> C:\Users\golia\Source\Repos\t7-compilerv2\Debug\t7cinternal.dll
+     Creating library C:\Users\golia\Source\Repos\t7-compiler\Debug\t7cinternal.lib and object C:\Users\golia\Source\Repos\t7-compiler\Debug\t7cinternal.exp
+  t7cinternal.vcxproj -> C:\Users\golia\Source\Repos\t7-compiler\Debug\t7cinternal.dll
