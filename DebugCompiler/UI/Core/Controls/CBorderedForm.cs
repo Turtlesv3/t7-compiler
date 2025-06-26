@@ -14,7 +14,8 @@ using System.Windows.Forms.Design;
 namespace DebugCompiler.UI.Core.Controls
 {
     [Designer(typeof(CBorderedFormDesigner))]
-    [Designer("System.Windows.Forms.Design.ParentControlDesigner, System.Design", typeof(IDesigner))]
+    [DesignerCategory("Component")]
+    [Docking(DockingBehavior.Ask)]
     public partial class CBorderedForm : UserControl, IThemeableControl
     {
         // Window message constants
@@ -31,12 +32,17 @@ namespace DebugCompiler.UI.Core.Controls
         private const int HTBOTTOMLEFT = 16;
         private const int HTBOTTOMRIGHT = 17;
 
-        #region Fields and Properties
+        #region Fields
         private bool _useTitleBar = true;
         private int _resizeBorderSize = 5;
         private bool _allowDesignerEditing = true;
         private DialogResult _dialogResult = DialogResult.None;
+        private bool _initialized = false;
+        private Panel _controlContents;
+        private CTitleBar _titleBar;
+        #endregion
 
+        #region Properties
         [Category("Title Bar")]
         [DefaultValue(true)]
         public bool UseTitleBar
@@ -44,20 +50,27 @@ namespace DebugCompiler.UI.Core.Controls
             get => _useTitleBar;
             set
             {
-                _useTitleBar = value;
-                TitleBar.Visible = value;
-                Invalidate();
+                if (_useTitleBar != value)
+                {
+                    _useTitleBar = value;
+                    if (_titleBar != null) _titleBar.Visible = value;
+                    if (!DesignMode) Invalidate();
+                }
             }
         }
 
         [Category("Title Bar")]
+        [Localizable(true)]
         public string TitleBarTitle
         {
-            get => TitleBar.TitleLabel.Text;
+            get => _titleBar?.TitleLabel?.Text ?? string.Empty;
             set
             {
-                TitleBar.TitleLabel.Text = value;
-                Invalidate();
+                if (_titleBar != null && _titleBar.TitleLabel != null)
+                {
+                    _titleBar.TitleLabel.Text = value;
+                    if (!DesignMode) Invalidate();
+                }
             }
         }
 
@@ -66,7 +79,7 @@ namespace DebugCompiler.UI.Core.Controls
         public int ResizeBorderSize
         {
             get => _resizeBorderSize;
-            set => _resizeBorderSize = Math.Max(1, value);
+            set => _resizeBorderSize = Math.Max(1, Math.Min(20, value));
         }
 
         [Category("Designer")]
@@ -78,6 +91,7 @@ namespace DebugCompiler.UI.Core.Controls
         }
 
         [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public DialogResult DialogResult
         {
             get => _dialogResult;
@@ -96,47 +110,83 @@ namespace DebugCompiler.UI.Core.Controls
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
         [Editor(typeof(ParentControlDesigner), typeof(UITypeEditor))]
-        public Panel ControlContents => this.DesignerContents;
+        [MergableProperty(false)]
+        public Panel ControlContents
+        {
+            get => _controlContents;
+            set
+            {
+                if (_controlContents != value)
+                {
+                    if (_controlContents != null)
+                    {
+                        Controls.Remove(_controlContents);
+                        _controlContents.Dispose();
+                    }
+                    _controlContents = value;
+                    if (_controlContents != null)
+                    {
+                        Controls.Add(_controlContents);
+                        _controlContents.Dock = DockStyle.Fill;
+                    }
+                }
+            }
+        }
+
+        public CTitleBar TitleBar
+        {
+            get => _titleBar;
+            private set
+            {
+                if (_titleBar != value)
+                {
+                    if (_titleBar != null)
+                    {
+                        Controls.Remove(_titleBar);
+                        _titleBar.Dispose();
+                    }
+                    _titleBar = value;
+                    if (_titleBar != null)
+                    {
+                        Controls.Add(_titleBar);
+                        _titleBar.Dock = DockStyle.Top;
+                    }
+                }
+            }
+        }
         #endregion
 
         public CBorderedForm()
         {
             InitializeComponent();
 
+            SetStyle(ControlStyles.ContainerControl, true);
+            SetStyle(ControlStyles.SupportsTransparentBackColor, true);
+            SetStyle(ControlStyles.UserPaint, true);
+            SetStyle(ControlStyles.ResizeRedraw, true);
+            SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
+
             if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
             {
                 EnableDesignTimeFeatures();
             }
+            else
+            {
+                if (_controlContents != null)
+                {
+                    _controlContents.Dock = DockStyle.Fill;
+                }
+                _initialized = true;
+            }
 
-            // Default setup
-            MainPanel.Dock = DockStyle.Fill;
-            DesignerContents.Dock = DockStyle.Fill;
-
-            // Event handlers
-            MouseDown += CBorderedForm_MouseDown;
-            MainPanel.MouseDown += CBorderedForm_MouseDown;
-
-            // Theme setup
             UIThemeManager.RegisterControl(this);
-            UIThemeManager.ThemeChanged += OnThemeChanged_Implementation;
-
-            // Designer attributes
-            TypeDescriptor.AddAttributes(this.DesignerContents,
-                new DesignerAttribute(typeof(CBFInnerPanelDesigner)));
+            UIThemeManager.ThemeChanged += OnThemeChanged;
         }
 
-        #region Event Handlers
-        private void CBorderedForm_MouseDown(object sender, MouseEventArgs e)
+        #region Theme Handling
+        private void OnThemeChanged(UIThemeInfo theme)
         {
-            if (ParentForm == null || e.Button != MouseButtons.Left) return;
-
-            NativeMethods.ReleaseCapture();
-            NativeMethods.SendMessage(ParentForm.Handle, NativeMethods.WM_NCLBUTTONDOWN, NativeMethods.HT_CAPTION, 0);
-        }
-
-        private void OnThemeChanged_Implementation(UIThemeInfo theme)
-        {
-            if (IsDisposed || !IsHandleCreated) return;
+            if (IsDisposed || !IsHandleCreated || DesignMode) return;
 
             if (InvokeRequired)
             {
@@ -145,18 +195,59 @@ namespace DebugCompiler.UI.Core.Controls
             }
             ApplyTheme(theme);
         }
+
+        public void ApplyTheme(UIThemeInfo theme)
+        {
+            if (IsDisposed || !IsHandleCreated || DesignMode) return;
+
+            this.BackColor = theme.BackColor;
+            this.ForeColor = theme.TextColor;
+
+            foreach (Control control in this.Controls)
+            {
+                if (control is IThemeableControl themeable)
+                {
+                    themeable.ApplyTheme(theme);
+                }
+            }
+        }
+
+        public IEnumerable<Control> GetThemedControls() => this.Controls.Cast<Control>();
         #endregion
 
         #region Designer Support
         private void EnableDesignTimeFeatures()
         {
-            this.SetStyle(ControlStyles.ContainerControl, true);
-            this.DesignerContents.AllowDrop = true;
-
-            if (DesignMode)
+            if (_controlContents != null)
             {
-                this.DesignerContents.BackColor = Color.FromArgb(30, 30, 30);
-                this.DesignerContents.BorderStyle = BorderStyle.FixedSingle;
+                _controlContents.AllowDrop = true;
+                _controlContents.BackColor = Color.FromArgb(30, 30, 30);
+                _controlContents.BorderStyle = BorderStyle.FixedSingle;
+            }
+
+            // Ensure controls can be added at design time
+            var host = (IDesignerHost)GetService(typeof(IDesignerHost));
+            if (host != null)
+            {
+                var designer = host.GetDesigner(_controlContents);
+                if (designer is ParentControlDesigner pcd)
+                {
+                    // Use reflection to access EnableDesignMode if needed
+                    var method = typeof(ParentControlDesigner).GetMethod("EnableDesignMode",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    method?.Invoke(pcd, new object[] { _controlContents, "ControlContents" });
+                }
+            }
+        }
+
+        protected override void OnControlAdded(ControlEventArgs e)
+        {
+            base.OnControlAdded(e);
+
+            // Only register theming for runtime controls
+            if (_initialized && e.Control != _controlContents)
+            {
+                UIThemeManager.RegisterControl(e.Control);
             }
         }
         #endregion
@@ -179,6 +270,8 @@ namespace DebugCompiler.UI.Core.Controls
 
         private void HandleHitTest(ref Message m)
         {
+            if (!_initialized) return;
+
             Point pos = PointToClient(new Point(m.LParam.ToInt32()));
 
             if (pos.X <= _resizeBorderSize)
@@ -207,7 +300,7 @@ namespace DebugCompiler.UI.Core.Controls
             {
                 m.Result = (IntPtr)HTBOTTOM;
             }
-            else if ((int)m.Result == HTCLIENT && TitleBar.Visible && pos.Y <= TitleBar.Bottom)
+            else if ((int)m.Result == HTCLIENT && _titleBar != null && _titleBar.Visible && pos.Y <= _titleBar.Bottom)
             {
                 m.Result = (IntPtr)HTCAPTION;
             }
@@ -217,149 +310,94 @@ namespace DebugCompiler.UI.Core.Controls
         #region Public Methods
         public void SetExitButtonVisible(bool visible)
         {
-            if (TitleBar != null)
+            if (_titleBar != null)
             {
-                TitleBar.SetExitButtonVisible(visible);
+                _titleBar.SetExitButtonVisible(visible);
             }
         }
 
         public void SetDraggable(bool draggable)
         {
-            if (TitleBar != null)
+            if (_titleBar != null)
             {
-                TitleBar.DisableDrag = !draggable;
+                _titleBar.DisableDrag = !draggable;
             }
         }
 
-        public void SetTitle(string title) => TitleBar.TitleLabel.Text = title;
+        public void SetTitle(string title) => TitleBarTitle = title;
+        #endregion
 
-        public void ApplyTheme(UIThemeInfo theme)
+        #region Designer Classes
+        internal class CBorderedFormDesigner : ParentControlDesigner
         {
-            if (IsDisposed || !IsHandleCreated) return;
+            private IComponentChangeService _changeService;
 
-            this.BackColor = theme.BackColor;
-            this.ForeColor = theme.TextColor;
-
-            foreach (Control control in this.Controls)
+            public override void Initialize(IComponent component)
             {
-                if (control is IThemeableControl themeable)
+                base.Initialize(component);
+                var form = (CBorderedForm)component;
+
+                // Use reflection to access EnableDesignMode
+                var method = typeof(ParentControlDesigner).GetMethod("EnableDesignMode",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                method?.Invoke(this, new object[] { form.ControlContents, "ControlContents" });
+
+                _changeService = GetService(typeof(IComponentChangeService)) as IComponentChangeService;
+
+                if (_changeService != null)
                 {
-                    themeable.ApplyTheme(theme);
+                    _changeService.ComponentAdding += OnComponentAdding;
                 }
             }
+
+            public override bool CanParent(Control control)
+            {
+                // Only allow parenting to the contents panel
+                return control is not CBorderedForm;
+            }
+
+            private void OnComponentAdding(object sender, ComponentEventArgs e)
+            {
+                if (e.Component is Control control && control.Parent == null)
+                {
+                    ((CBorderedForm)Component).ControlContents.Controls.Add(control);
+                }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing && _changeService != null)
+                {
+                    _changeService.ComponentAdding -= OnComponentAdding;
+                }
+                base.Dispose(disposing);
+            }
         }
 
-        public IEnumerable<Control> GetThemedControls() => this.Controls.Cast<Control>();
-
-        protected override void OnControlAdded(ControlEventArgs e)
+        internal class CBFInnerPanelDesigner : ParentControlDesigner
         {
-            base.OnControlAdded(e);
-            UIThemeManager.RegisterControl(e.Control);
+            public override SelectionRules SelectionRules =>
+                base.SelectionRules & ~SelectionRules.AllSizeable;
+
+            protected override void PostFilterAttributes(IDictionary attributes)
+            {
+                base.PostFilterAttributes(attributes);
+                attributes[typeof(DockingAttribute)] = new DockingAttribute(DockingBehavior.Never);
+            }
+
+            protected override void PostFilterProperties(IDictionary properties)
+            {
+                base.PostFilterProperties(properties);
+                foreach (var name in new[] { "Dock", "Anchor", "Size", "Location", "Width", "Height" })
+                {
+                    if (properties[name] is PropertyDescriptor pd)
+                    {
+                        properties[name] = TypeDescriptor.CreateProperty(
+                            Component.GetType(), pd, new BrowsableAttribute(false));
+                    }
+                }
+            }
         }
         #endregion
     }
-
-    internal static class NativeMethods
-    {
-        public const int WM_NCLBUTTONDOWN = 0xA1;
-        public const int HT_CAPTION = 0x2;
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        public static extern bool ReleaseCapture();
-    }
-
-    #region Designer Classes
-    internal class CBorderedFormDesigner : ParentControlDesigner
-    {
-        private DesignerActionListCollection _actionLists;
-        private IComponentChangeService _changeService;
-
-        public override void Initialize(IComponent component)
-        {
-            base.Initialize(component);
-            var form = (CBorderedForm)component;
-            EnableDesignMode(form.ControlContents, "ControlContents");
-
-            _changeService = GetService(typeof(IComponentChangeService)) as IComponentChangeService;
-            if (_changeService != null)
-            {
-                _changeService.ComponentAdding += OnComponentAdding;
-            }
-        }
-
-        public override DesignerActionListCollection ActionLists =>
-            _actionLists ??= new DesignerActionListCollection { new CBorderedFormActionList(Component) };
-
-        private void OnComponentAdding(object sender, ComponentEventArgs e)
-        {
-            if (e.Component is Control control && control.Parent == null)
-            {
-                ((CBorderedForm)Component).ControlContents.Controls.Add(control);
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && _changeService != null)
-            {
-                _changeService.ComponentAdding -= OnComponentAdding;
-            }
-            base.Dispose(disposing);
-        }
-    }
-
-    internal class CBFInnerPanelDesigner : ParentControlDesigner
-    {
-        public override SelectionRules SelectionRules =>
-            base.SelectionRules & ~SelectionRules.AllSizeable;
-
-        protected override void PostFilterAttributes(IDictionary attributes)
-        {
-            base.PostFilterAttributes(attributes);
-            attributes[typeof(DockingAttribute)] = new DockingAttribute(DockingBehavior.Never);
-        }
-
-        protected override void PostFilterProperties(IDictionary properties)
-        {
-            base.PostFilterProperties(properties);
-            foreach (var name in new[] { "Dock", "Anchor", "Size", "Location", "Width", "Height" })
-            {
-                if (properties[name] is PropertyDescriptor pd)
-                {
-                    properties[name] = TypeDescriptor.CreateProperty(
-                        Component.GetType(), pd, new BrowsableAttribute(false));
-                }
-            }
-        }
-    }
-
-    public class CBorderedFormActionList : DesignerActionList
-    {
-        private readonly CBorderedForm _form;
-
-        public CBorderedFormActionList(IComponent component) : base(component)
-        {
-            _form = (CBorderedForm)component;
-        }
-
-        public bool AllowDesignerEditing
-        {
-            get => _form.AllowDesignerEditing;
-            set => _form.AllowDesignerEditing = value;
-        }
-
-        public override DesignerActionItemCollection GetSortedActionItems()
-        {
-            var items = new DesignerActionItemCollection();
-            items.Add(new DesignerActionHeaderItem("Designer Options"));
-            items.Add(new DesignerActionPropertyItem("AllowDesignerEditing",
-                   "Allow Designer Editing",
-                   "Designer Options"));
-            return items;
-        }
-    }
-    #endregion
 }

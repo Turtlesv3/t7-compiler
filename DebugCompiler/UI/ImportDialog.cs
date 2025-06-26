@@ -20,7 +20,13 @@ namespace DebugCompiler
         {
             InitializeComponent();
 
-            if (LicenseManager.UsageMode != LicenseUsageMode.Designtime)
+            if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
+            {
+                // Design-time sample data
+                listView1.Items.Add(new ListViewItem(new[] { "SampleFile.txt", "128 KB", DateTime.Now.ToString("g") }));
+                listView1.Items.Add(new ListViewItem(new[] { "ProjectFile.csproj", "2.5 MB", DateTime.Now.ToString("g") }));
+            }
+            else
             {
                 InitializeRuntimeComponents();
             }
@@ -28,63 +34,63 @@ namespace DebugCompiler
 
         private void InitializeRuntimeComponents()
         {
-            // Initialize theme
-            UIThemeManager.RegisterControl(this);
-            ApplyTheme(UIThemeManager.CurrentTheme);
+            try
+            {
+                UIThemeManager.RegisterControl(this);
+                ApplyTheme(UIThemeManager.CurrentTheme);
 
-            // Set up the inner form
-            InnerForm.SetExitButtonVisible(false);
-            InnerForm.SetDraggable(true);
+                InnerForm.SetExitButtonVisible(false);
+                InnerForm.SetDraggable(true);
 
-            // Initialize list view columns
-            listView1.Columns.Add("File", 200);
-            listView1.Columns.Add("Size", 80);
-            listView1.Columns.Add("Modified", 150);
+                // Ensure proper docking
+                InnerForm.Dock = DockStyle.Fill;
+                InnerForm.ControlContents.Dock = DockStyle.Fill;
 
-            // Event handlers
-            listView1.DoubleClick += ListView1_DoubleClick;
-            btnSelect.Click += BtnSelect_Click;
-            btnCancel.Click += BtnCancel_Click;
+                // Event handlers
+                listView1.DoubleClick += ListView1_DoubleClick;
+                btnSelect.Click += BtnSelect_Click;
+                btnCancel.Click += BtnCancel_Click;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Initialization error: {ex.Message}");
+            }
         }
 
         public void ApplyTheme(UIThemeInfo theme)
         {
-            if (theme.Equals(default(UIThemeInfo)) || IsDisposed) return;
+            if (IsDisposed || DesignMode) return;
 
             try
             {
                 this.SuspendLayout();
 
-                // Apply to main form
-                this.BackColor = theme.BackColor;
-                this.ForeColor = theme.TextColor;
-
-                // Apply to inner bordered form
-                if (this.InnerForm != null && !this.InnerForm.IsDisposed)
+                // Only apply theme if we're not in design mode
+                if (LicenseManager.UsageMode != LicenseUsageMode.Designtime)
                 {
-                    this.InnerForm.BackColor = theme.AccentColor;
-                    this.InnerForm.ForeColor = theme.TextColor;
-                }
+                    this.BackColor = theme.BackColor;
+                    this.ForeColor = theme.TextColor;
 
-                // Apply to list view
-                if (listView1 != null && !listView1.IsDisposed)
-                {
-                    listView1.BackColor = theme.TextBoxBackColor;
-                    listView1.ForeColor = theme.TextColor;
-                    listView1.BorderStyle = theme.TextBoxBorderStyle;
-                }
+                    if (this.InnerForm != null && !this.InnerForm.IsDisposed)
+                    {
+                        this.InnerForm.BackColor = theme.AccentColor;
+                        this.InnerForm.ForeColor = theme.TextColor;
+                    }
 
-                // Apply to buttons
-                var buttons = new[] { btnSelect, btnCancel };
-                foreach (var btn in buttons.Where(b => b != null && !b.IsDisposed))
-                {
-                    btn.BackColor = theme.AccentColor;
-                    btn.ForeColor = Color.White;
-                    btn.FlatStyle = FlatStyle.Flat;
-                    btn.FlatAppearance.BorderColor = theme.AccentColor;
-                    btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
-                    btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
-                    btn.Font = new Font(btn.Font, FontStyle.Bold);
+                    if (listView1 != null && !listView1.IsDisposed)
+                    {
+                        listView1.BackColor = theme.TextBoxBackColor;
+                        listView1.ForeColor = theme.TextColor;
+                        listView1.BorderStyle = theme.TextBoxBorderStyle;
+                    }
+
+                    var buttons = new[] { btnSelect, btnCancel };
+                    foreach (var btn in buttons.Where(b => b != null && !b.IsDisposed))
+                    {
+                        btn.BackColor = theme.AccentColor;
+                        btn.ForeColor = Color.White;
+                        btn.FlatAppearance.BorderColor = theme.AccentColor;
+                    }
                 }
             }
             finally
@@ -169,45 +175,35 @@ namespace DebugCompiler
 
         public new DialogResult ShowDialog()
         {
-            return ShowDialog(null);
-        }
+            if (DesignMode) return DialogResult.None;
 
-        public new DialogResult ShowDialog(IWin32Window owner)
-        {
             try
             {
-                // Set dialog properties
-                this.FormBorderStyle = FormBorderStyle.None;
-                this.ShowInTaskbar = false;
-                this.StartPosition = owner != null ? FormStartPosition.CenterParent : FormStartPosition.CenterScreen;
-
-                // Create a proper modal dialog
-                if (owner is Form ownerForm)
-                {
-                    this.Size = new Size(
-                        Math.Min(600, ownerForm.Width - 40),
-                        Math.Min(400, ownerForm.Height - 40)
-                    );
-                }
-                else
-                {
-                    this.Size = new Size(500, 300);
-                }
-
-                // Show as modal dialog
-                return base.ShowDialog(owner);
+                // Refresh theme in case it changed
+                ApplyTheme(UIThemeManager.CurrentTheme);
+                return base.ShowDialog();
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error showing import dialog: {ex.Message}");
+                Debug.WriteLine($"Error showing dialog: {ex.Message}");
                 return DialogResult.Abort;
             }
         }
 
-        private void CloseDialog()
+        public new DialogResult ShowDialog(IWin32Window owner)
         {
-            this.DialogResult = DialogResult.Cancel;
-            this.Close();
+            if (DesignMode) return DialogResult.None;
+
+            try
+            {
+                ApplyTheme(UIThemeManager.CurrentTheme);
+                return base.ShowDialog(owner);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error showing dialog: {ex.Message}");
+                return DialogResult.Abort;
+            }
         }
     }
 }

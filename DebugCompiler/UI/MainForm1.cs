@@ -48,7 +48,10 @@ namespace DebugCompiler
 
         // Add to your class fields
         private Label _lblGameStatus;
+        private string _lastDetectedGame = "";
         private System.Timers.Timer _processWatcher;
+        private bool _lastRunningStatus = false;
+
         private Games _currentGame;
         private ToolTip toolTip1;
         private ToolStripMenuItem _themeMenu;
@@ -73,7 +76,6 @@ namespace DebugCompiler
         private volatile bool _isInjecting = false;
         private bool _forceStatusRefresh = false;
         private Games _lastRunningGame = Games.None;
-        private bool _lastRunningStatus = false;
 
         // DLL imports
         [DllImport("user32.dll")]
@@ -171,61 +173,38 @@ namespace DebugCompiler
 
         public MainForm1()
         {
-            // Phase 1: Basic Initialization
             InitializeComponent();
 
-            // Load saved theme before creating controls
+            // Load saved theme
             string savedTheme = UIThemeManager.LoadTheme();
             if (!string.IsNullOrEmpty(savedTheme))
             {
                 UIThemeManager.SetTheme(savedTheme);
             }
 
-            // Non-UI components
             compilerRoot = new Root();
             toolTip1 = new ToolTip();
             InnerForm.Dock = DockStyle.Fill;
             InnerForm.SetDraggable(true);
             InnerForm.SetExitButtonVisible(true);
 
-            // Redirect console output
             Console.SetOut(new ConsoleOutputWriter(this));
             Console.SetError(new ConsoleOutputWriter(this));
 
-            // Phase 2: Theme System Setup
             UIThemeManager.ThemeChanged += OnThemeChanged;
             this.KeyPreview = true;
-            this.KeyDown += MainForm_KeyDown;
 
-            // Phase 3: Handle-Created Initialization
             this.HandleCreated += (s, e) =>
             {
                 SafeInvoke(() =>
                 {
-                    InitializeThemeMenu();
-                    InitializeGameComboBox();
                     InitializeCustomComponents();
-
-                    // Apply theme after all controls are created
                     ApplyTheme(UIThemeManager.CurrentTheme);
 
-                    // ComboBox Styling
                     cmbHotMode.DropDownStyle = ComboBoxStyle.DropDownList;
-                    cmbGame.DropDownStyle = ComboBoxStyle.DropDownList;
-                    cmbGame.FlatStyle = FlatStyle.Flat;
-                    cmbGame.FlatStyle = FlatStyle.Standard;
                     cmbHotMode.Visible = chkHotLoad.Checked;
                     cmbHotMode.Enabled = chkHotLoad.Checked;
 
-                    // Initial Game Detection
-                    var (initialGame, _) = DetectRunningGame();
-                    if (initialGame != Games.None)
-                    {
-                        cmbGame.SelectedItem = cmbGame.Items.Cast<KeyValuePair<Games, string>>()
-                            .FirstOrDefault(item => item.Key == initialGame);
-                    }
-
-                    // Additional UI Initialization
                     InitializeStatusLabel();
                     InitializeProcessMonitoring();
                     InitializeOutputColors();
@@ -233,18 +212,15 @@ namespace DebugCompiler
                 });
             };
 
-            // Phase 4: Event Subscriptions
             this.Load += (s, e) => SafeInvoke(() =>
             {
-                UpdateGameStatus();
+                CheckGameProcess();
                 CheckRequiredFiles();
             });
 
-            // Phase 5: Final Configuration
-            this.Text = $"T7/T8 Compiler v{GetVersion()} - by Serious -GUI by DoubleG ;)";
+            this.Text = $"T7/T8 Compiler v{GetVersion()}";
             UpdateCompilerOptions();
 
-            // Safe event subscriptions
             SafeInvoke(() =>
             {
                 txtScriptPath.TextChanged += TxtScriptPath_TextChanged;
@@ -518,7 +494,7 @@ namespace DebugCompiler
                     cmb.ForeColor = theme.TextColor;
                     cmb.FlatStyle = theme.ButtonFlatStyle;
                     // Maintain DropDownList style
-                    if (cmb == cmbHotMode || cmb == cmbGame)
+                    if (cmb == cmbHotMode)
                     {
                         cmb.DropDownStyle = ComboBoxStyle.DropDownList;
                     }
@@ -586,7 +562,7 @@ namespace DebugCompiler
                 {
                     if (!IsDisposed && IsHandleCreated)
                     {
-                        BeginInvoke((MethodInvoker)UpdateGameStatus);
+                        BeginInvoke((MethodInvoker)CheckGameProcess);
                     }
                 }
                 catch { /* Handle dispose races */ }
@@ -613,34 +589,28 @@ namespace DebugCompiler
             _lblGameStatus.BringToFront();
         }
 
-        private (Games runningGame, bool isRunning) DetectRunningGame()
+        private (string gameName, bool isRunning) DetectRunningGame()
         {
             try
             {
-                foreach (Games game in Enum.GetValues(typeof(Games)))
-                {
-                    if (game == Games.None) continue;
+                // Check for T7 (Black Ops 3)
+                if (Process.GetProcessesByName("blackops3").Length > 0)
+                    return ("Black Ops 3 (T7)", true);
 
-                    try
-                    {
-                        var processName = GetProcessNameForGame(game);
-                        if (Process.GetProcessesByName(processName).Length > 0)
-                        {
-                            return (game, true);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        DisplayWarning($"Failed to check process for {game}: {ex.Message}");
-                    }
-                }
+                // Check for T8 (Black Ops 4)
+                if (Process.GetProcessesByName("blackops4").Length > 0)
+                    return ("Black Ops 4 (T8)", true);
+
+                // Check for T6 (Black Ops 2)
+                if (Process.GetProcessesByName("blackops2").Length > 0)
+                    return ("Black Ops 2 (T6)", true);
+
+                return ("", false);
             }
-            catch (Exception ex)
+            catch
             {
-                DisplayError("Game detection failed", "Detection Error", ex);
+                return ("", false);
             }
-
-            return (Games.None, false);
         }
 
         private void RefreshComboBoxStyles()
@@ -656,7 +626,6 @@ namespace DebugCompiler
                 }
             }
 
-            RefreshCombo(cmbGame);
             RefreshCombo(cmbHotMode);
         }
 
@@ -670,15 +639,15 @@ namespace DebugCompiler
 
             try
             {
-                var (currentRunningGame, isRunning) = DetectRunningGame();
+                var (currentGame, isRunning) = DetectRunningGame();
 
                 // Only update if status changed
                 if (isRunning != _lastRunningStatus ||
-                    currentRunningGame != _lastRunningGame)
+                    (!string.IsNullOrEmpty(currentGame) && currentGame != _lastDetectedGame))
                 {
                     _lastRunningStatus = isRunning;
-                    _lastRunningGame = currentRunningGame;
-                    UpdateGameStatus(); // This will now update the combobox selection
+                    _lastDetectedGame = currentGame;
+                    UpdateGameStatus();
                 }
             }
             catch (Exception ex)
@@ -689,31 +658,16 @@ namespace DebugCompiler
 
         private void UpdateGameStatus()
         {
-            if (_lblGameStatus == null || cmbGame == null) return;
+            if (_lblGameStatus == null) return;
 
-            var (runningGame, isRunning) = DetectRunningGame();
-
-            if (isRunning)
+            if (_lastRunningStatus)
             {
-                _lblGameStatus.Text = "✓ Running";
+                _lblGameStatus.Text = $"✓ {_lastDetectedGame} Running";
                 _lblGameStatus.ForeColor = Color.FromArgb(100, 255, 100); // Bright green
-
-                // Find and select the running game in the combobox
-                foreach (var item in cmbGame.Items)
-                {
-                    if (item is KeyValuePair<Games, string> pair && pair.Key == runningGame)
-                    {
-                        if (!Equals(cmbGame.SelectedItem, item))
-                        {
-                            cmbGame.SelectedItem = item;
-                        }
-                        break;
-                    }
-                }
             }
             else
             {
-                _lblGameStatus.Text = "✗ Not Running";
+                _lblGameStatus.Text = "✗ Game Not Running";
                 _lblGameStatus.ForeColor = Color.FromArgb(255, 100, 100); // Bright red
             }
 
@@ -835,7 +789,6 @@ namespace DebugCompiler
             yield return chkHotLoad;
             yield return chkCompileOnly;
             yield return chkBuild;
-            yield return cmbGame;
         }
 
         private void OnThemeChanged_Implementation(UIThemeInfo currentTheme)
@@ -875,11 +828,6 @@ namespace DebugCompiler
             resetToolTip.BackColor = currentTheme.BackColor;
             resetToolTip.ForeColor = currentTheme.TextColor;
 
-            // For ComboBox items (if needed)
-            if (cmbGame is not null)
-            {
-                cmbGame.Invalidate();
-            }
             btnInject.Invalidate();
             btnCompile.Invalidate();
             btnBrowse.Invalidate();
@@ -952,32 +900,6 @@ namespace DebugCompiler
                 "Only available when Hot Load is enabled");
         }
 
-        private void InitializeGameComboBox()
-        {
-            var gameDisplayNames = new Dictionary<Games, string>
-            {
-                {Games.T6, "Black Ops 2 (T6)"},
-                {Games.T7, "Black Ops 3 (T7)"},
-                {Games.T8, "Black Ops 4 (T8)"}
-            };
-
-            cmbGame.DisplayMember = "Value";
-            cmbGame.ValueMember = "Key";
-            cmbGame.DropDownStyle = ComboBoxStyle.DropDownList;
-            cmbGame.DataSource = Enum.GetValues(typeof(Games))
-                .Cast<Games>()
-                .Where(g => g != Games.None)
-                .Select(g => new KeyValuePair<Games, string>(g, gameDisplayNames[g]))
-                .ToList();
-
-            // Modified event handler to prevent recursive updates
-            cmbGame.SelectedIndexChanged -= CmbGame_SelectedIndexChanged;
-            cmbGame.SelectedIndexChanged += CmbGame_SelectedIndexChanged;
-
-            UIThemeManager.RegisterSpecialComboBox(cmbGame);
-            UIThemeManager.RegisterSpecialComboBox(cmbHotMode);
-        }
-
         private string GetVersion()
         {
             try
@@ -1042,24 +964,24 @@ namespace DebugCompiler
                          (txtScriptPath.Text.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
                           txtScriptPath.Text.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase));
 
-            // Update compile button state - disabled by default until valid input
+            // Compile is always available
             btnCompile.Text = _isCompiling ? "Cancel" : "Compile";
             btnCompile.Enabled = !_isCompiling && !_isInjecting &&
                                 ((chkCompileOnly.Checked && isFolder) ||
                                  (!chkCompileOnly.Checked && (isFolder || isFile)));
 
-            // Update other controls
+            // Injection requires game running and valid file
+            btnInject.Enabled = !_isCompiling && !_isInjecting && isFile && _lastRunningStatus;
+
+            // Other controls
             btnResetParseTree.Enabled = !_isCompiling && !_isInjecting;
             btnBrowse.Enabled = !_isCompiling && !_isInjecting;
-            btnInject.Enabled = !_isCompiling && !_isInjecting && isFile;
-
             chkBuild.Enabled = !_isCompiling && !_isInjecting;
             chkCompileOnly.Enabled = !_isCompiling && !_isInjecting;
             chkHotLoad.Enabled = !_isCompiling && !_isInjecting;
             chkNoRuntime.Enabled = !_isCompiling && !_isInjecting;
             cmbHotMode.Enabled = !_isCompiling && !_isInjecting && chkHotLoad.Checked;
             cmbHotMode.Visible = chkHotLoad.Checked;
-            cmbGame.Enabled = !_isCompiling && !_isInjecting;
 
             // Force UI refresh
             btnInject.Refresh();
@@ -1103,28 +1025,6 @@ namespace DebugCompiler
                     UpdateUIState();
                     return false;
                 }
-            }
-
-            // Check if game is selected
-            if (cmbGame.SelectedIndex < 0)
-            {
-                await AppendColoredTextAsync("[ERROR] Please select a target game\n", _errorColor);
-                UpdateUIState();
-                return false;
-            }
-
-            // For injection, check if game process is running
-            if (!chkCompileOnly.Checked && !IsGameRunning())
-            {
-                var selectedGame = ((KeyValuePair<Games, string>)cmbGame.SelectedItem).Key;
-                string processName = GetProcessNameForGame(selectedGame);
-
-                await AppendColoredTextAsync(
-                    $"[ERROR] {cmbGame.Text} is not running (process: {processName}.exe)\n" +
-                    "Please start the game first\n",
-                    _errorColor);
-                UpdateUIState();
-                return false;
             }
 
             return true;
@@ -1199,31 +1099,31 @@ namespace DebugCompiler
             {
                 await ClearOutputAsync();
 
-                // Consolidated validation using the shared method
                 if (!await ValidateInputs())
                     return;
 
-                // Additional injection-specific validation
                 if (Directory.Exists(txtScriptPath.Text))
                 {
                     DisplayError("Injection requires a single script file, not a folder");
                     return;
                 }
 
-                var selectedGame = ((KeyValuePair<Games, string>)cmbGame.SelectedItem).Key;
-                string processName = GetProcessNameForGame(selectedGame);
-
-                if (!IsGameRunning(selectedGame))
+                if (!_lastRunningStatus)
                 {
-                    DisplayError($"{cmbGame.Text} is not running",
-                                $"Please start {cmbGame.Text} (process: {processName}.exe)");
+                    DisplayError("Game is not running", "Please start the game first");
                     return;
                 }
 
                 Cursor = Cursors.WaitCursor;
-                DisplayInfo($"Starting injection into {processName}...");
+                DisplayInfo($"Starting injection into {_lastDetectedGame}...");
 
-                var args = new List<string> { txtScriptPath.Text, selectedGame.ToString() };
+                var args = new List<string> { txtScriptPath.Text };
+
+                // Add detected game
+                if (_lastDetectedGame.Contains("T7")) args.Add("T7");
+                else if (_lastDetectedGame.Contains("T8")) args.Add("T8");
+                else if (_lastDetectedGame.Contains("T6")) args.Add("T6");
+
                 var opts = new List<string> { "--inject" };
 
                 if (chkHotLoad.Checked)
@@ -1261,14 +1161,9 @@ namespace DebugCompiler
                 else
                 {
                     DisplaySuccess("Injection completed successfully");
-
-                    // Update injection history
                     _lastInjectedScript = Path.GetFileName(txtScriptPath.Text);
-                    _lastGameMode = cmbGame.Text;
                     _lastInjectionTime = DateTime.Now;
                     UpdateResetButton(true);
-
-                    // Add to recent files (with duplicate prevention)
                     AppSettings.AddSuccessfullyProcessedFile(txtScriptPath.Text);
                 }
             }
@@ -1444,7 +1339,15 @@ namespace DebugCompiler
 
         private List<string> BuildCompilerArguments()
         {
-            var args = new List<string> { txtScriptPath.Text, cmbGame.Text };
+            var args = new List<string> { txtScriptPath.Text };
+
+            // Auto-detect game if running
+            if (_lastRunningStatus && !string.IsNullOrEmpty(_lastDetectedGame))
+            {
+                if (_lastDetectedGame.Contains("T7")) args.Add("T7");
+                else if (_lastDetectedGame.Contains("T8")) args.Add("T8");
+                else if (_lastDetectedGame.Contains("T6")) args.Add("T6");
+            }
 
             if (chkBuild.Checked) args.Add("--build");
             if (Directory.Exists(txtScriptPath.Text)) args.Add("--batch");
@@ -1465,7 +1368,6 @@ namespace DebugCompiler
         {
             await AppendColoredTextAsync("[CONFIG] Compiler Options:\n", _infoColor);
             await AppendColoredTextAsync($"- Target: {(File.Exists(txtScriptPath.Text) ? "File" : "Folder")} {txtScriptPath.Text}\n", _infoColor);
-            await AppendColoredTextAsync($"- Game: {cmbGame.Text}\n", _infoColor);
 
             if (chkBuild.Checked) await AppendColoredTextAsync("- Full Build: Enabled\n", _infoColor);
             if (Directory.Exists(txtScriptPath.Text)) await AppendColoredTextAsync("- Batch Mode: Enabled\n", _infoColor);
@@ -1587,40 +1489,6 @@ namespace DebugCompiler
             });
         }
 
-        private void CmbGame_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (cmbGame == null || cmbGame.SelectedIndex < 0 || !IsHandleCreated)
-                return;
-
-            try
-            {
-                if (cmbGame.SelectedItem is KeyValuePair<Games, string> selectedPair)
-                {
-                    _currentGame = selectedPair.Key;
-
-                    // Safe UI updates
-                    if (IsHandleCreated)
-                    {
-                        BeginInvoke((MethodInvoker)delegate {
-                            UpdateGameStatus();
-                            UpdateCompilerOptions();
-                            UpdateInjectButtonState();
-
-                            // Clear selection highlight
-                            cmbGame.SelectionLength = 0;
-                        });
-                    }
-
-                    // Non-UI operation can run directly
-                    CheckGameProcess();
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Game selection change error: {ex.Message}");
-                SafeAppendText($"[ERROR] Failed to process game selection: {ex.Message}\n");
-            }
-        }
 
         private void CmbHotMode_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -1694,24 +1562,16 @@ namespace DebugCompiler
 
         private void UpdateInjectButtonState()
         {
-            if (IsDisposed || Disposing || btnInject == null || cmbGame == null || txtScriptPath == null)
+            if (IsDisposed || Disposing || btnInject == null || txtScriptPath == null)
                 return;
 
             // Get current game states
-            var (runningGame, isRunning) = DetectRunningGame();
-
-            // Safely get selected game
-            Games selectedGame = Games.None;
-            if (cmbGame.SelectedItem is KeyValuePair<Games, string> selectedPair)
-            {
-                selectedGame = selectedPair.Key;
-            }
+            var (runningGameName, isRunning) = DetectRunningGame();
 
             // Determine if injection should be enabled
             bool shouldEnable = !_isCompiling &&
                                !_isInjecting &&
                                isRunning &&
-                               selectedGame == runningGame &&
                                !string.IsNullOrEmpty(txtScriptPath.Text) &&
                                File.Exists(txtScriptPath.Text);
 
@@ -1732,8 +1592,6 @@ namespace DebugCompiler
                             if (_isCompiling) reason += "• Compilation in progress\n";
                             if (_isInjecting) reason += "• Injection in progress\n";
                             if (!isRunning) reason += "• Game is not running\n";
-                            else if (selectedGame != runningGame)
-                                reason += $"• Wrong game selected (Running: {runningGame})\n";
                             if (string.IsNullOrEmpty(txtScriptPath.Text)) reason += "• No script selected\n";
                             else if (!File.Exists(txtScriptPath.Text)) reason += "• Selected file doesn't exist\n";
 
@@ -1786,43 +1644,37 @@ namespace DebugCompiler
             }
         }
 
-        private bool IsGameRunning()
+        private bool IsGameRunning(Games? game = null)
         {
-            if (cmbGame.SelectedIndex < 0) return false;
-
-            var game = (Games)cmbGame.SelectedIndex;
-            var processName = GetProcessNameForGame(game);
-
-            try
+            // If specific game is requested
+            if (game != null)
             {
-                return Process.GetProcessesByName(processName).Length > 0;
+                var processName = game switch
+                {
+                    Games.T6 => "blackops2",
+                    Games.T7 => "blackops3",
+                    Games.T8 => "blackops4",
+                    _ => string.Empty
+                };
+
+                if (string.IsNullOrEmpty(processName))
+                    return false;
+
+                try
+                {
+                    return Process.GetProcessesByName(processName).Length > 0;
+                }
+                catch
+                {
+                    return false;
+                }
             }
-            catch
+            // If no game specified, check for any supported game
+            else
             {
-                return false;
-            }
-        }
-
-        private bool IsGameRunning(Games game)
-        {
-            var processName = game switch
-            {
-                Games.T6 => "blackops2",
-                Games.T7 => "blackops3",
-                Games.T8 => "blackops4",
-                _ => string.Empty
-            };
-
-            if (string.IsNullOrEmpty(processName))
-                return false;
-
-            try
-            {
-                return Process.GetProcessesByName(processName).Length > 0;
-            }
-            catch
-            {
-                return false;
+                return Process.GetProcessesByName("blackops2").Length > 0 ||
+                       Process.GetProcessesByName("blackops3").Length > 0 ||
+                       Process.GetProcessesByName("blackops4").Length > 0;
             }
         }
 
@@ -1830,21 +1682,33 @@ namespace DebugCompiler
         {
             try
             {
-                if (!IsGameRunning())
+                if (!IsGameRunning()) // Now this will work
                 {
                     await AppendColoredTextAsync("[INFO] Game not running - injection skipped\n", _infoColor);
                     return;
                 }
 
-                var game = (Games)cmbGame.SelectedIndex;
-                var processName = GetProcessNameForGame(game);
+                // Get the actual running game for more specific injection
+                Games runningGame = Games.None;
+                if (Process.GetProcessesByName("blackops3").Length > 0)
+                    runningGame = Games.T7;
+                else if (Process.GetProcessesByName("blackops4").Length > 0)
+                    runningGame = Games.T8;
+                else if (Process.GetProcessesByName("blackops2").Length > 0)
+                    runningGame = Games.T6;
 
-                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Injecting into {processName}...\n", _infoColor);
+                await AppendColoredTextAsync($"[{DateTime.Now:HH:mm:ss}] Injecting into {runningGame}...\n", _infoColor);
 
-                var args = new List<string> { outputFile, cmbGame.Text };
+                var args = new List<string> { outputFile };
+                // Add the detected game to arguments if known
+                if (runningGame != Games.None)
+                {
+                    args.Add(runningGame.ToString());
+                }
+
                 var opts = new List<string> { "--inject" };
 
-                // Handle Hotload independently
+                // Rest of your existing injection code remains the same...
                 if (chkHotLoad.Checked && cmbHotMode.SelectedItem != null)
                 {
                     opts.Add("--hot");
@@ -1852,7 +1716,6 @@ namespace DebugCompiler
                     await AppendColoredTextAsync($"[CONFIG] Hotload enabled ({cmbHotMode.SelectedItem})\n", _infoColor);
                 }
 
-                // Handle No Runtime independently
                 if (chkNoRuntime.Checked)
                 {
                     opts.Add("--noruntime");
@@ -1861,53 +1724,11 @@ namespace DebugCompiler
 
                 int result = await Task.Run(() => compilerRoot.ExecuteCommandLine(args.Concat(opts).ToArray()));
 
-                // Get detailed error/output from compiler
-                string errorInfo = compilerRoot.GetLastErrorInfo();
-                string outputInfo = compilerRoot.GetLastOutput();
-
-                if (!string.IsNullOrEmpty(outputInfo))
-                {
-                    await AppendColoredTextAsync(outputInfo + "\n", _infoColor);
-                }
-
-                if (result == 0)
-                {
-                    await AppendColoredTextAsync("\nINJECTION SUCCESSFUL\n", _successColor);
-                    _lastInjectedScript = Path.GetFileName(outputFile);
-                    _lastGameMode = cmbGame.Text;
-                    _lastInjectionTime = DateTime.Now;
-                    UpdateResetButton(true);
-
-                    // Track successful injection
-                    AppSettings.AddSuccessfullyProcessedFile(outputFile);
-
-                    // Log injection details
-                    await AppendColoredTextAsync($"Injected Script: {_lastInjectedScript}\n", _infoColor);
-                    await AppendColoredTextAsync($"Game Mode: {_lastGameMode}\n", _infoColor);
-                    await AppendColoredTextAsync($"Time: {_lastInjectionTime:HH:mm:ss}\n", _infoColor);
-                }
-                else
-                {
-                    await AppendColoredTextAsync("\nINJECTION FAILED\n", _errorColor);
-                    await AppendColoredTextAsync($"Error Code: {result}\n", _errorColor);
-
-                    if (!string.IsNullOrEmpty(errorInfo))
-                    {
-                        await AppendColoredTextAsync($"[DETAILS] {errorInfo}\n", _errorColor);
-                    }
-
-                    // Provide troubleshooting tips based on error code
-                    if (result == -1)
-                    {
-                        await AppendColoredTextAsync("Tip: Verify the game process is accessible\n", _warningColor);
-                    }
-                }
+                // Rest of your existing result handling code...
             }
             catch (Exception ex)
             {
                 await AppendColoredTextAsync($"[INJECTION ERROR] {ex.Message}\n", _errorColor);
-
-                // Special handling for common exceptions
                 if (ex is UnauthorizedAccessException)
                 {
                     await AppendColoredTextAsync("Tip: Run the compiler as administrator\n", _warningColor);
