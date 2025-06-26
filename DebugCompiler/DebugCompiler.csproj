@@ -15,13 +15,12 @@
     <TargetFrameworkProfile />
     <!-- Added language features support -->
     <LangVersion>9.0</LangVersion>
-    <Nullable>enable</Nullable>
     <ImplicitUsings>false</ImplicitUsings>
     <Features>strict</Features>
     <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -88,8 +87,8 @@
     <PackageReference Include="System.Memory" Version="4.6.3" />
     <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
-    <PackageReference Include="CommandLineParser" Version="2.8.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <ItemGroup>
     <!-- Game Development References -->
@@ -203,7 +202,6 @@
       <Project>{2cdefd40-3952-44a7-b69e-711fbacac869}</Project>
       <Name>TreyarchCompiler</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Shared\Shared.csproj" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

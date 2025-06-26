@@ -81,7 +81,7 @@ EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset
 	}
 	RemoveDetours();
 	ScriptDetours::GSC_OBJ = (char*)scriptOffset;
-	
+
 #ifdef DETOUR_LOGGING
 	GSCBuiltins::nlog("Registering %d detours in script %p...", NumDetours, scriptOffset);
 #endif
@@ -119,15 +119,14 @@ void ScriptDetours::InstallHooks()
 	Scr_GscObjLink = (tScr_GscObjLink)OFF_Scr_GscObjLink;
 
 	// opcodes to hook:
-	VTableReplace(0x5d8, VM_OP_GetFunction, &VM_OP_GetFunction_Old);
-	VTableReplace(0x6f7, VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
-	VTableReplace(0x75c, VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
-	VTableReplace(0x7f2, VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
-	VTableReplace(0x8cd, VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
-	VTableReplace(0xa34, VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
-	VTableReplace(0x00f, VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
-	VTableReplace(0x010, VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
-	// TODO all the 2 methods (figuring out what the fuck they do too...)
+	VTableReplace(0x5d8, (tVM_Opcode)VM_OP_GetFunction, &VM_OP_GetFunction_Old);
+	VTableReplace(0x6f7, (tVM_Opcode)VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
+	VTableReplace(0x75c, (tVM_Opcode)VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
+	VTableReplace(0x7f2, (tVM_Opcode)VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
+	VTableReplace(0x8cd, (tVM_Opcode)VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
+	VTableReplace(0xa34, (tVM_Opcode)VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
+	VTableReplace(0x00f, (tVM_Opcode)VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
+	VTableReplace(0x010, (tVM_Opcode)VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
 
 	DetoursInitialized = true;
 }

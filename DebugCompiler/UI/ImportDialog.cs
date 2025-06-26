@@ -15,7 +15,6 @@ namespace DebugCompiler
     public partial class ImportDialog : Form, IThemeableControl
     {
         public string SelectedFilePath { get; private set; }
-        private Form _parentForm;
 
         public ImportDialog()
         {

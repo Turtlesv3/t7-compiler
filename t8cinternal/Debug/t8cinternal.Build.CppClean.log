@@ -1,5 +1,17 @@
 c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\lazylink.obj
 c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\dllmain.obj
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\detours.obj
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\builtins.obj
+c:\users\golia\source\repos\t7-compiler\debug\t8cinternal.dll
+c:\users\golia\source\repos\t7-compiler\debug\t8cinternal.pdb
+c:\users\golia\source\repos\t7-compiler\debug\t8cinternal.lib
+c:\users\golia\source\repos\t7-compiler\debug\t8cinternal.exp
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.ilk
 c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\cl.command.1.tlog
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\cl.items.tlog
 c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\cl.read.1.tlog
 c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\cl.write.1.tlog
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\link.command.1.tlog
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\link.read.1.tlog
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\link.secondary.1.tlog
+c:\users\golia\source\repos\t7-compiler\t8cinternal\debug\t8cinternal.tlog\link.write.1.tlog

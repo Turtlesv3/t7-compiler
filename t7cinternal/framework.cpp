@@ -8,25 +8,42 @@ __declspec(allocate(".offsets")) const unsigned char MSELECT[] =
     0xC3
 };
 
-// TLS callback implementation
-#pragma comment (linker, "/INCLUDE:__tls_used")
+// Forward declaration of the TLS callback
+extern "C" void NTAPI tls_callback(PVOID DllHandle, DWORD dwReason, PVOID Reserved);
 
-// Define the TLS callback array
-#pragma section(".CRT$XLY",long,read)
-extern "C" __declspec(allocate(".CRT$XLY"))
+// TLS callback implementation
+#pragma comment(linker, "/INCLUDE:__tls_used")
+
+// Define the TLS callback array in the correct CRT section
+#pragma section(".CRT$XLB",read)
+extern "C" __declspec(allocate(".CRT$XLB"))
 const PIMAGE_TLS_CALLBACK _tls_callback = tls_callback;
 
-// Define the TLS directory section
-#pragma data_seg(".rdata$TLS")
-extern "C" __declspec(allocate(".rdata$TLS"))
-const IMAGE_TLS_DIRECTORY _tls_used = {
-    (ULONGLONG)&_tls_callback,  // Address of callbacks array
-    (ULONGLONG)&_tls_callback,  // Address of last callback
-    (ULONGLONG)0,               // Size of tls index
-    (ULONGLONG)0,               // Size of tls block
-    (ULONGLONG)0,               // Characteristics
+// TLS directory structure - x64 version
+#ifdef _WIN64
+#pragma section(".rdata$T",read)
+extern "C" __declspec(allocate(".rdata$T"))
+const IMAGE_TLS_DIRECTORY64 _tls_used = {
+    0,                          // StartAddressOfRawData
+    0,                          // EndAddressOfRawData
+    0,                          // AddressOfIndex
+    (ULONGLONG)&_tls_callback,  // AddressOfCallbacks
+    0,                          // SizeOfZeroFill
+    0                           // Characteristics
 };
-#pragma data_seg()
+#else
+// TLS directory structure - x86 version
+#pragma section(".rdata$T",read)
+extern "C" __declspec(allocate(".rdata$T"))
+const IMAGE_TLS_DIRECTORY32 _tls_used = {
+    0,                          // StartAddressOfRawData
+    0,                          // EndAddressOfRawData
+    0,                          // AddressOfIndex
+    (ULONG)&_tls_callback,      // AddressOfCallbacks
+    0,                          // SizeOfZeroFill
+    0                           // Characteristics
+};
+#endif
 
 #pragma optimize("",off)
 bool is_tls_initialized = false;
@@ -38,7 +55,6 @@ void NTAPI tls_callback(PVOID DllHandle, DWORD dwReason, PVOID)
     }
     is_tls_initialized = true;
 
-    // Define MSELECT_SIZE here since it's only used in this function
     constexpr size_t MSELECT_SIZE = 13;
     DWORD oldProtect;
     VirtualProtect((LPVOID)MSELECT, MSELECT_SIZE, PAGE_EXECUTE_READWRITE, &oldProtect);

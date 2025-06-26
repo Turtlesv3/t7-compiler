@@ -9,13 +9,6 @@ C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Memory.dll
 C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Numerics.Vectors.dll
 C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Reflection.Metadata.dll
 C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Runtime.CompilerServices.Unsafe.dll
-C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\Iced.xml
-C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Buffers.xml
-C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Collections.Immutable.xml
-C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Memory.xml
-C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Numerics.Vectors.xml
-C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Reflection.Metadata.xml
-C:\Users\golia\Source\Repos\t7-compiler\External\bin\Debug\System.Runtime.CompilerServices.Unsafe.xml
 C:\Users\golia\Source\Repos\t7-compiler\External\obj\Debug\External.csproj.AssemblyReference.cache
 C:\Users\golia\Source\Repos\t7-compiler\External\obj\Debug\External.csproj.CoreCompileInputs.cache
 C:\Users\golia\Source\Repos\t7-compiler\External\obj\Debug\External.csproj.Up2Date

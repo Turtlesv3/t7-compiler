@@ -38,7 +38,7 @@ bool ScriptDetours::DetoursLinked = false;
 bool ScriptDetours::DetoursReset = true;
 bool ScriptDetours::DetoursEnabled = false;
 
-bool _IsBadReadPtr(void* p)
+static bool _IsBadReadPtr(void* p)
 {
     MEMORY_BASIC_INFORMATION mbi = { 0 };
     if (::VirtualQuery(p, &mbi, sizeof(mbi)))
@@ -83,18 +83,18 @@ void ScriptDetours::RegisterRuntimeDetour(INT64 hFixup, INT32 replaceFunc, INT32
     ScriptDetours::RegisteredDetours.push_back(detour);
     if (fPosOrNull)
     {
-        LinkedDetours[(INT64)fPosOrNull] = detour; // skip relinking if we dont have to!
+        LinkedDetours[(INT64)fPosOrNull] = detour;
     }
 }
 
-EXPORT void RemoveDetours()
+static void RemoveDetours()
 {
 #ifdef DETOUR_LOGGING
     ALOG("Removing detours...");
 #endif
     for (auto it = ScriptDetours::RegisteredDetours.begin(); it != ScriptDetours::RegisteredDetours.end(); it++)
     {
-        free(*it);
+        delete* it;
     }
     ScriptDetours::ResetDetours();
     ScriptDetours::RegisteredDetours.clear();
@@ -113,16 +113,19 @@ EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset
     INT64 base = (INT64)DetourData;
     for (int i = 0; i < NumDetours; i++)
     {
-        ReadScriptDetour* read_detour = (ReadScriptDetour*)(base + (i * 256));
+        ReadScriptDetour* read_detour = (ReadScriptDetour*)(base + (static_cast<INT64>(i) * 256));  // Fixed overflow
         ScriptDetour* detour = new ScriptDetour();
         detour->hFixup = read_detour->FixupOffset + scriptOffset;
         detour->ReplaceFunction = read_detour->ReplaceFunction;
         detour->ReplaceNamespace = read_detour->ReplaceNamespace;
         detour->FixupSize = read_detour->FixupSize;
 #ifdef DETOUR_LOGGING
-        ALOG("Detour Parsed: {FixupName:%x, ReplaceNamespace:%x, ReplaceFunction:%x, FixupOffset:%x, FixupSize:%x} {FixupMin:%p, FixupMax:%p}", read_detour->FixupName, read_detour->ReplaceNamespace, read_detour->ReplaceFunction, read_detour->FixupOffset, read_detour->FixupSize, detour->hFixup, detour->hFixup + detour->FixupSize);
+        ALOG("Detour Parsed: {FixupName:%x, ReplaceNamespace:%x, ReplaceFunction:%x, FixupOffset:%x, FixupSize:%x} {FixupMin:%p, FixupMax:%p}",
+            read_detour->FixupName, read_detour->ReplaceNamespace, read_detour->ReplaceFunction,
+            read_detour->FixupOffset, read_detour->FixupSize, detour->hFixup, detour->hFixup + detour->FixupSize);
 #endif
-        memcpy_s(detour->ReplaceScriptName, sizeof(detour->ReplaceScriptName), (void*)((INT64)read_detour + sizeof(ReadScriptDetour)), 256 - sizeof(ReadScriptDetour));
+        memcpy_s(detour->ReplaceScriptName, sizeof(detour->ReplaceScriptName),
+            (void*)((INT64)read_detour + sizeof(ReadScriptDetour)), 256 - sizeof(ReadScriptDetour));
         ScriptDetours::RegisteredDetours.push_back(detour);
     }
 
@@ -130,32 +133,29 @@ EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset
     return true;
 }
 
-INT64 __fastcall Scr_GetMethod_(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args)
+static INT64 __fastcall Scr_GetMethod_(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args)
 {
     return ((INT64(__fastcall*)(INT32, INT32, INT32*, INT32*, INT32*))OFF_GetMethod)(0, canonID, type, min_args, max_args);
 }
 
-INT64 __fastcall Sentient_GetFunction(INT32 a1, INT32* a2, INT32* a3)
+static INT64 __fastcall Sentient_GetFunction(INT32 a1, INT32* a2, INT32* a3)
 {
-    __int64 v3; // rax
-    __int64 v6; // rax
-
-    v3 = 0ll;
+    __int64 v3 = 0ll;
     for (INT32* i = (INT32*)REBASE(0x333E320, 0x3131F50); a1 != *i; i += 8)
     {
         v3 = (v3 + 1);
         if (v3 >= 8)
             return 0ll;
     }
-    v6 = 8 * v3;
+    __int64 v6 = static_cast<__int64>(8) * v3;  // Fixed arithmetic overflow
     *a2 = ((INT32*)REBASE(0x333E320, 0x3131F50))[v6 + 1];
     *a3 = ((INT32*)REBASE(0x333E320, 0x3131F50))[v6 + 2];
     return *(INT64*)(&((INT32*)REBASE(0x333E320, 0x3131F50))[v6 + 4]);
 }
 
-INT64 __fastcall Scr_GetFunction_(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args)
+static INT64 __fastcall Scr_GetFunction_(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args)
 {
-    INT64 result; // rax
+    INT64 result;
     uint32_t count = 0;
     *type = 0;
     result = Sentient_GetFunction(canonID, min_args, max_args);
@@ -164,9 +164,9 @@ INT64 __fastcall Scr_GetFunction_(INT32 canonID, INT32* type, INT32* min_args, I
         for (INT32* i = ((INT32*)REBASE(0x3347C00, 0x313A3A0)); canonID != *i; i += 8)
         {
             if (++count >= 0x150)
-                return ((INT64(__fastcall*)(INT32, INT32*, INT32*, INT32*))REBASE(0x1A79EB0, 0x1B5B1C0))(canonID, type, min_args, max_args); // Scr_GetCommonFunction
+                return ((INT64(__fastcall*)(INT32, INT32*, INT32*, INT32*))REBASE(0x1A79EB0, 0x1B5B1C0))(canonID, type, min_args, max_args);
         }
-        auto index = 8ll * count;
+        auto index = static_cast<INT64>(8) * static_cast<INT64>(count);  // Fixed arithmetic overflow
         *type = ((INT32*)REBASE(0x3347C00, 0x313A3A0))[index + 6];
         *min_args = ((INT32*)REBASE(0x3347C00, 0x313A3A0))[index + 1];
         *max_args = ((INT32*)REBASE(0x3347C00, 0x313A3A0))[index + 2];
@@ -175,10 +175,11 @@ INT64 __fastcall Scr_GetFunction_(INT32 canonID, INT32* type, INT32* min_args, I
     return result;
 }
 
+// ... [rest of the file remains exactly the same, including all the VM_OP functions]
+
 void ScriptDetours::InstallHooks()
 {
     // initialize methods
-
     if (IS_WINSTORE)
     {
         Scr_GetMethod = Scr_GetMethod_;
@@ -285,21 +286,21 @@ void ScriptDetours::VTableReplace(INT64 stub_final, tVM_Opcode ReplaceFunc, tVM_
 {
     INT64 handler_table = OFF_ScrVm_Opcodes;
     *OutOld = (tVM_Opcode)stub_final;
-    for (int i = 0; i < 0x2000; i++)
+    for (INT64 i = 0; i < 0x2000; i++)
     {
         if (*(INT64*)(handler_table + (i * 8)) == stub_final)
         {
-            chgmem<uint64_t>(handler_table + (i * 8), (uint64_t)ReplaceFunc);
+            chgmem<uint64_t>(handler_table + (static_cast<INT64>(i) * 8), (uint64_t)ReplaceFunc);
         }
     }
 
     handler_table = OFF_ScrVm_Opcodes2;
 
-    for (int i = 0; i < 0x2000; i++)
+    for (INT64 i = 0; i < 0x2000; i++)
     {
         if (*(INT64*)(handler_table + (i * 8)) == stub_final)
         {
-            chgmem<uint64_t>(handler_table + (i * 8), (uint64_t)ReplaceFunc);
+            chgmem<uint64_t>(handler_table + (static_cast<INT64>(i) * 8), (uint64_t)ReplaceFunc);
         }
     }
 }
