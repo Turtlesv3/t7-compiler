@@ -2,6 +2,318 @@
   "version": 3,
   "targets": {
     ".NETFramework,Version=v4.8": {
+      "CommandLineParser/2.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.1": {
+        "type": "package",
+        "compile": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "System.Buffers/4.6.1": {
+        "type": "package",
+        "compile": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Memory/4.6.3": {
+        "type": "package",
+        "dependencies": {
+          "System.Buffers": "4.6.1",
+          "System.Numerics.Vectors": "4.6.1",
+          "System.Runtime.CompilerServices.Unsafe": "6.1.2"
+        },
+        "compile": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Numerics.Vectors/4.6.1": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "System.Numerics"
+        ],
+        "compile": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Runtime.CompilerServices.Unsafe/6.1.2": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "mscorlib"
+        ],
+        "compile": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "External/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/External.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/External.dll": {}
+        }
+      },
+      "T7CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        }
+      },
+      "T89CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        }
+      },
+      "TreyarchCompiler/1.0.0": {
+        "type": "project",
+        "dependencies": {
+          "T7CompilerLib": "1.0.0",
+          "T89CompilerLib": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        }
+      }
+    },
+    ".NETFramework,Version=v4.8/win": {
+      "CommandLineParser/2.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.1": {
+        "type": "package",
+        "compile": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "System.Buffers/4.6.1": {
+        "type": "package",
+        "compile": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Memory/4.6.3": {
+        "type": "package",
+        "dependencies": {
+          "System.Buffers": "4.6.1",
+          "System.Numerics.Vectors": "4.6.1",
+          "System.Runtime.CompilerServices.Unsafe": "6.1.2"
+        },
+        "compile": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Numerics.Vectors/4.6.1": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "System.Numerics"
+        ],
+        "compile": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "System.Runtime.CompilerServices.Unsafe/6.1.2": {
+        "type": "package",
+        "frameworkAssemblies": [
+          "mscorlib"
+        ],
+        "compile": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net462/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net462/_._": {}
+        }
+      },
+      "External/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/External.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/External.dll": {}
+        }
+      },
+      "T7CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T7CompilerLib.dll": {}
+        }
+      },
+      "T89CompilerLib/1.0.0": {
+        "type": "project",
+        "compile": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/T89CompilerLib.dll": {}
+        }
+      },
+      "TreyarchCompiler/1.0.0": {
+        "type": "project",
+        "dependencies": {
+          "T7CompilerLib": "1.0.0",
+          "T89CompilerLib": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/TreyarchCompiler.dll": {}
+        }
+      }
+    },
+    ".NETFramework,Version=v4.8/win-arm64": {
+      "CommandLineParser/2.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.1": {
+        "type": "package",
+        "compile": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "System.Buffers/4.6.1": {
         "type": "package",
         "compile": {
@@ -119,6 +431,32 @@
       }
     },
     ".NETFramework,Version=v4.8/win-x64": {
+      "CommandLineParser/2.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.1": {
+        "type": "package",
+        "compile": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "System.Buffers/4.6.1": {
         "type": "package",
         "compile": {
@@ -236,6 +574,32 @@
       }
     },
     ".NETFramework,Version=v4.8/win-x86": {
+      "CommandLineParser/2.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net461/CommandLine.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.1": {
+        "type": "package",
+        "compile": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net45/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "System.Buffers/4.6.1": {
         "type": "package",
         "compile": {
@@ -354,6 +718,55 @@
     }
   },
   "libraries": {
+    "CommandLineParser/2.8.0": {
+      "sha512": "eco2HlKQBY4Joz9odHigzGpVzv6pjsXnY5lziioMveQxr+i2Z7xYcIOMeZTgYiqnMtMAbXMXsVhrNfWO5vJS8Q==",
+      "type": "package",
+      "path": "commandlineparser/2.8.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "CommandLine20.png",
+        "License.md",
+        "README.md",
+        "commandlineparser.2.8.0.nupkg.sha512",
+        "commandlineparser.nuspec",
+        "lib/net40/CommandLine.dll",
+        "lib/net40/CommandLine.xml",
+        "lib/net45/CommandLine.dll",
+        "lib/net45/CommandLine.xml",
+        "lib/net461/CommandLine.dll",
+        "lib/net461/CommandLine.xml",
+        "lib/netstandard2.0/CommandLine.dll",
+        "lib/netstandard2.0/CommandLine.xml"
+      ]
+    },
+    "Newtonsoft.Json/13.0.1": {
+      "sha512": "ppPFpBcvxdsfUonNcvITKqLl3bqxWbDCZIzDWHzjpdAHRFfZe0Dw9HmA0+za13IdyrgJwpkDTDA9fHaxOrt20A==",
+      "type": "package",
+      "path": "newtonsoft.json/13.0.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "lib/net20/Newtonsoft.Json.dll",
+        "lib/net20/Newtonsoft.Json.xml",
+        "lib/net35/Newtonsoft.Json.dll",
+        "lib/net35/Newtonsoft.Json.xml",
+        "lib/net40/Newtonsoft.Json.dll",
+        "lib/net40/Newtonsoft.Json.xml",
+        "lib/net45/Newtonsoft.Json.dll",
+        "lib/net45/Newtonsoft.Json.xml",
+        "lib/netstandard1.0/Newtonsoft.Json.dll",
+        "lib/netstandard1.0/Newtonsoft.Json.xml",
+        "lib/netstandard1.3/Newtonsoft.Json.dll",
+        "lib/netstandard1.3/Newtonsoft.Json.xml",
+        "lib/netstandard2.0/Newtonsoft.Json.dll",
+        "lib/netstandard2.0/Newtonsoft.Json.xml",
+        "newtonsoft.json.13.0.1.nupkg.sha512",
+        "newtonsoft.json.nuspec",
+        "packageIcon.png"
+      ]
+    },
     "System.Buffers/4.6.1": {
       "sha512": "N8GXpmiLMtljq7gwvyS+1QvKT/W2J8sNAvx+HVg4NGmsG/H+2k/y9QI23auLJRterrzCiDH+IWAw4V/GPwsMlw==",
       "type": "package",
@@ -464,7 +877,9 @@
   },
   "projectFileDependencyGroups": {
     ".NETFramework,Version=v4.8": [
+      "CommandLineParser >= 2.8.0",
       "External >= 1.0.0",
+      "Newtonsoft.Json >= 13.0.1",
       "System.Buffers >= 4.6.1",
       "System.Memory >= 4.6.3",
       "System.Numerics.Vectors >= 4.6.1",
@@ -487,7 +902,8 @@
       "packagesPath": "C:\\Users\\golia\\.nuget\\packages\\",
       "outputPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\DebugCompiler\\obj\\",
       "projectStyle": "PackageReference",
-      "crossTargeting": true,
+      "skipContentFileWrite": true,
+      "UsingMicrosoftNETSdk": false,
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
@@ -505,7 +921,6 @@
       },
       "frameworks": {
         "net48": {
-          "targetAlias": "net48",
           "projectReferences": {
             "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj": {
               "projectPath": "C:\\Users\\golia\\Source\\Repos\\t7-compiler\\External\\External.csproj"
@@ -522,22 +937,23 @@
           }
         }
       },
-      "warningProperties": {
-        "warnAsError": [
-          "NU1605"
-        ]
-      },
       "restoreAuditProperties": {
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      },
-      "SdkAnalysisLevel": "9.0.300"
+      }
     },
     "frameworks": {
       "net48": {
-        "targetAlias": "net48",
         "dependencies": {
+          "CommandLineParser": {
+            "target": "Package",
+            "version": "[2.8.0, )"
+          },
+          "Newtonsoft.Json": {
+            "target": "Package",
+            "version": "[13.0.1, )"
+          },
           "System.Buffers": {
             "target": "Package",
             "version": "[4.6.1, )"
@@ -554,11 +970,16 @@
             "target": "Package",
             "version": "[6.1.2, )"
           }
-        },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301\\RuntimeIdentifierGraph.json"
+        }
       }
     },
     "runtimes": {
+      "win": {
+        "#import": []
+      },
+      "win-arm64": {
+        "#import": []
+      },
       "win-x64": {
         "#import": []
       },

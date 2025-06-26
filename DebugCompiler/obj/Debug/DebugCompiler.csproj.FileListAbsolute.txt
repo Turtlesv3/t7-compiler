@@ -3,6 +3,8 @@ C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\vm_codes.db2
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\DebugCompiler.exe.config
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\DebugCompiler.exe
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\DebugCompiler.pdb
+C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\CommandLine.dll
+C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\Newtonsoft.Json.dll
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\System.Buffers.dll
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\System.Memory.dll
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\bin\Debug\System.Numerics.Vectors.dll
@@ -35,9 +37,7 @@ C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.UI
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.UI.Core.Controls.CTitleBar.resources
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.ImportDialog.resources
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.csproj.GenerateResource.cache
-C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.csproj.CoreCompileInputs.cache
-C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.sourcelink.json
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCom.5A0FFFEE.Up2Date
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.exe
 C:\Users\golia\Source\Repos\t7-compiler\DebugCompiler\obj\Debug\DebugCompiler.pdb

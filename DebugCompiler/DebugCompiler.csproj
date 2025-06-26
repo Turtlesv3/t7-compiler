@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -7,99 +8,66 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>DebugCompiler</RootNamespace>
     <AssemblyName>DebugCompiler</AssemblyName>
-    <TargetFramework>net48</TargetFramework>
-    <TargetFrameworks>net48</TargetFrameworks>
-    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
-    <RuntimeIdentifiers>win-x86;win-x64</RuntimeIdentifiers>
-    <PlatformTarget>x86</PlatformTarget>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
+    <!-- Added language features support -->
     <LangVersion>9.0</LangVersion>
-    <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <StartupObject>DebugCompiler.Program</StartupObject>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
-    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <Platforms>AnyCPU;x64;x86</Platforms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>false</ImplicitUsings>
+    <Features>strict</Features>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
   </PropertyGroup>
-
-  <!-- Debug Configurations -->
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <Optimize>True</Optimize>
+    <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;X86</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>x64</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>True</Optimize>
-    <OutputPath>bin\x64\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>True</Optimize>
-    <OutputPath>bin\x86\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>False</Prefer32Bit>
-  </PropertyGroup>
-
-  <!-- Release Configurations -->
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <PropertyGroup>
+    <StartupObject>DebugCompiler.Program</StartupObject>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
+    <LangVersion>9.0</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <OutputPath>bin\x64\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\x86\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>9.0</LangVersion>
     <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>False</Prefer32Bit>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- System References -->
     <Reference Include="System" />
@@ -115,25 +83,24 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
-
-    <!-- NuGet Package References -->
+    <!-- Updated NuGet Package References -->
     <PackageReference Include="System.Buffers" Version="4.6.1" />
     <PackageReference Include="System.Memory" Version="4.6.3" />
     <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
+    <PackageReference Include="CommandLineParser" Version="2.8.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Game Development References -->
     <Reference Include="xdevkit">
-      <HintPath>$(SolutionDir)ThirdParty\xdevkit.dll</HintPath>
+      <HintPath>.\xdevkit.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="xdrpc">
-      <HintPath>$(SolutionDir)ThirdParty\xdrpc.dll</HintPath>
+      <HintPath>.\xdrpc.dll</HintPath>
     </Reference>
   </ItemGroup>
-
   <ItemGroup>
     <!-- Main source files -->
     <Compile Include="ConditionalBlocks.cs" />
@@ -153,7 +120,6 @@
     <Compile Include="UI\Core\Helpers\FileDialogHelper.cs" />
     <Compile Include="UI\Core\Singletons\ThemeExtensions.cs" />
     <Compile Include="UI\Core\Singletons\UIThemeInfo.cs" />
-
     <!-- Forms with designer files -->
     <Compile Include="UI\MainForm1.cs" />
     <Compile Include="UI\MainForm1.Designer.cs">
@@ -163,7 +129,6 @@
     <Compile Include="UI\ImportDialog.Designer.cs">
       <DependentUpon>ImportDialog.cs</DependentUpon>
     </Compile>
-
     <!-- Core controls with designer files -->
     <Compile Include="UI\Core\Controls\CBorderedForm.cs" />
     <Compile Include="UI\Core\Controls\CBorderedForm.Designer.cs">
@@ -186,13 +151,11 @@
     <Compile Include="UI\Core\Controls\CTitleBar.Designer.cs">
       <DependentUpon>CTitleBar.cs</DependentUpon>
     </Compile>
-
     <!-- Interfaces and other files -->
     <Compile Include="UI\Core\Interfaces\IResizableForm.cs" />
     <Compile Include="UI\Core\Interfaces\IThemeableControl.cs" />
     <Compile Include="UI\Core\Singletons\UIThemeManager.cs" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Resource files -->
     <EmbeddedResource Include="UI\Core\Controls\ThemedDialog.resx" />
@@ -215,36 +178,66 @@
       <DependentUpon>ImportDialog.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="version" />
-    
     <!-- Configuration files -->
     <None Include="App.config" />
+    <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
-
   <ItemGroup>
-    <!-- Project References -->
-    <ProjectReference Include="..\External\External.csproj" />
-    <ProjectReference Include="..\T7CompilerLib\T7CompilerLib.csproj" />
-    <ProjectReference Include="..\T8CompilerLib\T89CompilerLib.csproj" />
-    <ProjectReference Include="..\TreyarchCompiler\TreyarchCompiler.csproj" />
+    <ProjectReference Include="..\External\External.csproj">
+      <Project>{810bdf68-87bb-45a2-ac4f-87643045bf4c}</Project>
+      <Name>External</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\T7CompilerLib\T7CompilerLib.csproj">
+      <Project>{7527fb74-e8ac-43f1-9e48-e9d4d2b5d5b3}</Project>
+      <Name>T7CompilerLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\T8CompilerLib\T89CompilerLib.csproj">
+      <Project>{C630E36A-4A4C-4F14-AA8B-AE80F592DAAD}</Project>
+      <Name>T89CompilerLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TreyarchCompiler\TreyarchCompiler.csproj">
+      <Project>{2cdefd40-3952-44a7-b69e-711fbacac869}</Project>
+      <Name>TreyarchCompiler</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
   </ItemGroup>
-  
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
-    <PostBuildEvent>
-      :: Copy ONLY the essential DLLs
-      if exist "$(SolutionDir)Debug\t7cinternal.dll" (
-        xcopy /y "$(SolutionDir)Debug\t7cinternal.dll" "$(TargetPath)"
-      )
-      if exist "$(SolutionDir)x64\Release\t8cinternal.dll" (
-        xcopy /y "$(SolutionDir)x64\Release\t8cinternal.dll" "$(TargetPath)"
+    <PostBuildEvent>echo Starting Post-Build copy operations...
+      
+      echo Copying t7cinternal.dll from Debug folder...
+      xcopy /y /f "$(SolutionDir)Debug\t7cinternal.dll" "$(TargetDir)"
+      if %25errorlevel%25 equ 0 (
+        echo Successfully copied t7cinternal.dll
+      ) else (
+        echo Failed to copy t7cinternal.dll (Error: %25errorlevel%25)
       )
       
-      echo Required DLLs copied to __depot
-    </PostBuildEvent>
-    <BaseOutputPath>$(SolutionDir)__depot\build\t7compiler\</BaseOutputPath>
+      echo Copying t8cinternal.dll from x64\Release folder...
+      xcopy /y /f "$(SolutionDir)x64\Release\t8cinternal.dll" "$(TargetDir)"
+      if %25errorlevel%25 equ 0 (
+        echo Successfully copied t8cinternal.dll
+      ) else (
+        echo Failed to copy t8cinternal.dll (Error: %25errorlevel%25)
+      )
+      
+      echo Verifying copied files...
+      if exist "$(TargetDir)t7cinternal.dll" (
+        echo Verified: t7cinternal.dll exists in target directory
+      ) else (
+        echo WARNING: t7cinternal.dll missing from target directory
+      )
+      
+      if exist "$(TargetDir)t8cinternal.dll" (
+        echo Verified: t8cinternal.dll exists in target directory
+      ) else (
+        echo WARNING: t8cinternal.dll missing from target directory
+      )
+      
+      echo Post-Build copy operations completed</PostBuildEvent>
   </PropertyGroup>
 </Project>
