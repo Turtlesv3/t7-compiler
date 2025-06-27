@@ -675,6 +675,15 @@ namespace DebugCompiler.UI.Core.Singletons
                 : ControlPaint.Dark(baseColor, 0.1f);
         }
 
+        public Color ContrastTextColor
+        {
+            get
+            {
+                double luminance = (0.299 * this.AccentColor.R + 0.587 * this.AccentColor.G + 0.114 * this.AccentColor.B) / 255;
+                return luminance > 0.5 ? Color.Black : Color.White;
+            }
+        }
+
         public Color GetPressedColor(Color baseColor)
         {
             return IsDarkTheme

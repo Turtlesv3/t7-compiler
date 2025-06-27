@@ -5,9 +5,11 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Design;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Design;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
 
@@ -16,9 +18,10 @@ namespace DebugCompiler.UI.Core.Controls
     [Designer(typeof(CBorderedFormDesigner))]
     [DesignerCategory("Component")]
     [Docking(DockingBehavior.Ask)]
+    [ToolboxItemFilter("System.Windows.Forms")]
     public partial class CBorderedForm : UserControl, IThemeableControl
     {
-        // Window message constants
+        #region Constants
         private const int WM_NCHITTEST = 0x84;
         private const int WM_NCCALCSIZE = 0x83;
         private const int HTCLIENT = 1;
@@ -31,6 +34,7 @@ namespace DebugCompiler.UI.Core.Controls
         private const int HTBOTTOM = 15;
         private const int HTBOTTOMLEFT = 16;
         private const int HTBOTTOMRIGHT = 17;
+        #endregion
 
         #region Fields
         private bool _useTitleBar = true;
@@ -133,6 +137,10 @@ namespace DebugCompiler.UI.Core.Controls
             }
         }
 
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
+        public Panel MainPanel => _controlContents;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
         public CTitleBar TitleBar
         {
             get => _titleBar;
@@ -156,6 +164,7 @@ namespace DebugCompiler.UI.Core.Controls
         }
         #endregion
 
+        #region Constructor
         public CBorderedForm()
         {
             InitializeComponent();
@@ -182,6 +191,45 @@ namespace DebugCompiler.UI.Core.Controls
             UIThemeManager.RegisterControl(this);
             UIThemeManager.ThemeChanged += OnThemeChanged;
         }
+        #endregion
+
+        #region Public Methods
+        public T AddControl<T>(string name = null) where T : Control, new()
+        {
+            var control = new T();
+            if (!string.IsNullOrEmpty(name)) control.Name = name;
+            ControlContents.Controls.Add(control);
+            RegisterDesignerControl(control);
+            return control;
+        }
+
+        public void RegisterDesignerControl(Control control)
+        {
+            if (DesignMode && this.Site != null)
+            {
+                var host = this.Site.GetService(typeof(IDesignerHost)) as IDesignerHost;
+                host?.CreateComponent(control.GetType(), control.Name);
+            }
+        }
+
+        public void SetExitButtonVisible(bool visible)
+        {
+            if (_titleBar != null)
+            {
+                _titleBar.SetExitButtonVisible(visible);
+            }
+        }
+
+        public void SetDraggable(bool draggable)
+        {
+            if (_titleBar != null)
+            {
+                _titleBar.DisableDrag = !draggable;
+            }
+        }
+
+        public void SetTitle(string title) => TitleBarTitle = title;
+        #endregion
 
         #region Theme Handling
         private void OnThemeChanged(UIThemeInfo theme)
@@ -200,15 +248,81 @@ namespace DebugCompiler.UI.Core.Controls
         {
             if (IsDisposed || !IsHandleCreated || DesignMode) return;
 
-            this.BackColor = theme.BackColor;
-            this.ForeColor = theme.TextColor;
-
-            foreach (Control control in this.Controls)
+            try
             {
-                if (control is IThemeableControl themeable)
+                this.BackColor = theme.BackColor;
+                this.ForeColor = theme.TextColor;
+
+                foreach (Control control in this.Controls)
                 {
-                    themeable.ApplyTheme(theme);
+                    if (control is IThemeableControl themeable)
+                    {
+                        themeable.ApplyTheme(theme);
+                    }
+                    else
+                    {
+                        ApplyControlSpecificTheme(control, theme);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error applying theme to CBorderedForm: {ex.Message}");
+            }
+        }
+
+        private void ApplyControlSpecificTheme(Control control, UIThemeInfo theme)
+        {
+            switch (control)
+            {
+                case ListView lv:
+                    lv.BackColor = theme.ControlBackColor;
+                    lv.ForeColor = theme.TextColor;
+                    lv.BorderStyle = BorderStyle.FixedSingle;
+                    break;
+
+                case Panel p:
+                    p.BackColor = theme.ControlBackColor;
+                    p.BorderStyle = theme.IsDarkTheme ? BorderStyle.FixedSingle : BorderStyle.Fixed3D;
+                    break;
+
+                case TextBoxBase tb:
+                    tb.BackColor = theme.TextBoxBackColor;
+                    tb.ForeColor = theme.TextColor;
+                    tb.BorderStyle = theme.TextBoxBorderStyle;
+                    break;
+
+                case Button btn:
+                    btn.BackColor = theme.ButtonBackColor;
+                    btn.ForeColor = theme.TextColor;
+                    btn.FlatStyle = theme.ButtonFlatStyle;
+                    btn.FlatAppearance.BorderColor = theme.BorderColor;
+                    btn.FlatAppearance.MouseOverBackColor = theme.ButtonHoverColor;
+                    btn.FlatAppearance.MouseDownBackColor = theme.ButtonActiveColor;
+                    break;
+
+                case ComboBox cb:
+                    cb.BackColor = theme.TextBoxBackColor;
+                    cb.ForeColor = theme.TextColor;
+                    cb.FlatStyle = theme.ButtonFlatStyle;
+                    break;
+
+                case TreeView tv:
+                    tv.BackColor = theme.ControlBackColor;
+                    tv.ForeColor = theme.TextColor;
+                    tv.LineColor = theme.BorderColor;
+                    break;
+
+                case DataGridView dgv:
+                    dgv.BackgroundColor = theme.ControlBackColor;
+                    dgv.ForeColor = theme.TextColor;
+                    dgv.DefaultCellStyle.BackColor = theme.ControlBackColor;
+                    dgv.DefaultCellStyle.ForeColor = theme.TextColor;
+                    dgv.ColumnHeadersDefaultCellStyle.BackColor = theme.HeaderBackColor;
+                    dgv.ColumnHeadersDefaultCellStyle.ForeColor = theme.TextColor;
+                    dgv.BorderStyle = BorderStyle.FixedSingle;
+                    dgv.GridColor = theme.BorderColor;
+                    break;
             }
         }
 
@@ -220,21 +334,19 @@ namespace DebugCompiler.UI.Core.Controls
         {
             if (_controlContents != null)
             {
-                _controlContents.AllowDrop = true;
+                _controlContents.AllowDrop = _allowDesignerEditing;
                 _controlContents.BackColor = Color.FromArgb(30, 30, 30);
                 _controlContents.BorderStyle = BorderStyle.FixedSingle;
             }
 
-            // Ensure controls can be added at design time
             var host = (IDesignerHost)GetService(typeof(IDesignerHost));
             if (host != null)
             {
                 var designer = host.GetDesigner(_controlContents);
                 if (designer is ParentControlDesigner pcd)
                 {
-                    // Use reflection to access EnableDesignMode if needed
                     var method = typeof(ParentControlDesigner).GetMethod("EnableDesignMode",
-                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                        BindingFlags.Instance | BindingFlags.NonPublic);
                     method?.Invoke(pcd, new object[] { _controlContents, "ControlContents" });
                 }
             }
@@ -244,8 +356,19 @@ namespace DebugCompiler.UI.Core.Controls
         {
             base.OnControlAdded(e);
 
-            // Only register theming for runtime controls
-            if (_initialized && e.Control != _controlContents)
+            if (DesignMode)
+            {
+                RegisterDesignerControl(e.Control);
+
+                if (e.Control == _titleBar || e.Control == _controlContents)
+                {
+                    var svc = GetService(typeof(IComponentChangeService)) as IComponentChangeService;
+                    svc?.OnComponentChanging(this, null);
+                    e.Control.Dock = e.Control == _titleBar ? DockStyle.Top : DockStyle.Fill;
+                    svc?.OnComponentChanged(this, null, null, null);
+                }
+            }
+            else if (_initialized && e.Control != _controlContents)
             {
                 UIThemeManager.RegisterControl(e.Control);
             }
@@ -307,53 +430,44 @@ namespace DebugCompiler.UI.Core.Controls
         }
         #endregion
 
-        #region Public Methods
-        public void SetExitButtonVisible(bool visible)
-        {
-            if (_titleBar != null)
-            {
-                _titleBar.SetExitButtonVisible(visible);
-            }
-        }
-
-        public void SetDraggable(bool draggable)
-        {
-            if (_titleBar != null)
-            {
-                _titleBar.DisableDrag = !draggable;
-            }
-        }
-
-        public void SetTitle(string title) => TitleBarTitle = title;
-        #endregion
-
         #region Designer Classes
         internal class CBorderedFormDesigner : ParentControlDesigner
         {
+            private DesignerActionListCollection _actionLists;
             private IComponentChangeService _changeService;
 
             public override void Initialize(IComponent component)
             {
                 base.Initialize(component);
-                var form = (CBorderedForm)component;
 
-                // Use reflection to access EnableDesignMode
-                var method = typeof(ParentControlDesigner).GetMethod("EnableDesignMode",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                method?.Invoke(this, new object[] { form.ControlContents, "ControlContents" });
-
-                _changeService = GetService(typeof(IComponentChangeService)) as IComponentChangeService;
-
-                if (_changeService != null)
+                if (Control is CBorderedForm form)
                 {
-                    _changeService.ComponentAdding += OnComponentAdding;
+                    var method = typeof(ParentControlDesigner).GetMethod("EnableDesignMode",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    method?.Invoke(this, new object[] { form.ControlContents, "ControlContents" });
+
+                    _changeService = GetService(typeof(IComponentChangeService)) as IComponentChangeService;
+                    if (_changeService != null)
+                    {
+                        _changeService.ComponentAdding += OnComponentAdding;
+                    }
                 }
             }
 
-            public override bool CanParent(Control control)
+            public override DesignerActionListCollection ActionLists =>
+                _actionLists ??= new DesignerActionListCollection
+                {
+                    new CBorderedFormActionList(Component)
+                };
+
+            protected override void PreFilterProperties(IDictionary properties)
             {
-                // Only allow parenting to the contents panel
-                return control is not CBorderedForm;
+                base.PreFilterProperties(properties);
+                properties["Dock"] = TypeDescriptor.CreateProperty(
+                    typeof(CBorderedForm),
+                    (PropertyDescriptor)properties["Dock"],
+                    new BrowsableAttribute(true),
+                    new DesignerSerializationVisibilityAttribute(DesignerSerializationVisibility.Visible));
             }
 
             private void OnComponentAdding(object sender, ComponentEventArgs e)
@@ -371,6 +485,45 @@ namespace DebugCompiler.UI.Core.Controls
                     _changeService.ComponentAdding -= OnComponentAdding;
                 }
                 base.Dispose(disposing);
+            }
+
+            private class CBorderedFormActionList : DesignerActionList
+            {
+                public CBorderedFormActionList(IComponent component) : base(component) { }
+
+                public override DesignerActionItemCollection GetSortedActionItems()
+                {
+                    var items = new DesignerActionItemCollection();
+                    items.Add(new DesignerActionPropertyItem("UseTitleBar", "Show Title Bar", "Appearance"));
+                    items.Add(new DesignerActionPropertyItem("TitleBarTitle", "Title Text", "Appearance"));
+                    items.Add(new DesignerActionPropertyItem("ResizeBorderSize", "Resize Border Size", "Behavior"));
+                    items.Add(new DesignerActionPropertyItem("AllowDesignerEditing", "Allow Designer Editing", "Behavior"));
+                    return items;
+                }
+
+                public bool UseTitleBar
+                {
+                    get => ((CBorderedForm)Component).UseTitleBar;
+                    set => TypeDescriptor.GetProperties(Component)["UseTitleBar"].SetValue(Component, value);
+                }
+
+                public string TitleBarTitle
+                {
+                    get => ((CBorderedForm)Component).TitleBarTitle;
+                    set => TypeDescriptor.GetProperties(Component)["TitleBarTitle"].SetValue(Component, value);
+                }
+
+                public int ResizeBorderSize
+                {
+                    get => ((CBorderedForm)Component).ResizeBorderSize;
+                    set => TypeDescriptor.GetProperties(Component)["ResizeBorderSize"].SetValue(Component, value);
+                }
+
+                public bool AllowDesignerEditing
+                {
+                    get => ((CBorderedForm)Component).AllowDesignerEditing;
+                    set => TypeDescriptor.GetProperties(Component)["AllowDesignerEditing"].SetValue(Component, value);
+                }
             }
         }
 

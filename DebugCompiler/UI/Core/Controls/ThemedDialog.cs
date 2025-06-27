@@ -1,73 +1,113 @@
 using DebugCompiler.UI.Core.Interfaces;
 using DebugCompiler.UI.Core.Singletons;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Drawing;
 using System.Windows.Forms;
-using DebugCompiler.Properties;
+using System.Windows.Forms.Design;
 
 namespace DebugCompiler.UI.Core.Controls
 {
+    [Designer(typeof(FormDocumentDesigner))]
+    [DesignerCategory("Form")]
     public class ThemedDialog : Form, IThemeableControl
     {
         public ThemedDialog()
         {
-            UIThemeManager.RegisterControl(this);
-            UIThemeManager.ThemeChanged += OnThemeChanged;
+            // Skip theme registration in design mode
+            if (LicenseManager.UsageMode != LicenseUsageMode.Designtime)
+            {
+                UIThemeManager.RegisterControl(this);
+                UIThemeManager.ThemeChanged += OnThemeChanged;
+            }
+
+            // Basic styling that works in designer
+            if (DesignMode)
+            {
+                this.BackColor = SystemColors.Window;
+                this.ForeColor = SystemColors.WindowText;
+                this.Font = SystemFonts.DialogFont;
+            }
         }
 
         public virtual void ApplyTheme(UIThemeInfo theme)
         {
-            this.BackColor = theme.BackColor;
-            this.ForeColor = theme.TextColor;
+            if (IsDisposed || DesignMode || theme == null) return;
 
-            // Theme all child controls that implement IThemeableControl
-            foreach (Control control in GetThemedControls())
+            try
             {
-                if (control is IThemeableControl themedControl)
+                if (InvokeRequired)
                 {
-                    themedControl.ApplyTheme(theme);
+                    Invoke(new Action<UIThemeInfo>(ApplyTheme), theme);
+                    return;
                 }
+
+                this.SuspendLayout();
+                this.BackColor = theme.BackColor;
+                this.ForeColor = theme.TextColor;
+
+                foreach (Control control in GetThemedControls())
+                {
+                    if (control is IThemeableControl themedControl)
+                        themedControl.ApplyTheme(theme);
+                }
+            }
+            finally
+            {
+                this.ResumeLayout(true);
             }
         }
 
         public virtual IEnumerable<Control> GetThemedControls()
         {
-            // Yield all child controls that need theming
             foreach (Control control in Controls)
-            {
                 yield return control;
-            }
         }
 
         protected virtual void OnThemeChanged(UIThemeInfo theme)
         {
-            ApplyTheme(theme);
+            if (!DesignMode && IsHandleCreated && !IsDisposed)
+                ApplyTheme(theme);
         }
 
         protected override void OnControlAdded(ControlEventArgs e)
         {
             base.OnControlAdded(e);
-            UIThemeManager.RegisterControl(e.Control);
+            if (!DesignMode)
+                UIThemeManager.RegisterControl(e.Control);
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing && !DesignMode)
             {
                 UIThemeManager.ThemeChanged -= OnThemeChanged;
             }
             base.Dispose(disposing);
         }
+    }
 
-        private void InitializeComponent()
+    // Custom designer class to properly handle the base form
+    public class FormDocumentDesigner : DocumentDesigner
+    {
+        public FormDocumentDesigner()
         {
-            this.SuspendLayout();
-            // 
-            // ThemedDialog
-            // 
-            this.ClientSize = new System.Drawing.Size(284, 261);
-            this.Name = "ThemedDialog";
-            this.ResumeLayout(false);
+            this.AutoResizeHandles = true;
+        }
 
+        protected override void PreFilterProperties(System.Collections.IDictionary properties)
+        {
+            base.PreFilterProperties(properties);
+            // Ensure all properties are visible in designer
+            properties["BackColor"] = TypeDescriptor.CreateProperty(
+                typeof(FormDocumentDesigner),
+                (PropertyDescriptor)properties["BackColor"],
+                new Attribute[0]);
+            properties["ForeColor"] = TypeDescriptor.CreateProperty(
+                typeof(FormDocumentDesigner),
+                (PropertyDescriptor)properties["ForeColor"],
+                new Attribute[0]);
         }
     }
 }

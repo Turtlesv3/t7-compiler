@@ -2,6 +2,7 @@
 using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -78,25 +79,33 @@ namespace DebugCompiler.UI.Core.Controls
             try
             {
                 this.BackColor = theme.AccentColor;
-                this.ForeColor = theme.TextColor;
+
+                // Ensure title text is always visible by using contrasting color
+                Color textColor = GetContrastingTextColor(theme.AccentColor);
+
+                this.ForeColor = textColor;
 
                 if (TitleLabel != null)
                 {
-                    TitleLabel.ForeColor = theme.TextColor;
+                    TitleLabel.ForeColor = textColor;
                 }
 
                 if (ExitButton != null)
                 {
                     ExitButton.BackColor = theme.AccentColor;
-                    ExitButton.ForeColor = theme.TextColor;
+                    ExitButton.ForeColor = textColor;
                     ExitButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
                     ExitButton.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
                 }
             }
-            catch (ObjectDisposedException)
-            {
-                // Gracefully handle disposal during theme change
-            }
+            catch { /* Handle errors */ }
+        }
+
+        private Color GetContrastingTextColor(Color backgroundColor)
+        {
+            // Calculate luminance to determine if background is light or dark
+            double luminance = (0.299 * backgroundColor.R + 0.587 * backgroundColor.G + 0.114 * backgroundColor.B) / 255;
+            return luminance > 0.5 ? Color.Black : Color.White;
         }
 
         private void OnThemeChanged_Implementation(UIThemeInfo theme)

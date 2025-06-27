@@ -16,16 +16,13 @@ namespace DebugCompiler.UI.Core.Controls
 
         public virtual void ApplyTheme(UIThemeInfo theme)
         {
+            if (IsDisposed || !IsHandleCreated) return;
+
             this.BackColor = theme.ControlBackColor;
             this.ForeColor = theme.TextColor;
 
-            foreach (Control control in GetThemedControls())
-            {
-                if (control is IThemeableControl themedControl)
-                {
-                    themedControl.ApplyTheme(theme);
-                }
-            }
+            // Let UIThemeManager handle theming of child controls
+            UIThemeManager.RegisterChildControls(this);
         }
 
         public virtual IEnumerable<Control> GetThemedControls()
@@ -38,6 +35,7 @@ namespace DebugCompiler.UI.Core.Controls
 
         protected virtual void OnThemeChanged(UIThemeInfo theme)
         {
+            if (IsDisposed || !IsHandleCreated) return;
             ApplyTheme(theme);
         }
 
@@ -52,6 +50,7 @@ namespace DebugCompiler.UI.Core.Controls
             if (disposing)
             {
                 UIThemeManager.ThemeChanged -= OnThemeChanged;
+                UIThemeManager.UnregisterControl(this);
             }
             base.Dispose(disposing);
         }

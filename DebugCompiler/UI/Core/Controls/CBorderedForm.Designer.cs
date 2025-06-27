@@ -1,4 +1,5 @@
-﻿// CBorderedForm.Designer.cs
+﻿using DebugCompiler.UI.Core.Singletons;
+
 namespace DebugCompiler.UI.Core.Controls
 {
     partial class CBorderedForm
@@ -17,6 +18,7 @@ namespace DebugCompiler.UI.Core.Controls
             if (disposing && (components != null))
             {
                 components.Dispose();
+                UIThemeManager.UnregisterControl(this);
             }
             base.Dispose(disposing);
         }
@@ -41,6 +43,7 @@ namespace DebugCompiler.UI.Core.Controls
             this._controlContents.Name = "_controlContents";
             this._controlContents.Size = new System.Drawing.Size(300, 268);
             this._controlContents.TabIndex = 0;
+            this._controlContents.AllowDrop = true;
 
             // _titleBar
             this._titleBar.BackColor = System.Drawing.Color.FromArgb(36, 36, 36);
@@ -49,6 +52,7 @@ namespace DebugCompiler.UI.Core.Controls
             this._titleBar.Name = "_titleBar";
             this._titleBar.Size = new System.Drawing.Size(300, 32);
             this._titleBar.TabIndex = 1;
+            this._titleBar.Visible = true;
 
             // CBorderedForm
             this.Controls.Add(this._controlContents);

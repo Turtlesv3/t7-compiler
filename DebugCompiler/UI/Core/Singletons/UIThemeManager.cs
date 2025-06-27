@@ -12,11 +12,18 @@ namespace DebugCompiler.UI.Core.Singletons
 {
     public static class UIThemeManager
     {
-        private static UIThemeInfo _currentTheme = UIThemeInfo.Dark;
         public static UIThemeInfo CurrentTheme
         {
             get => _currentTheme;
-            private set => _currentTheme = value;
+            private set
+            {
+                if (!_currentTheme.Equals(value))
+                {
+                    _currentTheme = value;
+                    ApplyThemeToAllControls();
+                    ThemeChanged?.Invoke(value);
+                }
+            }
         }
 
         private static readonly HashSet<Control> ThemedControls = new();
@@ -31,37 +38,45 @@ namespace DebugCompiler.UI.Core.Singletons
 
         public static void SetTheme(UIThemeInfo theme)
         {
+            if (theme == null || theme.Equals(default(UIThemeInfo)))
+                return;
+
             CurrentTheme = theme;
-            ApplyThemeToAllControls();
             SaveTheme(theme.Name);
-            ThemeChanged?.Invoke(theme);
+        }
+
+        private static UIThemeInfo _currentTheme = GetDefaultTheme();
+
+        private static UIThemeInfo GetDefaultTheme()
+        {
+            var theme = UIThemeInfo.GetThemeByName("catapatchitomocha");
+            return theme != null ? theme : UIThemeInfo.Dark;
         }
 
         public static void SetTheme(string themeName)
         {
             if (string.IsNullOrWhiteSpace(themeName))
             {
-                SetTheme(UIThemeInfo.Dark);
+                SetTheme(GetDefaultTheme());
                 return;
             }
 
             UIThemeInfo theme = UIThemeInfo.GetThemeByName(themeName);
-            if (theme.Name != null) // Check against default struct
+            if (theme != null)
             {
                 SetTheme(theme);
             }
             else
             {
-                SetTheme(UIThemeInfo.Dark);
+                SetTheme(GetDefaultTheme());
             }
         }
 
         public static bool TryGetTheme(string themeName, out UIThemeInfo theme)
         {
             theme = UIThemeInfo.GetThemeByName(themeName);
-            return !EqualityComparer<UIThemeInfo>.Default.Equals(theme, default(UIThemeInfo));
+            return !theme.Equals(default(UIThemeInfo));
         }
-
 
         public static void SaveTheme(string themeName)
         {
@@ -91,10 +106,12 @@ namespace DebugCompiler.UI.Core.Singletons
 
         public static void RegisterChildControls(Control parent)
         {
+            if (parent == null) return;
+
             foreach (Control child in parent.Controls)
             {
                 RegisterControl(child);
-                if (child.Controls.Count > 0)
+                if (child.HasChildren)
                 {
                     RegisterChildControls(child);
                 }
@@ -108,7 +125,6 @@ namespace DebugCompiler.UI.Core.Singletons
                 ThemedControls.Remove(control);
                 CustomControlHandlers.Remove(control);
 
-                // Special case for GroupBox to remove paint handler
                 if (control is GroupBox groupBox)
                 {
                     groupBox.Paint -= ThemedGroupBoxPaint;
@@ -131,6 +147,8 @@ namespace DebugCompiler.UI.Core.Singletons
 
         private static void ApplyThemeToControl(Control control)
         {
+            if (control == null || control.IsDisposed) return;
+
             if (control.InvokeRequired)
             {
                 control.Invoke((Action)(() => ApplyThemeToControl(control)));
@@ -154,13 +172,9 @@ namespace DebugCompiler.UI.Core.Singletons
                     handler(CurrentTheme);
                 }
 
-                // Special handling for ComboBox to maintain DropDownStyle
-                if (control is ComboBox comboBox)
+                if (control is ComboBox comboBox && comboBox.Tag?.ToString() == "ForceDropDownList")
                 {
-                    if (comboBox.Tag?.ToString() == "ForceDropDownList")
-                    {
-                        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-                    }
+                    comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
                     comboBox.Refresh();
                 }
             }
@@ -170,8 +184,10 @@ namespace DebugCompiler.UI.Core.Singletons
             }
         }
 
-        private static void ApplyDefaultTheme(Control control)
+        internal static void ApplyDefaultTheme(Control control)
         {
+            if (control == null) return;
+
             control.SuspendLayout();
             try
             {
@@ -201,7 +217,7 @@ namespace DebugCompiler.UI.Core.Singletons
                     return;
                 }
 
-                if (control is TextBox textBox)
+                if (control is TextBoxBase textBox)
                 {
                     textBox.BackColor = CurrentTheme.TextBoxBackColor;
                     textBox.ForeColor = CurrentTheme.TextColor;
@@ -209,60 +225,40 @@ namespace DebugCompiler.UI.Core.Singletons
                     return;
                 }
 
-                if (control is RichTextBox richTextBox)
+                if (control is Label || control is CheckBox || control is RadioButton)
                 {
-                    richTextBox.BackColor = CurrentTheme.TextBoxBackColor;
-                    richTextBox.ForeColor = CurrentTheme.TextColor;
-                    richTextBox.BorderStyle = CurrentTheme.TextBoxBorderStyle;
-                    return;
+                    control.ForeColor = CurrentTheme.TextColor;
                 }
-
-                if (control is Label label)
+                else if (control is Panel || control is GroupBox)
                 {
-                    label.ForeColor = CurrentTheme.TextColor;
-                    return;
+                    control.BackColor = CurrentTheme.ControlBackColor;
+                    control.ForeColor = CurrentTheme.TextColor;
                 }
-
-                if (control is Panel panel)
-                {
-                    panel.BackColor = CurrentTheme.ControlBackColor;
-                    return;
-                }
-
-                if (control is ComboBox comboBox)
+                else if (control is ComboBox comboBox)
                 {
                     comboBox.BackColor = CurrentTheme.TextBoxBackColor;
                     comboBox.ForeColor = CurrentTheme.TextColor;
                     comboBox.FlatStyle = CurrentTheme.ButtonFlatStyle;
-
-                    // Special handling to maintain DropDownStyle
                     if (comboBox.Tag?.ToString() == "ForceDropDownList")
                     {
                         comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
                     }
-                    return;
                 }
-
-                if (control is UserControl userControl)
+                else if (control is UserControl userControl)
                 {
                     userControl.BackColor = CurrentTheme.BackColor;
                     userControl.ForeColor = CurrentTheme.TextColor;
-                    return;
                 }
-
-                if (control is DataGridView dataGridView)
+                else if (control is DataGridView dataGridView)
                 {
                     dataGridView.BackgroundColor = CurrentTheme.BackColor;
                     dataGridView.ForeColor = CurrentTheme.TextColor;
                     dataGridView.GridColor = CurrentTheme.GridLineColor;
-                    return;
                 }
-
-                if (control is ToolStrip toolStrip)
+                else if (control is ToolStrip toolStrip)
                 {
                     toolStrip.BackColor = CurrentTheme.BackColor;
                     toolStrip.ForeColor = CurrentTheme.TextColor;
-                    return;
                 }
             }
             finally
