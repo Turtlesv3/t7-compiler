@@ -1,6 +1,7 @@
 ﻿using DebugCompiler.UI.Core.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -10,22 +11,13 @@ using DebugCompiler.Properties;
 
 namespace DebugCompiler.UI.Core.Singletons
 {
+#if DEBUG
+    [System.ComponentModel.DesignerCategory("Code")]
+#endif
     public static class UIThemeManager
     {
-        public static UIThemeInfo CurrentTheme
-        {
-            get => _currentTheme;
-            private set
-            {
-                if (!_currentTheme.Equals(value))
-                {
-                    _currentTheme = value;
-                    ApplyThemeToAllControls();
-                    ThemeChanged?.Invoke(value);
-                }
-            }
-        }
-
+        private static bool _isDesignMode = System.Diagnostics.Process.GetCurrentProcess().ProcessName == "devenv";
+        private static UIThemeInfo _currentTheme = GetDefaultTheme();
         private static readonly HashSet<Control> ThemedControls = new();
         private static readonly Dictionary<Control, Action<UIThemeInfo>> CustomControlHandlers = new();
 
@@ -35,17 +27,64 @@ namespace DebugCompiler.UI.Core.Singletons
             "theme.config");
 
         public static event Action<UIThemeInfo> ThemeChanged;
+        public static event Action<UIThemeInfo> DesignTimeThemeChanged;
+
+        public static bool IsDesignMode => _isDesignMode;
+
+        public static UIThemeInfo CurrentTheme
+        {
+            get => _currentTheme;
+            private set
+            {
+                if (!_currentTheme.Equals(value))
+                {
+                    _currentTheme = value;
+                    if (!IsDesignMode)
+                    {
+                        ApplyThemeToAllControls();
+                        ThemeChanged?.Invoke(value);
+                    }
+                }
+            }
+        }
+
+        public static void SimulateDesignTimeTheme(UIThemeInfo theme)
+        {
+            if (IsDesignMode)
+            {
+                _currentTheme = theme;
+                DesignTimeThemeChanged?.Invoke(theme);
+            }
+        }
+
+        public static void InitializeWithTheme(UIThemeInfo theme)
+        {
+            _currentTheme = theme;
+            Application.Idle += FirstIdleThemeApplication;
+        }
+
+        private static void FirstIdleThemeApplication(object sender, EventArgs e)
+        {
+            Application.Idle -= FirstIdleThemeApplication;
+            ApplyThemeToAllControls();
+            Debug.WriteLine($"Theme applied to {ThemedControls.Count} controls on startup");
+        }
+
+        public static void EnsureThemed(Control control)
+        {
+            if (!ThemedControls.Contains(control))
+            {
+                RegisterControl(control);
+                ApplyThemeToControl(control);
+            }
+        }
 
         public static void SetTheme(UIThemeInfo theme)
         {
-            if (theme == null || theme.Equals(default(UIThemeInfo)))
-                return;
-
+            if (theme == null || theme.Equals(default(UIThemeInfo))) return;
             CurrentTheme = theme;
             SaveTheme(theme.Name);
         }
-
-        private static UIThemeInfo _currentTheme = GetDefaultTheme();
 
         private static UIThemeInfo GetDefaultTheme()
         {
@@ -134,6 +173,7 @@ namespace DebugCompiler.UI.Core.Singletons
 
         private static void ApplyThemeToAllControls()
         {
+            var theme = CurrentTheme;
             foreach (var control in ThemedControls.ToArray())
             {
                 if (control.IsDisposed)
@@ -141,6 +181,12 @@ namespace DebugCompiler.UI.Core.Singletons
                     ThemedControls.Remove(control);
                     continue;
                 }
+
+                if (!control.Visible && !(control is ContainerControl))
+                {
+                    continue;
+                }
+
                 ApplyThemeToControl(control);
             }
         }
@@ -184,82 +230,53 @@ namespace DebugCompiler.UI.Core.Singletons
             }
         }
 
-        internal static void ApplyDefaultTheme(Control control)
+        public static void ApplyDefaultTheme(Control control)
         {
-            if (control == null) return;
+            if (control == null || control.IsDisposed)
+                return;
 
             control.SuspendLayout();
             try
             {
-                if (control is Form form)
+                control.BackColor = CurrentTheme.ControlBackColor;
+                control.ForeColor = CurrentTheme.TextColor;
+
+                if (!control.Enabled)
                 {
-                    form.BackColor = CurrentTheme.BackColor;
-                    form.ForeColor = CurrentTheme.TextColor;
-                    return;
+                    control.ForeColor = CurrentTheme.DisabledTextColor;
                 }
 
-                if (control is GroupBox groupBox)
+                switch (control)
                 {
-                    groupBox.Paint -= ThemedGroupBoxPaint;
-                    groupBox.Paint += ThemedGroupBoxPaint;
-                    groupBox.ForeColor = CurrentTheme.TextColor;
-                    return;
+                    case Button button:
+                        button.BackColor = CurrentTheme.ButtonBackColor;
+                        button.FlatStyle = CurrentTheme.ButtonFlatStyle;
+                        button.FlatAppearance.BorderColor = CurrentTheme.BorderColor;
+                        button.FlatAppearance.MouseOverBackColor = CurrentTheme.ButtonHoverColor;
+                        button.FlatAppearance.MouseDownBackColor = CurrentTheme.ButtonActiveColor;
+                        break;
+
+                    case TextBoxBase textBox:
+                        textBox.BackColor = CurrentTheme.TextBoxBackColor;
+                        textBox.BorderStyle = CurrentTheme.TextBoxBorderStyle;
+                        break;
+
+                    case ComboBox comboBox:
+                        comboBox.BackColor = CurrentTheme.TextBoxBackColor;
+                        comboBox.FlatStyle = CurrentTheme.ButtonFlatStyle;
+                        if (comboBox.Tag?.ToString() == "ForceDropDownList")
+                        {
+                            comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                        }
+                        break;
+
+                    case DataGridView grid:
+                        grid.BackgroundColor = CurrentTheme.BackColor;
+                        grid.GridColor = CurrentTheme.GridLineColor;
+                        break;
                 }
 
-                if (control is Button button)
-                {
-                    button.BackColor = CurrentTheme.ButtonBackColor;
-                    button.ForeColor = CurrentTheme.TextColor;
-                    button.FlatStyle = CurrentTheme.ButtonFlatStyle;
-                    button.FlatAppearance.BorderColor = CurrentTheme.BorderColor;
-                    button.FlatAppearance.MouseOverBackColor = CurrentTheme.ButtonHoverColor;
-                    button.FlatAppearance.MouseDownBackColor = CurrentTheme.ButtonActiveColor;
-                    return;
-                }
-
-                if (control is TextBoxBase textBox)
-                {
-                    textBox.BackColor = CurrentTheme.TextBoxBackColor;
-                    textBox.ForeColor = CurrentTheme.TextColor;
-                    textBox.BorderStyle = CurrentTheme.TextBoxBorderStyle;
-                    return;
-                }
-
-                if (control is Label || control is CheckBox || control is RadioButton)
-                {
-                    control.ForeColor = CurrentTheme.TextColor;
-                }
-                else if (control is Panel || control is GroupBox)
-                {
-                    control.BackColor = CurrentTheme.ControlBackColor;
-                    control.ForeColor = CurrentTheme.TextColor;
-                }
-                else if (control is ComboBox comboBox)
-                {
-                    comboBox.BackColor = CurrentTheme.TextBoxBackColor;
-                    comboBox.ForeColor = CurrentTheme.TextColor;
-                    comboBox.FlatStyle = CurrentTheme.ButtonFlatStyle;
-                    if (comboBox.Tag?.ToString() == "ForceDropDownList")
-                    {
-                        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-                    }
-                }
-                else if (control is UserControl userControl)
-                {
-                    userControl.BackColor = CurrentTheme.BackColor;
-                    userControl.ForeColor = CurrentTheme.TextColor;
-                }
-                else if (control is DataGridView dataGridView)
-                {
-                    dataGridView.BackgroundColor = CurrentTheme.BackColor;
-                    dataGridView.ForeColor = CurrentTheme.TextColor;
-                    dataGridView.GridColor = CurrentTheme.GridLineColor;
-                }
-                else if (control is ToolStrip toolStrip)
-                {
-                    toolStrip.BackColor = CurrentTheme.BackColor;
-                    toolStrip.ForeColor = CurrentTheme.TextColor;
-                }
+                control.Refresh();
             }
             finally
             {
@@ -284,7 +301,66 @@ namespace DebugCompiler.UI.Core.Singletons
             {
                 ThemedControls.Add(control);
                 control.Disposed += (s, e) => ThemedControls.Remove(control);
-                ApplyThemeToControl(control);
+
+                if (CurrentTheme != null)
+                {
+                    ApplyThemeToControl(control);
+                }
+            }
+        }
+
+        public static void RegisterControlRecursive(Control control)
+        {
+            if (control == null || control.IsDisposed) return;
+
+            if (control is Button || control is TextBox || control is Panel)
+            {
+                RegisterControl(control);
+                return;
+            }
+
+            RegisterControl(control);
+
+            if (control is IThemeableContainer container)
+            {
+                foreach (var child in container.GetThemeableChildren())
+                {
+                    RegisterControlRecursive(child);
+                }
+            }
+            else if (control.HasChildren && control.Controls.Count < 20)
+            {
+                foreach (Control child in control.Controls)
+                {
+                    RegisterControlRecursive(child);
+                }
+            }
+        }
+
+        public static void EnsureThemeApplied(Control control)
+        {
+            if (control == null || control.IsDisposed) return;
+
+            if (control.InvokeRequired)
+            {
+                control.Invoke((Action)(() => EnsureThemeApplied(control)));
+                return;
+            }
+
+            if (control is IThemeableControl themeable)
+            {
+                themeable.ApplyTheme(CurrentTheme);
+            }
+            else
+            {
+                ApplyDefaultTheme(control);
+            }
+
+            ApplyThemeToControl(control);
+
+            foreach (Control child in control.Controls)
+            {
+                EnsureThemeApplied(child);
             }
         }
 
@@ -329,6 +405,19 @@ namespace DebugCompiler.UI.Core.Singletons
                         new Point(rect.X + rect.Width, rect.Y));
                 }
             }
+        }
+
+        public static bool ValidateTheme(UIThemeInfo theme)
+        {
+            if (theme.IsEmpty()) return false;
+
+            var requiredColors = new[] { theme.BackColor, theme.ForeColor, theme.TextColor };
+            if (requiredColors.Any(c => c.IsEmpty || c.A == 0))
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }

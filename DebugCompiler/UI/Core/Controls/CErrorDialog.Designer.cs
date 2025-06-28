@@ -92,7 +92,7 @@ namespace DebugCompiler.UI.Core.Controls
             this.InnerForm.Name = "InnerForm";
             this.InnerForm.Size = new System.Drawing.Size(232, 179);
             this.InnerForm.TabIndex = 0;
-            this.InnerForm.TitleBarTitle = "Error Dialog";
+            this.InnerForm.Title = "Error Dialog";
             // 
             // AcceptButton
             // 

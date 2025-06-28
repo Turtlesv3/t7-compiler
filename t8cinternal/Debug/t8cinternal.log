@@ -1,7 +1,1 @@
-﻿  builtins.cpp
-  detours.cpp
-  dllmain.cpp
-  LazyLink.cpp
-  Generating Code...
-     Creating library C:\Users\golia\Source\Repos\t7-compiler\Debug\t8cinternal.lib and object C:\Users\golia\Source\Repos\t7-compiler\Debug\t8cinternal.exp
-  t8cinternal.vcxproj -> C:\Users\golia\Source\Repos\t7-compiler\Debug\t8cinternal.dll
+﻿

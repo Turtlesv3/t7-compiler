@@ -9,5 +9,11 @@ namespace DebugCompiler.UI.Core.Interfaces
     {
         void ApplyTheme(UIThemeInfo theme);
         IEnumerable<Control> GetThemedControls();
+
+    }
+
+    public interface IThemeableContainer
+    {
+        IEnumerable<Control> GetThemeableChildren();
     }
 }

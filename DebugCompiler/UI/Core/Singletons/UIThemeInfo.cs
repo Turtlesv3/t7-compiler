@@ -60,36 +60,26 @@ namespace DebugCompiler.UI.Core.Singletons
         public string Description { get; set; }
         public Version Version { get; set; }
 
-        // Compatibility property (alias for BackColor)
-        public Color WindowBackColor
-        {
-            get => BackColor;
-            set => BackColor = value;
-        }
-
-        // Compatibility property (alias for ForeColor)
-        public Color WindowForeColor
-        {
-            get => ForeColor;
-            set => ForeColor = value;
-        }
+        // Compatibility properties
+        public Color WindowBackColor => BackColor;
+        public Color WindowForeColor => ForeColor;
 
         public Color GetColor(string colorKey)
         {
             return colorKey switch
             {
-                "@dialog_bg" => this.BackColor,
-                "@text_primary" => this.TextColor,
-                "@border_color" => this.BorderColor,
-                "@button_bg" => this.ButtonBackColor,
-                "@textbox_bg" => this.TextBoxBackColor,
-                "@accent" => this.AccentColor,
-                "@highlight" => this.HighlightColor,
-                "@secondary_accent" => this.SecondaryAccentColor,
-                "@success" => this.SuccessColor,
-                "@warning" => this.WarningColor,
-                "@error" => this.ErrorColor,
-                "@info" => this.InfoColor,
+                "@dialog_bg" => BackColor,
+                "@text_primary" => TextColor,
+                "@border_color" => BorderColor,
+                "@button_bg" => ButtonBackColor,
+                "@textbox_bg" => TextBoxBackColor,
+                "@accent" => AccentColor,
+                "@highlight" => HighlightColor,
+                "@secondary_accent" => SecondaryAccentColor,
+                "@success" => SuccessColor,
+                "@warning" => WarningColor,
+                "@error" => ErrorColor,
+                "@info" => InfoColor,
                 _ => throw new ArgumentException($"Unknown color key: {colorKey}")
             };
         }
@@ -137,7 +127,7 @@ namespace DebugCompiler.UI.Core.Singletons
         public static bool operator !=(UIThemeInfo left, UIThemeInfo right) =>
             !left.Equals(right);
 
-        // Built-in Themes (updated with new properties)
+        // Built-in Themes
         public static UIThemeInfo Dark => new()
         {
             Name = "Dark",
@@ -152,8 +142,6 @@ namespace DebugCompiler.UI.Core.Singletons
             ButtonHoverColor = Color.FromArgb(70, 70, 70),
             ButtonActiveColor = Color.DodgerBlue,
             BorderColor = Color.FromArgb(60, 60, 60),
-            AccentColor = Color.FromArgb(0, 122, 204),
-            SecondaryAccentColor = Color.FromArgb(100, 150, 200),
             DisabledTextColor = Color.Gray,
             HighlightColor = Color.FromArgb(255, 184, 108),
             MenuBackColor = Color.FromArgb(40, 40, 40),
@@ -166,6 +154,8 @@ namespace DebugCompiler.UI.Core.Singletons
             WarningColor = Color.FromArgb(255, 152, 0),
             ErrorColor = Color.FromArgb(244, 67, 54),
             InfoColor = Color.FromArgb(33, 150, 243),
+            AccentColor = Color.FromArgb(0, 122, 204),
+            SecondaryAccentColor = Color.FromArgb(100, 150, 200),
             TextBoxBorderStyle = BorderStyle.FixedSingle,
             ButtonFlatStyle = FlatStyle.Flat,
             HeaderFontStyle = FontStyle.Bold,
@@ -189,8 +179,6 @@ namespace DebugCompiler.UI.Core.Singletons
             ForeColor = SystemColors.ControlText,
             ControlBackColor = SystemColors.ControlLight,
             TextColor = SystemColors.ControlText,
-            AccentColor = Color.FromArgb(0, 90, 158),
-            SecondaryAccentColor = Color.FromArgb(0, 120, 200),
             TextBoxBackColor = SystemColors.Window,
             ButtonBackColor = SystemColors.Control,
             ButtonHoverColor = SystemColors.ControlLight,
@@ -208,6 +196,8 @@ namespace DebugCompiler.UI.Core.Singletons
             WarningColor = Color.FromArgb(255, 152, 0),
             ErrorColor = Color.FromArgb(198, 40, 40),
             InfoColor = Color.FromArgb(2, 136, 209),
+            AccentColor = Color.FromArgb(0, 90, 158),
+            SecondaryAccentColor = Color.FromArgb(0, 120, 200),
             TextBoxBorderStyle = BorderStyle.Fixed3D,
             ButtonFlatStyle = FlatStyle.Standard,
             HeaderFontStyle = FontStyle.Regular,
@@ -264,7 +254,6 @@ namespace DebugCompiler.UI.Core.Singletons
             IconResourceName = "theme_dracula"
         };
 
-        // SolarizedDark with all new properties
         public static UIThemeInfo SolarizedDark => new()
         {
             Name = "Solarized Dark",
@@ -643,8 +632,6 @@ namespace DebugCompiler.UI.Core.Singletons
             IconResourceName = "theme_catppuccin"
         };
 
-
-        // Add more themes as needed
         public static IEnumerable<UIThemeInfo> AvailableThemes => new[]
         {
             Dark,
@@ -661,27 +648,11 @@ namespace DebugCompiler.UI.Core.Singletons
             CatppuccinMocha
         };
 
-        public Color GetContrastTextColor(Color backColor)
-        {
-            // Calculate luminance and return appropriate text color
-            double luminance = (0.299 * backColor.R + 0.587 * backColor.G + 0.114 * backColor.B) / 255;
-            return luminance > 0.5 ? Color.Black : Color.White;
-        }
-
         public Color GetHoverColor(Color baseColor)
         {
             return IsDarkTheme
                 ? ControlPaint.Light(baseColor, 0.2f)
                 : ControlPaint.Dark(baseColor, 0.1f);
-        }
-
-        public Color ContrastTextColor
-        {
-            get
-            {
-                double luminance = (0.299 * this.AccentColor.R + 0.587 * this.AccentColor.G + 0.114 * this.AccentColor.B) / 255;
-                return luminance > 0.5 ? Color.Black : Color.White;
-            }
         }
 
         public Color GetPressedColor(Color baseColor)

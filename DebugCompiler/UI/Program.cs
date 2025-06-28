@@ -72,44 +72,44 @@ namespace DebugCompiler
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Safe theme loading with proper type handling
+            // Initialize theme manager FIRST
+            InitializeThemeManager();
+
+            // Then create the form
+            var mainForm = new MainForm1();
+            RegisterForCleanup(mainForm);
+            Application.Run(mainForm);
+        }
+
+        private static void InitializeThemeManager()
+        {
             try
             {
                 string savedThemeName = UIThemeManager.LoadTheme();
+                UIThemeInfo theme;
 
-                // Default to Dark theme if no saved theme exists
                 if (string.IsNullOrWhiteSpace(savedThemeName))
                 {
-                    UIThemeManager.SetTheme(UIThemeInfo.Dark);
+                    theme = UIThemeInfo.Dark;
                 }
                 else
                 {
-                    // Use the proper static method from UIThemeInfo
-                    UIThemeInfo theme = UIThemeInfo.GetThemeByName(savedThemeName);
-
-                    // Check if theme was found
-                    if (theme.Name != null) // Check against default struct
-                    {
-                        UIThemeManager.SetTheme(theme);
-                    }
-                    else
-                    {
-                        UIThemeManager.SetTheme(UIThemeInfo.Dark);
-                    }
+                    theme = UIThemeInfo.GetThemeByName(savedThemeName);
+                    if (theme.Equals(default(UIThemeInfo)))
+                        theme = UIThemeInfo.Dark;
                 }
+
+                // Critical: Initialize before any forms are created
+                UIThemeManager.InitializeWithTheme(theme);
+
+                // Verify theme application
+                Debug.WriteLine($"Theme initialized: {UIThemeManager.CurrentTheme.Name}");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Theme loading error: {ex.Message}");
-                UIThemeManager.SetTheme(UIThemeInfo.Dark);
+                Debug.WriteLine($"Theme initialization failed: {ex.Message}");
+                UIThemeManager.InitializeWithTheme(UIThemeInfo.Dark);
             }
-
-            // Create and track main form
-            var mainForm = new MainForm1();
-            RegisterForCleanup(mainForm);
-            mainForm.ApplyTheme(UIThemeManager.CurrentTheme);
-
-            Application.Run(mainForm);
         }
 
         private static void PerformCleanup()

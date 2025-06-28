@@ -51,6 +51,7 @@ namespace DebugCompiler
         private System.Windows.Forms.ToolTip toolTip1;
         private new System.Windows.Forms.MenuStrip MainMenuStrip;
         private System.Windows.Forms.ToolStripMenuItem _themeMenu;
+        private System.Windows.Forms.Label _lblGameStatus;
 
         /// <summary>
         /// Clean up any resources being used.
@@ -94,23 +95,23 @@ namespace DebugCompiler
             }));
         }
 
-        private void InitializeStatusLabel()
+        protected override void OnShown(EventArgs e)
         {
-            _lblGameStatus = new Label
-            {
-                Dock = DockStyle.Bottom,
-                TextAlign = System.Drawing.ContentAlignment.MiddleCenter, // Explicitly specify System.Drawing
-                Height = 25,
-                BackColor = Color.FromArgb(40, 40, 40),
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                Margin = new Padding(0),
-                Padding = new Padding(0),
-                UseCompatibleTextRendering = true
-            };
-            ApplyThemeToStatusLabel();
-            Controls.Add(_lblGameStatus);
-            _lblGameStatus.BringToFront();
+            base.OnShown(e);
+            // Force initial process check after window is shown
+            CheckGameProcess();
+        }
+
+        private void UpdateGameStatus()
+        {
+            if (_lblGameStatus == null) return;
+
+            _lblGameStatus.Text = _lastRunningStatus
+                ? $"✓ {_lastDetectedGame} Running"
+                : "✗ Game Not Running";
+
+            _lblGameStatus.ForeColor = _lastRunningStatus ? _successColor : _errorColor;
+            _lblGameStatus.Visible = true; // Now always visible since it's designer-created
         }
 
         private void InitializeCustomComponents()
@@ -130,16 +131,6 @@ namespace DebugCompiler
             cmbHotMode.Refresh();
         }
 
-        private void ApplyThemeToStatusLabel()
-        {
-            if (_lblGameStatus == null || _lblGameStatus.IsDisposed) return;
-
-            _lblGameStatus.BackColor = UIThemeManager.CurrentTheme.IsDarkTheme
-                ? Color.FromArgb(40, 40, 40)
-                : Color.FromArgb(240, 240, 240);
-            _lblGameStatus.ForeColor = UIThemeManager.CurrentTheme.TextColor;
-        }
-
         private void InitializeOutputTextBox()
         {
             if (txtOutput == null || txtOutput.IsDisposed) return;
@@ -151,6 +142,26 @@ namespace DebugCompiler
                 txtOutput.Font = new Font("Consolas", 9.75f);
                 txtOutput.WordWrap = false;
             }));
+        }
+
+        private void SyncTitleBarTheme()
+        {
+            if (InnerForm?.TitleBar == null) return;
+
+            var theme = UIThemeManager.CurrentTheme;
+            InnerForm.TitleBar.BackColor = theme.AccentColor;
+
+            // Force update of child controls
+            foreach (var control in InnerForm.TitleBar.GetThemedControls())
+            {
+                UIThemeManager.EnsureThemeApplied(control);
+            }
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            PositionThemeMenu(); // Maintain bottom-left position on resize
         }
 
         private void DelayedRetryInitialization()
@@ -244,6 +255,7 @@ namespace DebugCompiler
             this._themeMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.InnerForm = new DebugCompiler.UI.Core.Controls.CBorderedForm();
+            this._lblGameStatus = new System.Windows.Forms.Label();
             this.txtOutput = new System.Windows.Forms.RichTextBox();
             this.btnResetParseTree = new System.Windows.Forms.Button();
             this.btnInject = new System.Windows.Forms.Button();
@@ -267,10 +279,11 @@ namespace DebugCompiler
             this._themeMenu});
             this.MainMenuStrip.Location = new System.Drawing.Point(0, 0);
             this.MainMenuStrip.Name = "MainMenuStrip";
-            this.MainMenuStrip.Size = new System.Drawing.Size(800, 24);
+            this.MainMenuStrip.Size = new System.Drawing.Size(768, 24);
             this.MainMenuStrip.TabIndex = 0;
             this.MainMenuStrip.Text = "menuStrip1";
             this.MainMenuStrip.Visible = false;
+            this.MainMenuStrip.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.MainMenuStrip_ItemClicked);
             // 
             // _themeMenu
             // 
@@ -278,12 +291,18 @@ namespace DebugCompiler
             this._themeMenu.Size = new System.Drawing.Size(60, 20);
             this._themeMenu.Text = "Themes";
             // 
+            // toolTip1
+            // 
+            this.toolTip1.Popup += new System.Windows.Forms.PopupEventHandler(this.toolTip1_Popup);
+            // 
             // InnerForm
             // 
             this.InnerForm.BackColor = System.Drawing.Color.MediumPurple;
             // 
             // InnerForm.ControlContents
             // 
+            this.InnerForm.MainPanel.BackColor = System.Drawing.Color.CornflowerBlue;
+            this.InnerForm.MainPanel.Controls.Add(this._lblGameStatus);
             this.InnerForm.MainPanel.Controls.Add(this.txtOutput);
             this.InnerForm.MainPanel.Controls.Add(this.btnResetParseTree);
             this.InnerForm.MainPanel.Controls.Add(this.btnInject);
@@ -307,6 +326,7 @@ namespace DebugCompiler
             this.InnerForm.Name = "InnerForm";
             this.InnerForm.Size = new System.Drawing.Size(768, 438);
             this.InnerForm.TabIndex = 0;
+            this.InnerForm.Title = "Title";
             // 
             // 
             // 
@@ -314,7 +334,18 @@ namespace DebugCompiler
             this.InnerForm.TitleBar.Location = new System.Drawing.Point(0, 0);
             this.InnerForm.TitleBar.Name = "_titleBar";
             this.InnerForm.TitleBar.TabIndex = 1;
-            this.InnerForm.TitleBarTitle = "Serious\'s T7/T8 Compiler GUI by DoubleG";
+            this.InnerForm.TitleBar.Title = "Title";
+            // 
+            // _lblGameStatus
+            // 
+            this._lblGameStatus.BackColor = System.Drawing.Color.Transparent;
+            this._lblGameStatus.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this._lblGameStatus.Location = new System.Drawing.Point(620, 377);
+            this._lblGameStatus.Name = "_lblGameStatus";
+            this._lblGameStatus.Size = new System.Drawing.Size(136, 26);
+            this._lblGameStatus.TabIndex = 20;
+            this._lblGameStatus.Text = "Game Status";
+            this._lblGameStatus.Visible = false;
             // 
             // txtOutput
             // 
@@ -339,9 +370,9 @@ namespace DebugCompiler
             this.btnResetParseTree.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnResetParseTree.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnResetParseTree.ForeColor = System.Drawing.Color.White;
-            this.btnResetParseTree.Location = new System.Drawing.Point(245, 49);
+            this.btnResetParseTree.Location = new System.Drawing.Point(123, 42);
             this.btnResetParseTree.Name = "btnResetParseTree";
-            this.btnResetParseTree.Size = new System.Drawing.Size(371, 74);
+            this.btnResetParseTree.Size = new System.Drawing.Size(516, 81);
             this.btnResetParseTree.TabIndex = 1;
             this.btnResetParseTree.Text = "Reset GSC Parasetree";
             this.btnResetParseTree.UseVisualStyleBackColor = false;
@@ -357,9 +388,9 @@ namespace DebugCompiler
             this.btnInject.FlatStyle = System.Windows.Forms.FlatStyle.Popup;
             this.btnInject.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnInject.ForeColor = System.Drawing.Color.White;
-            this.btnInject.Location = new System.Drawing.Point(647, 74);
+            this.btnInject.Location = new System.Drawing.Point(648, 42);
             this.btnInject.Name = "btnInject";
-            this.btnInject.Size = new System.Drawing.Size(108, 49);
+            this.btnInject.Size = new System.Drawing.Size(108, 40);
             this.btnInject.TabIndex = 2;
             this.btnInject.Text = "Inject";
             this.btnInject.UseVisualStyleBackColor = false;
@@ -374,9 +405,9 @@ namespace DebugCompiler
             this.btnCompile.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnCompile.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnCompile.ForeColor = System.Drawing.Color.White;
-            this.btnCompile.Location = new System.Drawing.Point(111, 42);
+            this.btnCompile.Location = new System.Drawing.Point(12, 42);
             this.btnCompile.Name = "btnCompile";
-            this.btnCompile.Size = new System.Drawing.Size(108, 49);
+            this.btnCompile.Size = new System.Drawing.Size(105, 35);
             this.btnCompile.TabIndex = 3;
             this.btnCompile.Text = "Compile";
             this.btnCompile.UseVisualStyleBackColor = false;
@@ -387,7 +418,7 @@ namespace DebugCompiler
             this.chkBuild.AutoSize = true;
             this.chkBuild.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkBuild.ForeColor = System.Drawing.Color.White;
-            this.chkBuild.Location = new System.Drawing.Point(12, 42);
+            this.chkBuild.Location = new System.Drawing.Point(12, 83);
             this.chkBuild.Name = "chkBuild";
             this.chkBuild.Size = new System.Drawing.Size(78, 21);
             this.chkBuild.TabIndex = 5;
@@ -400,7 +431,7 @@ namespace DebugCompiler
             this.chkCompileOnly.AutoSize = true;
             this.chkCompileOnly.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkCompileOnly.ForeColor = System.Drawing.Color.White;
-            this.chkCompileOnly.Location = new System.Drawing.Point(12, 69);
+            this.chkCompileOnly.Location = new System.Drawing.Point(12, 102);
             this.chkCompileOnly.Name = "chkCompileOnly";
             this.chkCompileOnly.Size = new System.Drawing.Size(105, 21);
             this.chkCompileOnly.TabIndex = 6;
@@ -413,7 +444,7 @@ namespace DebugCompiler
             this.chkHotLoad.AutoSize = true;
             this.chkHotLoad.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkHotLoad.ForeColor = System.Drawing.Color.White;
-            this.chkHotLoad.Location = new System.Drawing.Point(12, 100);
+            this.chkHotLoad.Location = new System.Drawing.Point(105, 17);
             this.chkHotLoad.Name = "chkHotLoad";
             this.chkHotLoad.Size = new System.Drawing.Size(81, 21);
             this.chkHotLoad.TabIndex = 7;
@@ -426,7 +457,7 @@ namespace DebugCompiler
             this.chkNoRuntime.AutoSize = true;
             this.chkNoRuntime.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.chkNoRuntime.ForeColor = System.Drawing.Color.White;
-            this.chkNoRuntime.Location = new System.Drawing.Point(12, 15);
+            this.chkNoRuntime.Location = new System.Drawing.Point(12, 17);
             this.chkNoRuntime.Name = "chkNoRuntime";
             this.chkNoRuntime.Size = new System.Drawing.Size(96, 21);
             this.chkNoRuntime.TabIndex = 8;
@@ -444,9 +475,9 @@ namespace DebugCompiler
             this.cmbHotMode.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.cmbHotMode.ForeColor = System.Drawing.Color.White;
             this.cmbHotMode.FormattingEnabled = true;
-            this.cmbHotMode.Location = new System.Drawing.Point(111, 98);
+            this.cmbHotMode.Location = new System.Drawing.Point(192, 11);
             this.cmbHotMode.Name = "cmbHotMode";
-            this.cmbHotMode.Size = new System.Drawing.Size(54, 25);
+            this.cmbHotMode.Size = new System.Drawing.Size(52, 25);
             this.cmbHotMode.TabIndex = 9;
             this.cmbHotMode.SelectedIndexChanged += new System.EventHandler(this.CmbHotMode_SelectedIndexChanged);
             // 
@@ -459,9 +490,9 @@ namespace DebugCompiler
             this.btnBrowse.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnBrowse.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.btnBrowse.ForeColor = System.Drawing.Color.White;
-            this.btnBrowse.Location = new System.Drawing.Point(647, 7);
+            this.btnBrowse.Location = new System.Drawing.Point(648, 7);
             this.btnBrowse.Name = "btnBrowse";
-            this.btnBrowse.Size = new System.Drawing.Size(109, 27);
+            this.btnBrowse.Size = new System.Drawing.Size(108, 31);
             this.btnBrowse.TabIndex = 11;
             this.btnBrowse.Text = "Browse...";
             this.btnBrowse.UseVisualStyleBackColor = false;
@@ -475,9 +506,9 @@ namespace DebugCompiler
             this.txtScriptPath.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.txtScriptPath.Font = new System.Drawing.Font("Segoe UI", 9.75F);
             this.txtScriptPath.ForeColor = System.Drawing.Color.White;
-            this.txtScriptPath.Location = new System.Drawing.Point(111, 9);
+            this.txtScriptPath.Location = new System.Drawing.Point(250, 7);
             this.txtScriptPath.Name = "txtScriptPath";
-            this.txtScriptPath.Size = new System.Drawing.Size(530, 25);
+            this.txtScriptPath.Size = new System.Drawing.Size(389, 31);
             this.txtScriptPath.TabIndex = 12;
             this.txtScriptPath.Text = "";
             this.txtScriptPath.TextChanged += new System.EventHandler(this.TxtScriptPath_TextChanged);
@@ -485,9 +516,9 @@ namespace DebugCompiler
             // btnSavedMenus
             // 
             this.btnSavedMenus.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnSavedMenus.Location = new System.Drawing.Point(647, 43);
+            this.btnSavedMenus.Location = new System.Drawing.Point(648, 88);
             this.btnSavedMenus.Name = "btnSavedMenus";
-            this.btnSavedMenus.Size = new System.Drawing.Size(108, 25);
+            this.btnSavedMenus.Size = new System.Drawing.Size(108, 35);
             this.btnSavedMenus.TabIndex = 10;
             this.btnSavedMenus.Text = "Saved Menus";
             this.btnSavedMenus.UseVisualStyleBackColor = true;
@@ -505,7 +536,6 @@ namespace DebugCompiler
             this.KeyPreview = true;
             this.Name = "MainForm1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "T7/T8 Compiler";
             this.MainMenuStrip.ResumeLayout(false);
             this.MainMenuStrip.PerformLayout();
             this.InnerForm.MainPanel.ResumeLayout(false);

@@ -36,7 +36,7 @@ namespace DebugCompiler.UI.Core.Controls
             MaximizeBox = true;
             MinimizeBox = true;
             Text = title;
-            InnerForm.TitleBarTitle = title;
+            InnerForm.Title = title;
             cComboBox1.Items.Clear();
             cComboBox1.Items.AddRange(selectables);
 

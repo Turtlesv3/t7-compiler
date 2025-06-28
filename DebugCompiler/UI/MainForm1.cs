@@ -29,7 +29,7 @@ namespace DebugCompiler
     public partial class MainForm1 : Form, IThemeableControl
     {
         // Constants
-        private const int ProcessCheckInterval = 2000;
+        private const int ProcessCheckInterval = 5000;
         private const int MaxRecentFiles = 10;
         private const string ErrorLogFileName = "compiler_errors.log";
         private const string DefaultTheme = "CatppuccinMocha";
@@ -52,7 +52,6 @@ namespace DebugCompiler
         private bool _lastRunningStatus;
         private System.Timers.Timer _processWatcher;
         private CancellationTokenSource _compilationCts;
-        private Label _lblGameStatus;
         private bool _forceStatusRefresh;
         private bool _handleInitialized = false;
         private bool _isInSafeInvoke = false;
@@ -73,15 +72,25 @@ namespace DebugCompiler
         public MainForm1()
         {
             InitializeComponent();
-            InitializeBorderedForm();
 
             // Basic initialization
             _resetToolTip = new ToolTip();
             _outputLock = new object();
 
-            // Defer handle-dependent initialization
-            this.Load += MainForm1_Load;
-            this.HandleCreated += OnHandleCreated;
+            // Safe initialization sequence
+            this.HandleCreated += (s, e) =>
+            {
+                // Theme setup
+                UIThemeManager.ThemeChanged += OnThemeChanged;
+                ApplyTheme(UIThemeManager.CurrentTheme);
+
+                // Form setup
+                InitializeBorderedForm();
+                SetFormTitle();
+
+                // Other initialization
+                this.Load += MainForm1_Load;
+            };
         }
 
         private void MainForm1_Load(object sender, EventArgs e)
@@ -109,16 +118,17 @@ namespace DebugCompiler
             Console.SetOut(new ConsoleOutputWriter(this));
             Console.SetError(new ConsoleOutputWriter(this));
 
-            // Theme initialization
+            // Theme initialization - now handled in Program.cs before form creation
             UIThemeManager.ThemeChanged += OnThemeChanged;
-            InitializeTheme(UIThemeManager.LoadTheme());
+
+            // Apply theme immediately
+            ApplyTheme(UIThemeManager.CurrentTheme);
 
             // UI initialization
             InitializeThemeMenu();
             SubscribeToEvents();
             InitializeUIState();
-            InitializeCustomComponents(); // Add this line
-            InitializeStatusLabel();      // Add this line
+            InitializeCustomComponents();
 
             // Final UI setup
             BeginInvoke((MethodInvoker)delegate {
@@ -167,6 +177,14 @@ namespace DebugCompiler
             // Ensure proper docking and theming
             this.Controls.Add(InnerForm);
             InnerForm.BringToFront();
+        }
+
+        private void SetFormTitle()
+        {
+            if (InnerForm?.TitleBar != null && !InnerForm.IsDisposed)
+            {
+                InnerForm.Title = $"T7/T8 Compiler v{GetVersion()} - GUI by G";
+            }
         }
 
         private void InitializeTheme(string savedTheme)
@@ -225,18 +243,27 @@ namespace DebugCompiler
         private void OnFormLoad(object sender, EventArgs e)
         {
             base.OnLoad(e);
-            UIThemeManager.RegisterControl(this);
+
+            // Force complete theme application
             ApplyTheme(UIThemeManager.CurrentTheme);
+
+            UIThemeManager.RegisterControl(this);
 
             // Initialize components that need the handle
             InitializeCustomComponents();
-            InitializeStatusLabel();
             InitializeProcessMonitoring();
+
+            // Make sure status label is visible
+            if (_lblGameStatus != null)
+            {
+                _lblGameStatus.Visible = true;
+            }
 
             // Initial checks
             CheckGameProcess();
             CheckRequiredFiles();
         }
+
 
         #endregion
 
@@ -303,12 +330,23 @@ namespace DebugCompiler
                 {
                     if (!IsDisposed && IsHandleCreated)
                     {
-                        BeginInvoke((MethodInvoker)CheckGameProcess);
+                        BeginInvoke((MethodInvoker)(() =>
+                        {
+                            CheckGameProcess();
+                            if (_lblGameStatus != null)
+                            {
+                                _lblGameStatus.Visible = true;
+                                _lblGameStatus.BringToFront();
+                            }
+                        }));
                     }
                 }
                 catch { /* Handle dispose races */ }
             };
             _processWatcher.Start();
+
+            // Immediate first check
+            CheckGameProcess();
         }
 
         private void InitializeOutputColors()
@@ -361,43 +399,49 @@ namespace DebugCompiler
                 this.BackColor = theme.BackColor;
                 this.ForeColor = theme.TextColor;
 
-                // Apply to InnerForm (CBorderedForm handles its own theming)
-                if (InnerForm != null && !InnerForm.IsDisposed)
+                // Apply to all child controls
+                UIThemeManager.EnsureThemeApplied(InnerForm);
+
+                // Special handling for output textbox
+                if (txtOutput != null)
                 {
-                    InnerForm.BackColor = theme.AccentColor;
-                    InnerForm.ForeColor = theme.TextColor;
+                    txtOutput.BackColor = theme.TextBoxBackColor;
+                    txtOutput.ForeColor = theme.TextColor;
                 }
 
-                // Apply to menu
+                // Force menu refresh
                 if (MainMenuStrip != null)
                 {
                     MainMenuStrip.Renderer = new CustomToolStripRenderer(theme);
-                    foreach (ToolStripMenuItem item in MainMenuStrip.Items)
-                    {
-                        item.ForeColor = theme.TextColor;
-                    }
                 }
 
-                // Apply to status label
-                if (_lblGameStatus != null && !_lblGameStatus.IsDisposed)
-                {
-                    _lblGameStatus.BackColor = theme.IsDarkTheme
-                        ? Color.FromArgb(40, 40, 40)
-                        : Color.FromArgb(240, 240, 240);
-                    _lblGameStatus.ForeColor = theme.TextColor;
-                }
-
-                // Apply to tooltip
-                _resetToolTip.BackColor = theme.BackColor;
-                _resetToolTip.ForeColor = theme.TextColor;
-
-                // Apply to all child controls
-                ApplyThemeToControls(InnerForm.ControlContents.Controls, theme);
+                // Force status label update
+                UpdateGameStatus();
             }
             finally
             {
                 this.ResumeLayout(true);
-                this.Invalidate(true);
+                this.Refresh();
+            }
+        }
+
+        private void ApplyThemeToControlsRecursive(Control parent, UIThemeInfo theme)
+        {
+            foreach (Control control in parent.Controls)
+            {
+                if (control is IThemeableControl themeable)
+                {
+                    themeable.ApplyTheme(theme);
+                }
+                else
+                {
+                    UIThemeManager.ApplyDefaultTheme(control);
+                }
+
+                if (control.HasChildren)
+                {
+                    ApplyThemeToControlsRecursive(control, theme);
+                }
             }
         }
 
@@ -425,18 +469,20 @@ namespace DebugCompiler
         {
             if (IsDisposed || !IsHandleCreated) return;
 
-            BeginInvoke(new Action(() =>
-            {
+            this.BeginInvoke((Action)(() => {
                 try
                 {
+                    // Force refresh all components
                     ApplyTheme(theme);
-                    RefreshComboBoxStyles();
-                    UpdateGameStatus();
 
-                    if (MainMenuStrip != null && !MainMenuStrip.IsDisposed)
+                    // Explicit title bar update
+                    if (InnerForm?.TitleBar != null)
                     {
-                        MainMenuStrip.Renderer = new CustomToolStripRenderer(theme);
+                        InnerForm.TitleBar.BackColor = theme.AccentColor;
                     }
+
+                    // Rebuild theme menu
+                    InitializeThemeMenu();
                 }
                 catch (Exception ex)
                 {
@@ -459,6 +505,23 @@ namespace DebugCompiler
             }
 
             RefreshCombo(cmbHotMode);
+        }
+
+        public override string Text
+        {
+            get => base.Text;
+            set
+            {
+                // Only allow setting through InnerForm.Title
+                if (InnerForm != null)
+                {
+                    InnerForm.Title = value;
+                }
+                else
+                {
+                    base.Text = value;
+                }
+            }
         }
 
         #endregion
@@ -503,28 +566,25 @@ namespace DebugCompiler
                 _lastRunningStatus = isRunning;
                 _lastDetectedGame = currentGame;
 
+                // Ensure status label is visible and updated
+                if (_lblGameStatus == null)
+                {
+                }
+
+                _lblGameStatus.Visible = true;
                 UpdateGameStatus();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Game process check failed: {ex.Message}");
-                SafeInvoke(() => _lblGameStatus.Text = "Status check failed");
-            }
-        }
-
-        private void UpdateGameStatus()
-        {
-            if (_lblGameStatus == null || _lblGameStatus.IsDisposed) return;
-
-            if (_lastRunningStatus && !string.IsNullOrEmpty(_lastDetectedGame))
-            {
-                _lblGameStatus.Text = $"✓ {_lastDetectedGame} Running";
-                _lblGameStatus.ForeColor = _successColor;
-            }
-            else
-            {
-                _lblGameStatus.Text = "✗ Game Not Running";
-                _lblGameStatus.ForeColor = _errorColor;
+                SafeInvoke(() => {
+                    if (_lblGameStatus != null)
+                    {
+                        _lblGameStatus.Text = "Status check failed";
+                        _lblGameStatus.ForeColor = _errorColor;
+                        _lblGameStatus.Visible = true;
+                    }
+                });
             }
         }
 
@@ -713,29 +773,24 @@ namespace DebugCompiler
                 InitializeThemeMenu();
             }
 
-            if (!MainMenuStrip.Visible)
+            // Just toggle visibility
+            MainMenuStrip.Visible = !MainMenuStrip.Visible;
+
+            if (MainMenuStrip.Visible)
             {
-                MainMenuStrip.Location = new Point(
-                    ClientSize.Width - MainMenuStrip.Width - 10,
-                    10);
+                PositionThemeMenu(); // Ensure proper position before showing
                 MainMenuStrip.BringToFront();
             }
-
-            MainMenuStrip.Visible = !MainMenuStrip.Visible;
         }
 
         private void InitializeThemeMenu()
         {
-            // Clear existing items
             _themeMenu.DropDownItems.Clear();
-
-            // Get all available themes
             var themes = UIThemeInfo.AvailableThemes
                 .GroupBy(t => t.Name)
                 .Select(g => g.First())
                 .OrderBy(t => t.Name);
 
-            // Add theme items
             foreach (var theme in themes)
             {
                 var item = new ToolStripMenuItem(theme.Name)
@@ -744,39 +799,50 @@ namespace DebugCompiler
                     Checked = theme.Name.Equals(UIThemeManager.CurrentTheme.Name,
                               StringComparison.OrdinalIgnoreCase)
                 };
-
                 item.Click += (s, e) => {
-                    // Uncheck all items
                     foreach (ToolStripMenuItem menuItem in _themeMenu.DropDownItems)
-                    {
                         menuItem.Checked = false;
-                    }
-
-                    // Check selected item
                     item.Checked = true;
-
-                    // Apply theme
                     UIThemeManager.SetTheme(theme);
-
-                    // Hide menu after selection
-                    MainMenuStrip.Visible = false;
+                    MainMenuStrip.Visible = false; // Auto-hide on selection
                 };
-
                 _themeMenu.DropDownItems.Add(item);
             }
 
-            // Position menu
+            // Position menu at fixed bottom left
             PositionThemeMenu();
         }
+
+        private void InitializeThemeSystem()
+        {
+            // 1. Register all top-level controls
+            UIThemeManager.RegisterControlRecursive(this);
+            UIThemeManager.RegisterControlRecursive(InnerForm);
+
+            // 2. Special handling for title bar
+            if (InnerForm?.TitleBar != null)
+            {
+                InnerForm.TitleBar.BackColor = UIThemeManager.CurrentTheme.AccentColor;
+            }
+
+            // 3. Subscribe to theme changes
+            UIThemeManager.ThemeChanged += OnThemeChanged;
+
+            // 4. Force initial theme application
+            this.BeginInvoke((Action)(() => {
+                ApplyTheme(UIThemeManager.CurrentTheme);
+            }));
+        }
+
+
 
         private void PositionThemeMenu()
         {
             if (MainMenuStrip != null && !MainMenuStrip.IsDisposed)
             {
-                MainMenuStrip.Location = new Point(
-                    ClientSize.Width - MainMenuStrip.Width - 10,
-                    10);
-                MainMenuStrip.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                // Fixed position at bottom left
+                MainMenuStrip.Location = new Point(10, this.ClientSize.Height - MainMenuStrip.Height - 10);
+                MainMenuStrip.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             }
         }
 
@@ -1783,5 +1849,15 @@ namespace DebugCompiler
         }
 
         #endregion
+
+        private void toolTip1_Popup(object sender, PopupEventArgs e)
+        {
+
+        }
+
+        private void MainMenuStrip_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+
+        }
     }
 }

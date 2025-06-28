@@ -63,20 +63,37 @@ namespace DebugCompiler.UI.Core.Controls
             }
         }
 
+        // In CBorderedForm.cs
         [Category("Title Bar")]
         [Localizable(true)]
-        public string TitleBarTitle
+        public string Title
         {
-            get => _titleBar?.TitleLabel?.Text ?? string.Empty;
+            get => _titleBar?.Title ?? string.Empty;
             set
             {
-                if (_titleBar != null && _titleBar.TitleLabel != null)
+                if (_titleBar != null)
                 {
-                    _titleBar.TitleLabel.Text = value;
-                    if (!DesignMode) Invalidate();
+                    _titleBar.Title = value;
+                }
+                // Update parent form's text if it exists
+                if (ParentForm != null && !_isUpdatingTitle)
+                {
+                    _isUpdatingTitle = true;
+                    try
+                    {
+                        ParentForm.Text = value;
+                    }
+                    finally
+                    {
+                        _isUpdatingTitle = false;
+                    }
                 }
             }
         }
+
+        // Add this field to the class
+        private bool _isUpdatingTitle = false;
+
 
         [Category("Behavior")]
         [DefaultValue(5)]
@@ -165,6 +182,7 @@ namespace DebugCompiler.UI.Core.Controls
         #endregion
 
         #region Constructor
+        // In CBorderedForm.cs
         public CBorderedForm()
         {
             InitializeComponent();
@@ -174,6 +192,13 @@ namespace DebugCompiler.UI.Core.Controls
             SetStyle(ControlStyles.UserPaint, true);
             SetStyle(ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
+
+            // Initialize theme immediately
+            if (!DesignMode)
+            {
+                UIThemeManager.RegisterControl(this);
+                ApplyTheme(UIThemeManager.CurrentTheme); // Apply theme immediately
+            }
 
             if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
             {
@@ -187,9 +212,6 @@ namespace DebugCompiler.UI.Core.Controls
                 }
                 _initialized = true;
             }
-
-            UIThemeManager.RegisterControl(this);
-            UIThemeManager.ThemeChanged += OnThemeChanged;
         }
         #endregion
 
@@ -228,7 +250,7 @@ namespace DebugCompiler.UI.Core.Controls
             }
         }
 
-        public void SetTitle(string title) => TitleBarTitle = title;
+        public void SetTitle(string title) => Title = title;
         #endregion
 
         #region Theme Handling
@@ -244,30 +266,95 @@ namespace DebugCompiler.UI.Core.Controls
             ApplyTheme(theme);
         }
 
+        public void ForceThemeUpdate()
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+
+            this.SuspendLayout();
+            try
+            {
+                ApplyTheme(UIThemeManager.CurrentTheme);
+
+                // Force title bar update
+                if (_titleBar != null)
+                {
+                    _titleBar.BackColor = UIThemeManager.CurrentTheme.AccentColor;
+                    _titleBar.Invalidate();
+                }
+
+                // Force content panel update
+                if (_controlContents != null)
+                {
+                    UIThemeManager.EnsureThemeApplied(_controlContents);
+                    _controlContents.Invalidate();
+                }
+            }
+            finally
+            {
+                this.ResumeLayout(true);
+            }
+        }
+
         public void ApplyTheme(UIThemeInfo theme)
         {
-            if (IsDisposed || !IsHandleCreated || DesignMode) return;
+            if (IsDisposed || !IsHandleCreated || DesignMode)
+                return;
 
             try
             {
+                this.SuspendLayout();
+
+                // Apply to main container
                 this.BackColor = theme.BackColor;
                 this.ForeColor = theme.TextColor;
 
-                foreach (Control control in this.Controls)
+                // Apply to title bar with forced refresh
+                if (_titleBar != null)
                 {
-                    if (control is IThemeableControl themeable)
-                    {
-                        themeable.ApplyTheme(theme);
-                    }
-                    else
-                    {
-                        ApplyControlSpecificTheme(control, theme);
-                    }
+                    _titleBar.BackColor = theme.AccentColor;
+                    _titleBar.Refresh();
                 }
+
+                // Apply to content panel
+                if (_controlContents != null)
+                {
+                    _controlContents.BackColor = theme.BackColor;
+                    _controlContents.ForeColor = theme.TextColor;
+                    UIThemeManager.EnsureThemeApplied(_controlContents);
+                }
+
+                this.ResumeLayout(true);
+                this.Invalidate(true);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error applying theme to CBorderedForm: {ex.Message}");
+                Debug.WriteLine($"BorderedForm theme error: {ex.Message}");
+            }
+        }
+
+        // In CBorderedForm.cs - Add these window command methods
+        public void SetWindowButtons(bool minimize, bool maximize, bool close)
+        {
+            if (_titleBar != null)
+            {
+                // You'll need to add these buttons to your CTitleBar control
+                _titleBar.MinimizeButton.Visible = minimize;
+                _titleBar.MaximizeButton.Visible = maximize;
+                _titleBar.CloseButton.Visible = close;
+            }
+        }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                if (!DesignMode)
+                {
+                    // Remove standard title bar
+                    cp.Style &= ~0x00C00000; // WS_CAPTION
+                }
+                return cp;
             }
         }
 
@@ -509,7 +596,7 @@ namespace DebugCompiler.UI.Core.Controls
 
                 public string TitleBarTitle
                 {
-                    get => ((CBorderedForm)Component).TitleBarTitle;
+                    get => ((CBorderedForm)Component).Title;
                     set => TypeDescriptor.GetProperties(Component)["TitleBarTitle"].SetValue(Component, value);
                 }
 

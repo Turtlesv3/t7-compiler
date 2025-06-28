@@ -1,4 +1,6 @@
-﻿namespace DebugCompiler
+﻿using DebugCompiler.UI.Core.Singletons;
+
+namespace DebugCompiler
 {
     partial class ImportDialog
     {
@@ -6,9 +8,32 @@
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                // Clean up event handlers
+                if (listView1 != null)
+                {
+                    listView1.DoubleClick -= ListView1_DoubleClick;
+                }
+
+                if (btnSelect != null)
+                {
+                    btnSelect.Click -= BtnSelect_Click;
+                }
+
+                if (btnCancel != null)
+                {
+                    btnCancel.Click -= BtnCancel_Click;
+                }
+
+                // Unregister from theme manager
+                UIThemeManager.UnregisterControl(this);
+
+                // Dispose components if they exist
+                if (components != null)
+                {
+                    components.Dispose();
+                }
             }
             base.Dispose(disposing);
         }
@@ -48,7 +73,7 @@
             this.InnerForm.Name = "InnerForm";
             this.InnerForm.Size = new System.Drawing.Size(506, 229);
             this.InnerForm.TabIndex = 0;
-            this.InnerForm.TitleBarTitle = "Import Files";
+            this.InnerForm.Title = "Import Files";
             // 
             // listView1
             // 

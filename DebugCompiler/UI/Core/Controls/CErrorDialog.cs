@@ -26,7 +26,7 @@ namespace DebugCompiler.UI.Core.Controls
                 // Initialize controls
                 if (InnerForm != null)
                 {
-                    InnerForm.TitleBarTitle = title;
+                    InnerForm.Title = title;
                     InnerForm.BackColor = Color.Transparent; // Critical for proper theming
                 }
 

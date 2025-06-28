@@ -85,7 +85,7 @@ namespace DebugCompiler.UI.Core.Controls
             this.InnerForm.Name = "InnerForm";
             this.InnerForm.Size = new System.Drawing.Size(206, 73);
             this.InnerForm.TabIndex = 0;
-            this.InnerForm.TitleBarTitle = "Combo Dialog";
+            this.InnerForm.Title = "Combo Dialog";
             this.InnerForm.UseTitleBar = true;
             this.InnerForm.Load += new System.EventHandler(this.InnerForm_Load);
             // 

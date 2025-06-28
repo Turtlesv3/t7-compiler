@@ -2,12 +2,15 @@
 using DebugCompiler.UI.Core.Singletons;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace DebugCompiler.UI.Core.Controls
 {
+    [Designer("System.Windows.Forms.Design.ParentControlDesigner, System.Design", typeof(System.ComponentModel.Design.IDesigner))]
     public partial class CTitleBar : UserControl, IThemeableControl
     {
         private bool _disableDrag;
@@ -45,13 +48,8 @@ namespace DebugCompiler.UI.Core.Controls
 
             if (ExitButton != null)
             {
-                ExitButton.Click += ExitButton_Click;
+                ExitButton.Click += CloseButton_Click;
             }
-        }
-
-        private void ExitButton_Click(object sender, EventArgs e)
-        {
-            ParentForm?.Close();
         }
 
         private void MouseDown_Drag(object sender, MouseEventArgs e)
@@ -63,12 +61,35 @@ namespace DebugCompiler.UI.Core.Controls
             SendMessage(ParentForm.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
         }
 
+        private void MinimizeButton_Click(object sender, EventArgs e)
+        {
+            if (ParentForm != null)
+            {
+                ParentForm.WindowState = FormWindowState.Minimized;
+            }
+        }
+
+        private void MaximizeButton_Click(object sender, EventArgs e)
+        {
+            if (ParentForm != null)
+            {
+                ParentForm.WindowState = ParentForm.WindowState == FormWindowState.Maximized
+                    ? FormWindowState.Normal
+                    : FormWindowState.Maximized;
+            }
+        }
+
         public void SetExitButtonVisible(bool isVisible)
         {
-            if (ExitButton != null && ExitButton.Visible != isVisible)
+            if (ExitButton != null)
             {
                 ExitButton.Visible = isVisible;
             }
+        }
+
+        private void CloseButton_Click(object sender, EventArgs e)
+        {
+            ParentForm?.Close();
         }
 
         public void ApplyTheme(UIThemeInfo theme)
@@ -78,34 +99,60 @@ namespace DebugCompiler.UI.Core.Controls
 
             try
             {
+                // Set unified background for entire title bar
                 this.BackColor = theme.AccentColor;
 
-                // Ensure title text is always visible by using contrasting color
-                Color textColor = GetContrastingTextColor(theme.AccentColor);
-
-                this.ForeColor = textColor;
-
+                // Apply to title label
                 if (TitleLabel != null)
                 {
-                    TitleLabel.ForeColor = textColor;
+                    TitleLabel.BackColor = theme.AccentColor;
                 }
 
-                if (ExitButton != null)
-                {
-                    ExitButton.BackColor = theme.AccentColor;
-                    ExitButton.ForeColor = textColor;
-                    ExitButton.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.AccentColor, 0.2f);
-                    ExitButton.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.AccentColor, 0.2f);
-                }
+                // Apply to all buttons using a helper method
+                ApplyButtonTheme(MinimizeButton, theme);
+                ApplyButtonTheme(MaximizeButton, theme);
+                ApplyButtonTheme(CloseButton, theme, isCloseButton: true);
+
+                // Force immediate redraw
+                this.Invalidate(true);
             }
-            catch { /* Handle errors */ }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TitleBar theme error: {ex.Message}");
+            }
         }
 
-        private Color GetContrastingTextColor(Color backgroundColor)
+        private void ApplyButtonTheme(Button button, UIThemeInfo theme, bool isCloseButton = false)
         {
-            // Calculate luminance to determine if background is light or dark
-            double luminance = (0.299 * backgroundColor.R + 0.587 * backgroundColor.G + 0.114 * backgroundColor.B) / 255;
-            return luminance > 0.5 ? Color.Black : Color.White;
+            if (button != null)
+            {
+                button.BackColor = theme.AccentColor;
+                button.FlatStyle = FlatStyle.Flat;
+                button.FlatAppearance.BorderSize = 0;
+
+                if (isCloseButton)
+                {
+                    button.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 17, 35);
+                    button.FlatAppearance.MouseDownBackColor = Color.FromArgb(139, 0, 0);
+                }
+                else
+                {
+                    button.FlatAppearance.MouseOverBackColor = theme.GetHoverColor(theme.AccentColor);
+                    button.FlatAppearance.MouseDownBackColor = theme.GetPressedColor(theme.AccentColor);
+                }
+            }
+        }
+
+        public string Title
+        {
+            get => TitleLabel?.Text ?? string.Empty;
+            set
+            {
+                if (TitleLabel != null)
+                {
+                    TitleLabel.Text = value;
+                }
+            }
         }
 
         private void OnThemeChanged_Implementation(UIThemeInfo theme)
@@ -123,8 +170,14 @@ namespace DebugCompiler.UI.Core.Controls
             if (TitleLabel != null)
                 yield return TitleLabel;
 
-            if (ExitButton != null)
-                yield return ExitButton;
+            if (MinimizeButton != null)
+                yield return MinimizeButton;
+
+            if (MaximizeButton != null)
+                yield return MaximizeButton;
+
+            if (CloseButton != null)
+                yield return CloseButton;
         }
     }
 }
