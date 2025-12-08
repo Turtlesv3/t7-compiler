@@ -29,9 +29,9 @@
                                     |_|                                                  |__/                      
 ```
 
-[![Release](https://img.shields.io/badge/release-current-blue.svg)](https://github.com/shiversoftdev/t7-compiler/releases/tag/current)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://github.com/shiversoftdev/t7-compiler)
-[![Game](https://img.shields.io/badge/game-BO3%20%7C%20BO4-orange.svg)](https://github.com/shiversoftdev/t7-compiler)
+[![Release](https://img.shields.io/badge/release-current-blue.svg)](https://github.com/Turtlesv3/t7-compiler/releases/tag/current)
+[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://github.com/Turtlesv3/t7-compiler)
+[![Game](https://img.shields.io/badge/game-BO3%20%7C%20BO4-orange.svg)](https://github.com/Turtlesv3/t7-compiler)
 
 </div>
 
@@ -57,7 +57,7 @@
 
 Download and run the latest installer from:
 
-**[Download Installer](https://github.com/shiversoftdev/t7-compiler/releases/tag/current)**
+**[Download Installer](https://github.com/Turtlesv3/t7-compiler/releases/tag/current)**
 
 The installer will automatically set up all required components including:
 
@@ -68,7 +68,7 @@ The installer will automatically set up all required components including:
 
 ### Manual Setup
 
-If you prefer manual installation, check the [releases page](https://github.com/shiversoftdev/t7-compiler/releases) for individual components.
+If you prefer manual installation, check the [releases page](https://github.com/Turtlesv3/t7-compiler/releases) for individual components.
 
 ---
 
@@ -141,9 +141,9 @@ This project is provided for educational and research purposes.
 
 ## Links
 
-- [GitHub Repository](https://github.com/shiversoftdev/t7-compiler)
-- [Releases](https://github.com/shiversoftdev/t7-compiler/releases)
-- [Issues](https://github.com/shiversoftdev/t7-compiler/issues)
+- [GitHub Repository](https://github.com/Turtlesv3/t7-compiler)
+- [Releases](https://github.com/Turtlesv3/t7-compiler/releases)
+- [Issues](https://github.com/Turtlesv3/t7-compiler/issues)
 
 ---
 
