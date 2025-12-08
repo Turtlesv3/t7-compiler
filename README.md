@@ -7,8 +7,9 @@
  ( )(_)))\())  (((_)  (    (    `  ) )\((_)))\ )(   (()/(      )\ /(_))  /((     )\())                             
 (_(_())((_)\   )\___  )\   )\  '/(/(((_)_ /((_|()\   /(_))_ _ ((_|_))   (_))\   ((_)\                              
 |_   _|__  /  ((/ __|((_)_((_))((_)_\(_) (_))  ((_) (_)) __| | | |_ _|  _)((_) |__ (_)                             
-  | |   / /    | (__/ _ \ '  \() '_ \) | / -_)| '_|   | (_ | |_| || |   \ V /   |_ \                               
-  |_|  /_/      \___\___/_|_|_|| .__/|_|_\___||_|      \___|\___/|___|   \_/   |___/                               
+  | |   / /    | (__/ _ \ '  \() '_ \) | / -_)| '_|   | (_ | |_| || |   \ V /   |_ \                             
+  |_|  /_/      \___\___/_|_|_|| .__/|_|_\___||_|      \___|\___/|___|   \_/   |___/                             
+  
        )                       |(|      ) (                          )   )                         )               
     ( /((   )     (  (          )\ ) ( /( )\ )  (   )     (       ( /(( /(   (    (  (        ) ( /(               
  (  )\())\ /((   ))\ )(  (   ( (()/( )\()|()/( ))\ /((    )\ (    )\())\()) ))\   )\))( (  ( /( )\())              
@@ -16,14 +17,15 @@
 ((_) |(_|_))((_|_))  ((_|(_)((_|_) _| |_  _| (_)) _)((_)  (_|(_) | |_| |(_|_))    (()(_|(_|(_)_| |_                
 (_-< ' \| \ V // -_)| '_(_-< _ \|  _|  _/ _` / -_)\ V /   | (_-< |  _| ' \/ -_)  / _` / _ Y _` |  _|               
 /__/_||_|_|\_/ \___||_| /__|___/|_|  \__\__,_\___| \_/    |_/__/  \__|_||_\___|  \__, \___|__,_|\__|               
-        (                                                         (   (          |(__/                             
+                                                                                  (__/                              
+
  (      )\ )  (       (                      (                    )\ ))\ )    )   )\ )                   )         
  )\ )  (()/(  )\      )\         )        (  )\  (  (            (()/(()/( ( /(  (()/(     (    (     ( /(    (    
 (()/(   /(_)|((_)   (((_)  (    (    `  ) )\((_)))\ )(      _     /(_))(_)))\())  /(_))(   )\  ))\ (  )\())(  )(   
  /(_))_(_)) )\___   )\___  )\   )\  '/(/(((_)_ /((_|()\   _| |_  (_))(_)) ((_)\  (_))  )\ |(_)/((_))\(_))/ )\(()\  
 (_)) __/ __((/ __| ((/ __|((_)_((_))((_)_\(_) (_))  ((_) |_   _| | _ Y __| | (_) |_ _|_(_/( !(_)) ((_) |_ ((_)((_) 
   | (_ \__ \| (__   | (__/ _ \ '  \() '_ \) | / -_)| '_|   |_|   |  _|__ \_  _|   | || ' \)) / -_) _||  _/ _ \ '_| 
-   \___|___/ \___|   \___\___/_|_|_|| .__/|_|_\___||_|           |_| |___/ |_|   |___|_||_|/ \___\__| \__\___/_|   
+   \___|___/ \___|   \___\___/_|_|_|| .__/|_|_\___||_|           |_| |___/ |_|   |___|_||_|/ \___\__| \__\___/_|    
                                     |_|                                                  |__/                      
 ```
 
@@ -35,29 +37,30 @@
 
 ---
 
-## 📋 Overview
+## Overview
 
 **T7 & T8 GSC Compiler + PS4** is a powerful compiler and injector tool for Call of Duty: Black Ops 3 and Black Ops 4 GSC scripts.
 
-### ✨ Features
+### Features
 
-- 🔨 **Compile** GSC scripts from source code
-- 💉 **Inject** pre-compiled scripts into running games
-- 🎮 **Support** for both BO3 (T7) and BO4 (T8)
-- 🖥️ **PS4 Support** for console development
-- 🚀 **Easy Installation** via automated installer
+- **Compile** GSC scripts from source code
+- **Inject** pre-compiled scripts into running games
+- **Support** for both BO3 (T7) and BO4 (T8)
+- **PS4 Support** for console development
+- **Easy Installation** via automated installer
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Quick Install
 
 Download and run the latest installer from:
 
-**[⬇️ Download Installer](https://github.com/shiversoftdev/t7-compiler/releases/tag/current)**
+**[Download Installer](https://github.com/shiversoftdev/t7-compiler/releases/tag/current)**
 
 The installer will automatically set up all required components including:
+
 - T7/T8 Compiler executables
 - Visual Studio Code extension (optional)
 - Default project templates
@@ -69,7 +72,7 @@ If you prefer manual installation, check the [releases page](https://github.com/
 
 ---
 
-## 💡 Usage
+## Usage
 
 ### Compiling Scripts
 
@@ -85,7 +88,7 @@ If you prefer manual installation, check the [releases page](https://github.com/
 
 ---
 
-## 🍎 macOS Users
+## macOS Users
 
 > [!TIP]
 > **macOS Support Available!**
@@ -96,7 +99,7 @@ If you prefer manual installation, check the [releases page](https://github.com/
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 t7-compiler/
@@ -110,13 +113,13 @@ t7-compiler/
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Feel free to submit issues, fork the repository, and create pull requests.
 
 ---
 
-## 📜 Credits
+## Credits
 
 Special thanks to all the amazing people who made this project possible:
 
@@ -130,13 +133,13 @@ Special thanks to all the amazing people who made this project possible:
 
 ---
 
-## 📄 License
+## License
 
 This project is provided for educational and research purposes.
 
 ---
 
-## 🔗 Links
+## Links
 
 - [GitHub Repository](https://github.com/shiversoftdev/t7-compiler)
 - [Releases](https://github.com/shiversoftdev/t7-compiler/releases)
@@ -146,8 +149,8 @@ This project is provided for educational and research purposes.
 
 <div align="center">
 
-**Made with ❤️ for the Call of Duty modding community**
+**Made for the Call of Duty modding community**
 
-⭐ Star this repo if you find it useful!
+Star this repo if you find it useful!
 
 </div>
