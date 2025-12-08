@@ -118,8 +118,6 @@ namespace T89CompilerLib.ScriptComponents
 
         public int LowestSectionPtrAfter(int offset)
         {
-            int Lowest = 0x7FFFFFFF;
-
             List<int> Sections = new int[]
             {
                 (int)IncludeTableOffset,

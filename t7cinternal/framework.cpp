@@ -14,6 +14,8 @@ __declspec(allocate(".offsets")) const char MSELECT[] =
 };
 
 #pragma optimize("",off)
+// Dummy TLS variable to force linker to create _tls_used
+__declspec(thread) static int dummy_tls_var = 0;
 bool is_tls_initialized = false;
 void NTAPI tls_callback(PVOID DllHandle, DWORD dwReason, PVOID)
 {
@@ -34,11 +36,9 @@ void NTAPI tls_callback(PVOID DllHandle, DWORD dwReason, PVOID)
 }
 #pragma optimize("",on)
 
-#pragma comment (linker, "/INCLUDE:_tls_used")
-#pragma comment (linker, "/INCLUDE:tls_callback_func") 
+// TLS callback registration - place in .CRT$XLF section
 #pragma const_seg(".CRT$XLF")
-EXTERN_C const
-PIMAGE_TLS_CALLBACK tls_callback_func = tls_callback;
+extern "C" PIMAGE_TLS_CALLBACK tls_callback_func = tls_callback;
 #pragma const_seg()
 
 void chgmem(__int64 addy, __int32 size, void* copy)

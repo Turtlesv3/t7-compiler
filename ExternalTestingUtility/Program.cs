@@ -23,6 +23,15 @@ namespace t7c_installer
         private const string InstallRoot = @"C:\";
         private static string UpdateTempFilename => Path.Combine(Path.GetTempPath(), "t7c_update.zip");
         private static string UpdateTempDirname => Path.Combine(Path.GetTempPath(), "t7c_temp");
+        
+        /// <summary>
+        /// Gets the local update.zip path (next to the installer executable)
+        /// </summary>
+        private static string GetLocalUpdateZipPath()
+        {
+            string installerLocation = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+            return Path.Combine(installerLocation, "update.zip");
+        }
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
@@ -85,18 +94,28 @@ namespace t7c_installer
             // clear __depot
             string depot = Path.Combine(solutionDirectory, "__depot");
             string build = Path.Combine(depot, "build");
+            
             if (Directory.Exists(depot)) Directory.Delete(depot, true);
 
             // create directories for build
             Directory.CreateDirectory(depot);
             Directory.CreateDirectory(build);
 
-            // pack compiler into __depot/build/t7compiler
+            // pack compiler into __depot/build/t7compiler (already created by DebugCompiler build)
+            string compilerSource = Path.Combine(solutionDirectory, "__depot", "build", "t7compiler");
             string compilerTarget = Path.Combine(build, "t7compiler");
-            Directory.CreateDirectory(compilerTarget);
-            foreach(var file in Directory.GetFiles(compilerDirectory))
+            if (Directory.Exists(compilerSource))
             {
-                File.Copy(file, Path.Combine(compilerTarget, Path.GetFileName(file)), true);
+                DirectoryCopy(compilerSource, compilerTarget, true);
+            }
+            else
+            {
+                // Fallback: copy from compiler directory if depot folder doesn't exist
+                Directory.CreateDirectory(compilerTarget);
+                foreach(var file in Directory.GetFiles(compilerDirectory))
+                {
+                    File.Copy(file, Path.Combine(compilerTarget, Path.GetFileName(file)), true);
+                }
             }
 
             // copy this utility to the output folder for reuse later
@@ -106,6 +125,14 @@ namespace t7c_installer
             string dprojTarget = Path.Combine(build, "defaultproject");
             Directory.CreateDirectory(dprojTarget);
             DirectoryCopy(defaultProjectDirectory, dprojTarget, true);
+
+            // pack GUI into __depot/build/t7gui (already created by T7CompilerGUI build)
+            string guiSource = Path.Combine(solutionDirectory, "__depot", "build", "t7gui");
+            string guiTarget = Path.Combine(build, "t7gui");
+            if (Directory.Exists(guiSource))
+            {
+                DirectoryCopy(guiSource, guiTarget, true);
+            }
 
             // pack vsix into __depot/build/
             var files = Directory.GetFiles(solutionDirectory, "*.vsix");
@@ -140,7 +167,8 @@ namespace t7c_installer
             foreach (FileInfo file in files)
             {
                 string tempPath = Path.Combine(destDirName, file.Name);
-                file.CopyTo(tempPath, false);
+                // Overwrite existing files
+                file.CopyTo(tempPath, true);
             }
 
             // If copying subdirectories, copy them and their contents to new location.
@@ -156,13 +184,83 @@ namespace t7c_installer
 
         public static void FetchUpdateContents()
         {
-            if (File.Exists(UpdateTempFilename)) File.Delete(UpdateTempFilename);
-            if (Directory.Exists(UpdateTempDirname)) Directory.Delete(UpdateTempDirname, true);
-            using (WebClient client = new WebClient())
+            // Force delete existing zip file and temp directory with retry logic
+            if (File.Exists(UpdateTempFilename))
             {
-                client.DownloadFile(PackageURL, UpdateTempFilename);
+                try
+                {
+                    File.Delete(UpdateTempFilename);
+                }
+                catch
+                {
+                    // Retry after a short delay
+                    System.Threading.Thread.Sleep(100);
+                    try { File.Delete(UpdateTempFilename); }
+                    catch { /* Ignore if still locked */ }
+                }
             }
-            ZipFile.ExtractToDirectory(UpdateTempFilename, UpdateTempDirname);
+            
+            if (Directory.Exists(UpdateTempDirname))
+            {
+                try
+                {
+                    // Delete all files in the directory first
+                    foreach (var file in Directory.GetFiles(UpdateTempDirname, "*", SearchOption.AllDirectories))
+                    {
+                        try { File.Delete(file); }
+                        catch { /* Ignore locked files */ }
+                    }
+                    Directory.Delete(UpdateTempDirname, true);
+                }
+                catch
+                {
+                    // Retry after a short delay
+                    System.Threading.Thread.Sleep(200);
+                    try
+                    {
+                        foreach (var file in Directory.GetFiles(UpdateTempDirname, "*", SearchOption.AllDirectories))
+                        {
+                            try { File.Delete(file); }
+                            catch { /* Ignore locked files */ }
+                        }
+                        Directory.Delete(UpdateTempDirname, true);
+                    }
+                    catch { /* Ignore if still locked - will be overwritten anyway */ }
+                }
+            }
+            
+            // Ensure temp directory exists (it was just deleted, so create fresh)
+            Directory.CreateDirectory(UpdateTempDirname);
+            
+            // First, try to use local update.zip (next to installer executable)
+            string localUpdateZip = GetLocalUpdateZipPath();
+            string zipFileToUse = null;
+            
+            if (File.Exists(localUpdateZip))
+            {
+                // Use local update.zip file
+                zipFileToUse = localUpdateZip;
+            }
+            else
+            {
+                // Fallback: Download from remote URL
+                using (WebClient client = new WebClient())
+                {
+                    client.DownloadFile(PackageURL, UpdateTempFilename);
+                }
+                
+                // Verify zip file was downloaded
+                if (!File.Exists(UpdateTempFilename))
+                {
+                    throw new FileNotFoundException($"Failed to find local update.zip at {localUpdateZip} and failed to download from {PackageURL}");
+                }
+                
+                zipFileToUse = UpdateTempFilename;
+            }
+            
+            // Extract the zip file to temp directory
+            // Directory was already deleted above, so this will extract fresh
+            ZipFile.ExtractToDirectory(zipFileToUse, UpdateTempDirname);
         }
 
         public static void InstallUpdate()
@@ -177,11 +275,25 @@ namespace t7c_installer
                 System.Threading.Thread.Sleep(100);
             }
 
+            // kill all running instances of the GUI
+            foreach (var proc in Process.GetProcessesByName("T7CompilerGUI"))
+            {
+                proc.Kill();
+                System.Threading.Thread.Sleep(100);
+            }
+
             // cache update contents
             FetchUpdateContents();
 
             // kill all running instances of the compiler
             foreach (var proc in Process.GetProcessesByName("debugcompiler"))
+            {
+                proc.Kill();
+                System.Threading.Thread.Sleep(100);
+            }
+
+            // kill all running instances of the GUI
+            foreach (var proc in Process.GetProcessesByName("T7CompilerGUI"))
             {
                 proc.Kill();
                 System.Threading.Thread.Sleep(100);
@@ -205,14 +317,107 @@ namespace t7c_installer
                 Directory.Delete(Path.Combine(InstallRoot, "t7compiler"), true);
             }
 
-            // copy new installation
-            DirectoryCopy(Path.Combine(UpdateTempDirname, "t7compiler"), Path.Combine(InstallRoot, "t7compiler"), true);
+            // copy t7compiler folder with ALL contents (includes all files and subdirectories)
+            string compilerSource = Path.Combine(UpdateTempDirname, "t7compiler");
+            string compilerTarget = Path.Combine(InstallRoot, "t7compiler");
+            if (Directory.Exists(compilerSource))
+            {
+                // Verify source has files before copying
+                var compilerFiles = Directory.GetFiles(compilerSource);
+                
+                DirectoryCopy(compilerSource, compilerTarget, true);
+                
+                // Verify installation - check if exe and db files were copied
+                var installedFiles = Directory.GetFiles(compilerTarget);
+                if (installedFiles.Length == 0 && compilerFiles.Length > 0)
+                {
+                    // Files exist in source but weren't copied - something went wrong
+                    throw new Exception($"Failed to copy t7compiler files. Source had {compilerFiles.Length} files but target has {installedFiles.Length} files.");
+                }
+            }
+            else
+            {
+                throw new DirectoryNotFoundException($"t7compiler folder not found in update package at: {compilerSource}");
+            }
 
-            // copy default project
-            DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject"), Path.Combine(InstallRoot, "t7compiler", "defaultproject"), true);
+            // copy defaultproject to t7compiler folder (if it exists separately in the zip)
+            // This ensures defaultproject is available even if it wasn't included in t7compiler folder
+            string defaultProjectSource = Path.Combine(UpdateTempDirname, "defaultproject");
+            if (Directory.Exists(defaultProjectSource))
+            {
+                string defaultProjectTargetCompiler = Path.Combine(InstallRoot, "t7compiler", "defaultproject");
+                if (Directory.Exists(defaultProjectTargetCompiler))
+                {
+                    Directory.Delete(defaultProjectTargetCompiler, true);
+                }
+                DirectoryCopy(defaultProjectSource, defaultProjectTargetCompiler, true);
+            }
 
-            // Install the vsc extension
-            NoExcept(InstallVSCExtensionsCached);
+            // copy t7gui folder with ALL contents (includes all files and subdirectories)
+            string guiSource = Path.Combine(UpdateTempDirname, "t7gui");
+            string guiTarget = Path.Combine(InstallRoot, "t7gui");
+            if (Directory.Exists(guiSource))
+            {
+                // Verify source has files before copying
+                var guiFiles = Directory.GetFiles(guiSource);
+                var guiDirs = Directory.GetDirectories(guiSource);
+                
+                if (Directory.Exists(guiTarget))
+                    Directory.Delete(guiTarget, true);
+                    
+                // Copy all contents (files and subdirectories)
+                DirectoryCopy(guiSource, guiTarget, true);
+                
+                // Verify installation - check if exe and db files were copied
+                var installedFiles = Directory.GetFiles(guiTarget);
+                if (installedFiles.Length == 0 && guiFiles.Length > 0)
+                {
+                    // Files exist in source but weren't copied - something went wrong
+                    throw new Exception($"Failed to copy t7gui files. Source had {guiFiles.Length} files but target has {installedFiles.Length} files.");
+                }
+            }
+            else
+            {
+                throw new DirectoryNotFoundException($"t7gui folder not found in update package at: {guiSource}");
+            }
+
+            // copy defaultproject to t7gui folder as well (if it exists separately in the zip)
+            // This ensures defaultproject is available in both locations
+            if (Directory.Exists(defaultProjectSource))
+            {
+                string defaultProjectTargetGui = Path.Combine(InstallRoot, "t7gui", "defaultproject");
+                if (Directory.Exists(defaultProjectTargetGui))
+                {
+                    Directory.Delete(defaultProjectTargetGui, true);
+                }
+                DirectoryCopy(defaultProjectSource, defaultProjectTargetGui, true);
+            }
+
+            // Note: VSIX extension installation is now handled separately by InstallVSCExt button
+            
+            // Cleanup: Delete temp files and folders after successful installation
+            try
+            {
+                if (File.Exists(UpdateTempFilename))
+                {
+                    File.Delete(UpdateTempFilename);
+                }
+                if (Directory.Exists(UpdateTempDirname))
+                {
+                    // Delete all files first
+                    foreach (var file in Directory.GetFiles(UpdateTempDirname, "*", SearchOption.AllDirectories))
+                    {
+                        try { File.Delete(file); }
+                        catch { /* Ignore locked files */ }
+                    }
+                    Directory.Delete(UpdateTempDirname, true);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors - temp files will be cleaned up on next run or by system
+            }
+            
             IsUpdating = false;
         }
 
@@ -235,16 +440,25 @@ namespace t7c_installer
             {
                 path = Path.Combine(path, "Default Project");
             }
+            // First check t7compiler folder
             if (Directory.Exists(Path.Combine(InstallRoot, "t7compiler", "defaultproject", gameExt)))
             {
                 // copy default project
                 DirectoryCopy(Path.Combine(InstallRoot, "t7compiler", "defaultproject", gameExt), path, true);
                 return;
             }
+            // Then check t7gui folder
+            if (Directory.Exists(Path.Combine(InstallRoot, "t7gui", "defaultproject", gameExt)))
+            {
+                // copy default project from GUI folder
+                DirectoryCopy(Path.Combine(InstallRoot, "t7gui", "defaultproject", gameExt), path, true);
+                return;
+            }
             if (Directory.Exists(Path.Combine(UpdateTempDirname, "defaultproject", gameExt)))
             {
-                // restore default project
+                // restore default project to both locations
                 DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject"), Path.Combine(InstallRoot, "t7compiler", "defaultproject"), true);
+                DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject"), Path.Combine(InstallRoot, "t7gui", "defaultproject"), true);
 
                 // copy default project
                 DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject", gameExt), path, true);

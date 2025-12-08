@@ -637,7 +637,6 @@ namespace DebugCompiler
                 // Console.WriteLine($"{CurrentSource.FilePath} start {CurrentSource.LineStart} end {CurrentSource.LineEnd}");
                 SourceTokens.Add(CurrentSource);
                 sb.Append("\n"); // remember that this is here because its going to fuck up irony
-                end_loop:;
             }
 
             replaceScript = replaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");

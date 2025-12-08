@@ -181,8 +181,8 @@ void ScriptDetours::InstallHooks()
 
 	if (IS_WINSTORE)
 	{
-		Scr_GetMethod = Scr_GetMethod_;
-		Scr_GetFunction = Scr_GetFunction_;
+		Scr_GetMethod = (tScr_GetMethod)Scr_GetMethod_;
+		Scr_GetFunction = (tScr_GetFunction)Scr_GetFunction_;
 	}
 	else
 	{
@@ -194,14 +194,14 @@ void ScriptDetours::InstallHooks()
 	Scr_GscObjLink = (tScr_GscObjLink)OFF_Scr_GscObjLink;
 
 	// opcodes to hook:
-	VTableReplace(OFF_VM_OP_GetAPIFunction, VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
-	VTableReplace(OFF_VM_OP_GetFunction, VM_OP_GetFunction, &VM_OP_GetFunction_Old);
-	VTableReplace(OFF_VM_OP_ScriptFunctionCall, VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
-	VTableReplace(OFF_VM_OP_ScriptMethodCall, VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
-	VTableReplace(OFF_VM_OP_ScriptThreadCall, VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
-	VTableReplace(OFF_VM_OP_ScriptMethodThreadCall, VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
-	VTableReplace(OFF_VM_OP_CallBuiltin, VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
-	VTableReplace(OFF_VM_OP_CallBuiltinMethod, VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
+	VTableReplace(OFF_VM_OP_GetAPIFunction, (tVM_Opcode)VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
+	VTableReplace(OFF_VM_OP_GetFunction, (tVM_Opcode)VM_OP_GetFunction, &VM_OP_GetFunction_Old);
+	VTableReplace(OFF_VM_OP_ScriptFunctionCall, (tVM_Opcode)VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
+	VTableReplace(OFF_VM_OP_ScriptMethodCall, (tVM_Opcode)VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
+	VTableReplace(OFF_VM_OP_ScriptThreadCall, (tVM_Opcode)VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
+	VTableReplace(OFF_VM_OP_ScriptMethodThreadCall, (tVM_Opcode)VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
+	VTableReplace(OFF_VM_OP_CallBuiltin, (tVM_Opcode)VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
+	VTableReplace(OFF_VM_OP_CallBuiltinMethod, (tVM_Opcode)VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
 }
 
 INT64 ScriptDetours::FindScriptParsetree(char* name)

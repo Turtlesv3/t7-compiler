@@ -129,7 +129,7 @@ namespace T89CompilerLib
             T89IncludesSection.ReadIncludes(ref data, Header.IncludeTableOffset, Header.IncludeCount, ref __includes__, this);
             T89ExportsSection.ReadExports(ref data, Header.ExportTableOffset, Header.ExportsCount, this, ref __exports__);
             throw new NotImplementedException("Didnt implement deserialization of __globals__");
-            Link();
+            // Link(); // Unreachable code - removed to fix CS0162 warning
         }
 
         private void Link()

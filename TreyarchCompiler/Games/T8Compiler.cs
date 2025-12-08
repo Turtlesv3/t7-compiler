@@ -31,10 +31,12 @@ namespace TreyarchCompiler.Games
         private readonly Enums.Games Game;
         private T89ScriptObject Script;
         private uint ScriptNamespace = 0x30FCC2BF;
+        private readonly string _sourceCode; // Store source code for token extraction
 
         public T89Compiler(Enums.Games game, string code)
         {
             Game = game;
+            _sourceCode = code; // Store source code for error reporting
             _tree = NewSyntax.ThreadSafeInstance.SyntaxParser.Parse(code);
             Script = new T89ScriptObject(VM_36);
             Script.Header.ScriptName = Script.T8s64Hash("scripts/core_common/clientids_shared.gsc");
@@ -82,9 +84,108 @@ namespace TreyarchCompiler.Games
             return (byte)ExportFlags.Private;
         }
 
+        /// <summary>
+        /// Extracts the token at the given line and position from source code
+        /// </summary>
+        private string ExtractTokenAtPosition(string sourceCode, int lineNum, int position)
+        {
+            if (string.IsNullOrEmpty(sourceCode) || lineNum < 1 || position < 0)
+                return null;
+
+            try
+            {
+                string[] lines = sourceCode.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                if (lineNum > lines.Length)
+                    return null;
+
+                string line = lines[lineNum - 1];
+                if (position >= line.Length)
+                    return null;
+
+                // Find the start of the token (skip whitespace before position)
+                int tokenStart = position;
+                while (tokenStart > 0 && char.IsWhiteSpace(line[tokenStart - 1]))
+                    tokenStart--;
+
+                // If we're at whitespace, try to find the next token
+                if (tokenStart < line.Length && char.IsWhiteSpace(line[tokenStart]))
+                {
+                    while (tokenStart < line.Length && char.IsWhiteSpace(line[tokenStart]))
+                        tokenStart++;
+                }
+
+                // Find the end of the token
+                int tokenEnd = tokenStart;
+                if (tokenStart < line.Length)
+                {
+                    char firstChar = line[tokenStart];
+                    // Check if it's a word character, operator, or punctuation
+                    if (char.IsLetterOrDigit(firstChar) || firstChar == '_')
+                    {
+                        // Identifier or number - read until non-word character
+                        while (tokenEnd < line.Length && (char.IsLetterOrDigit(line[tokenEnd]) || line[tokenEnd] == '_'))
+                            tokenEnd++;
+                    }
+                    else if (char.IsPunctuation(firstChar) || char.IsSymbol(firstChar))
+                    {
+                        // Operator or punctuation - read until different character type
+                        while (tokenEnd < line.Length && 
+                               (char.IsPunctuation(line[tokenEnd]) || char.IsSymbol(line[tokenEnd])) &&
+                               !char.IsWhiteSpace(line[tokenEnd]))
+                            tokenEnd++;
+                    }
+                    else
+                    {
+                        // Single character token
+                        tokenEnd = tokenStart + 1;
+                    }
+                }
+
+                if (tokenEnd > tokenStart && tokenEnd <= line.Length)
+                {
+                    string token = line.Substring(tokenStart, tokenEnd - tokenStart).Trim();
+                    return !string.IsNullOrEmpty(token) ? token : null;
+                }
+            }
+            catch
+            {
+                // If extraction fails, return null
+            }
+
+            return null;
+        }
+
         private void CompileTree()
         {
-            if (_tree.HasErrors()) throw new Exception($"Syntax error in input script! [line={_tree.ParserMessages[0].Location.Line}]");
+            if (_tree.HasErrors())
+            {
+                var firstError = _tree.ParserMessages[0];
+                string errorMsg = firstError.Message ?? "Syntax error in input script!";
+                int lineNum = firstError.Location.Line;
+                int position = firstError.Location.Position;
+                
+                // Build detailed error message
+                string errorDetails = $"Syntax error in input script! [line={lineNum}]";
+                if (position > 0)
+                {
+                    errorDetails += $" [position={position}]";
+                }
+                
+                // Add the actual error message from the parser if it's more descriptive
+                if (!string.IsNullOrEmpty(errorMsg) && errorMsg != "Syntax error in input script!")
+                {
+                    errorDetails += $"\nError: {errorMsg}";
+                }
+                
+                // Extract token at error position
+                string tokenAtError = ExtractTokenAtPosition(_sourceCode, lineNum, position);
+                if (!string.IsNullOrEmpty(tokenAtError))
+                {
+                    errorDetails += $"\nToken: '{tokenAtError}'";
+                }
+                
+                throw new Exception(errorDetails);
+            }
             if (_tree.Root.ChildNodes[0].ChildNodes.Count <= 0) return;
             var functionTree = new Dictionary<string, ParseTreeNode>();
             SetNamespace();

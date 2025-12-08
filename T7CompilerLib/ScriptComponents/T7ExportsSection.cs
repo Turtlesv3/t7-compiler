@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -22,12 +22,19 @@ namespace T7CompilerLib.ScriptComponents
         /// <summary>
         /// Script metadata.
         /// </summary>
+        private string _dbPath = null; // Store database path for platform-specific metadata
+
         internal T7ScriptMetadata ScriptMetadata
         {
             get
             {
                 if (__metadata__ == null)
-                    __metadata__ = new T7ScriptMetadata(Script);
+                {
+                    if (!string.IsNullOrEmpty(_dbPath))
+                        __metadata__ = new T7ScriptMetadata(Script, _dbPath);
+                    else
+                        __metadata__ = new T7ScriptMetadata(Script);
+                }
                 return __metadata__;
             }
             set
@@ -37,6 +44,15 @@ namespace T7CompilerLib.ScriptComponents
         }
 
         private T7ScriptMetadata __metadata__;
+        
+        /// <summary>
+        /// Set the database path for platform-specific metadata loading
+        /// </summary>
+        internal void SetDatabasePath(string dbPath)
+        {
+            if (__metadata__ == null) // Only set if metadata hasn't been created yet
+                _dbPath = dbPath;
+        }
 
         private T7ExportsSection(bool littleEndian, T7ScriptObject obj) 
         {

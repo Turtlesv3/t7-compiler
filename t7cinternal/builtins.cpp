@@ -365,7 +365,7 @@ void GSCBuiltins::GScr_setmempool(int scriptInst)
 
 	void* oldPool = newVarMemPool;
 	newVarMemPool = (char*)_aligned_malloc(numBytes, 128);
-	if (newVarMemPool <= 0)
+	if (newVarMemPool == nullptr)
 	{
 		nlog("Failed to allocate memory! Pointer was null");
 		return;
@@ -480,7 +480,7 @@ void GSCBuiltins::nlog(const char* str, ...)
 	char buf[256];
 
 	va_start(ap, str);
-	vsprintf(buf, str, ap);
+	vsprintf_s(buf, sizeof(buf), str, ap);
 	va_end(ap);
 	strcat_s(buf, 256, "\r\n");
 	notepad = FindWindow(NULL, "Untitled - Notepad");

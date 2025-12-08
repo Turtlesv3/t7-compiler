@@ -99,7 +99,7 @@ namespace SMC.UI.Core.Controls
         #endregion
 
         private Refract.UI.Core.Controls.CBorderedForm InnerForm;
-        private System.Windows.Forms.Button AcceptButton;
+        private new System.Windows.Forms.Button AcceptButton;
         private CComboBox cComboBox1;
     }
 }

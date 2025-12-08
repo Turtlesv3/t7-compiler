@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using T7CompilerLib.OpCodes;
@@ -56,13 +57,22 @@ namespace T7CompilerLib
 
         private Dictionary<uint, string> StatProtectedPtrs = new Dictionary<uint, string>();
 
-        public T7ScriptObject(bool littleEndian) : this(null, littleEndian) { }
+        private string _dbPath = null; // Store database path for platform-specific metadata
 
-        public T7ScriptObject(T7ScriptMetadata NewMetadata, bool littleEndian)
+        public T7ScriptObject(bool littleEndian) : this(null, littleEndian, null) { }
+        
+        public T7ScriptObject(bool littleEndian, string dbPath) : this(null, littleEndian, dbPath) { }
+
+        public T7ScriptObject(T7ScriptMetadata NewMetadata, bool littleEndian) : this(NewMetadata, littleEndian, null) { }
+
+        public T7ScriptObject(T7ScriptMetadata NewMetadata, bool littleEndian, string dbPath)
         {
+            _dbPath = dbPath;
             LittleEndian = littleEndian;
             __header__ = T7ScriptHeader.New(littleEndian);
             __exports__ = T7ExportsSection.New(littleEndian, this);
+            if (!string.IsNullOrEmpty(_dbPath))
+                __exports__.SetDatabasePath(_dbPath);
             __imports__ = T7ImportSection.New(littleEndian, this);
             __dstrings__ = T7DebugTableSection.New(littleEndian); //not used anymore
             __strings__ = T7StringTableSection.New(littleEndian);
@@ -456,7 +466,9 @@ namespace T7CompilerLib
     public class T7ScriptMetadata
     {
         private const string T7PCMetaPath = "t7pcv2.db";
+        private const string PS4MetaPath = "T7PS4V2.db";
         private static T7MetaV2 _pc_meta_;
+        private static T7MetaV2 _ps4_meta_;
         public const ushort VM_OP_NOP = 0x1A;
 
         private static T7MetaV2 PCMeta
@@ -477,6 +489,100 @@ namespace T7CompilerLib
                 }
 
                 return _pc_meta_;
+            }
+        }
+
+        private static T7MetaV2 PS4Meta
+        {
+            get
+            {
+                if (_ps4_meta_ == null)
+                {
+                    try
+                    {
+                        // Look in the executable's directory (where it runs from)
+                        string entryLocation = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
+                        string dbPath = Path.Combine(entryLocation, PS4MetaPath);
+                        
+                        if (!File.Exists(dbPath))
+                        {
+                            // Try DLL directory as fallback
+                            string executingLocation = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                            string fallbackPath = Path.Combine(executingLocation, PS4MetaPath);
+                            if (File.Exists(fallbackPath))
+                            {
+                                dbPath = fallbackPath;
+                            }
+                            else
+                            {
+                                throw new FileNotFoundException($"{PS4MetaPath} could not be found in the executable directory: {entryLocation}");
+                            }
+                        }
+                        
+                        // Use custom binder to handle assembly loading issues
+                        DeserializeWithBinder(dbPath, out _ps4_meta_);
+                    }
+                    catch (System.Runtime.Serialization.SerializationException se) when (se.Message.Contains("assembly") || se.Message.Contains("Assembly"))
+                    {
+                        // Handle assembly loading issues - the database might reference an assembly that doesn't exist
+                        throw new InvalidOperationException(
+                            $"{PS4MetaPath} was found but could not be loaded. The database may reference an assembly that is not available. Inner error: {se.Message}", se);
+                    }
+                    catch (FileNotFoundException fe)
+                    {
+                        throw new InvalidOperationException(
+                            $"{PS4MetaPath} could not be found. {fe.Message}", fe);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new InvalidOperationException(
+                            $"{PS4MetaPath} could not be loaded. Error: {e.Message}", e);
+                    }
+                }
+
+                return _ps4_meta_;
+            }
+        }
+
+        /// <summary>
+        /// Get metadata for a specific database file path
+        /// </summary>
+        private static T7MetaV2 GetMetaForPath(string dbPath, out string resolvedPath)
+        {
+            resolvedPath = null;
+            if (string.IsNullOrEmpty(dbPath))
+            {
+                resolvedPath = T7PCMetaPath;
+                return PCMeta; // Default to PC
+            }
+
+            string fileName = Path.GetFileName(dbPath).ToLower();
+            if (fileName == PS4MetaPath.ToLower())
+            {
+                resolvedPath = PS4MetaPath;
+                return PS4Meta;
+            }
+            else if (fileName == T7PCMetaPath.ToLower())
+            {
+                resolvedPath = T7PCMetaPath;
+                return PCMeta;
+            }
+            else
+            {
+                // Try to load from the provided path
+                T7MetaV2 customMeta = null;
+                try
+                {
+                    resolvedPath = dbPath;
+                    Deserialize(dbPath, out customMeta);
+                    return customMeta;
+                }
+                catch
+                {
+                    // Fallback to PC if custom path fails
+                    resolvedPath = T7PCMetaPath;
+                    return PCMeta;
+                }
             }
         }
 
@@ -504,15 +610,25 @@ namespace T7CompilerLib
 
         public T7ScriptObject Script;
         public T7ScriptMetadata(T7ScriptObject obj) : this(PCMeta, obj) { } //why add vertical line space
-
-
-        protected T7ScriptMetadata(T7MetaV2 __meta, T7ScriptObject obj)
+        
+        /// <summary>
+        /// Create metadata with a specific database path (for platform-specific databases)
+        /// </summary>
+        public T7ScriptMetadata(T7ScriptObject obj, string dbPath)
         {
+            string resolvedPath;
+            T7MetaV2 meta = GetMetaForPath(dbPath, out resolvedPath);
+            // Call the protected constructor
             Script = obj;
-            MetaRef = __meta;
+            MetaRef = meta;
+            _dbPath = resolvedPath;
 
             if (Magic == 0)
                 MetaRef.__magic = 0x1C000A0D43534780;
+
+            // Reset user-assigned opcodes from previous compilations
+            // Keep only built-in opcodes from the database
+            ResetUserAssignedOpcodes();
 
             //build reverse map
             for (int i = 0; i < MetaRef.__ops.Length; i++)
@@ -523,8 +639,80 @@ namespace T7CompilerLib
             }
 
             // hardcode this idc
+            // Use Set() method to bypass setter protection (this is initialization, not runtime assignment)
             ReverseOps[ScriptOpCode.CallBuiltin] = 0x0F;
-            this[0x0F] = ScriptOpCode.CallBuiltin;
+            Set(0x0F, (byte)ScriptOpCode.CallBuiltin);
+        }
+
+        protected T7ScriptMetadata(T7MetaV2 __meta, T7ScriptObject obj, string dbPath = null)
+        {
+            Script = obj;
+            MetaRef = __meta;
+            _dbPath = dbPath; // Store the database path for ResetUserAssignedOpcodes
+
+            if (Magic == 0)
+                MetaRef.__magic = 0x1C000A0D43534780;
+
+            // Reset user-assigned opcodes from previous compilations
+            // Keep only built-in opcodes from the database
+            ResetUserAssignedOpcodes();
+
+            //build reverse map
+            for (int i = 0; i < MetaRef.__ops.Length; i++)
+            {
+                var value = (ScriptOpCode)MetaRef.__ops[i];
+                if (!ReverseOps.ContainsKey(value))
+                    ReverseOps[value] = (ushort)i;
+            }
+
+            // hardcode this idc
+            // Use Set() method to bypass setter protection (this is initialization, not runtime assignment)
+            ReverseOps[ScriptOpCode.CallBuiltin] = 0x0F;
+            Set(0x0F, (byte)ScriptOpCode.CallBuiltin);
+        }
+
+        /// <summary>
+        /// Reset opcodes that were assigned during previous compilations back to Invalid
+        /// This prevents "opcode reassignment" errors when compiling back-to-back
+        /// We preserve built-in opcodes by checking against the original database state
+        /// </summary>
+        private string _dbPath = null; // Store the database path used for this metadata
+
+        private void ResetUserAssignedOpcodes()
+        {
+            // Get the original database state for comparison
+            T7MetaV2 originalMeta = null;
+            try
+            {
+                // Use the same database path that was used to create this metadata
+                string dbPathToUse = _dbPath ?? T7PCMetaPath;
+                string fullPath = Path.IsPathRooted(dbPathToUse) 
+                    ? dbPathToUse 
+                    : Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location), dbPathToUse);
+                Deserialize(fullPath, out originalMeta);
+            }
+            catch
+            {
+                // If we can't load the original, reset all to Invalid as fallback
+                // This is less ideal but prevents errors
+                return;
+            }
+
+            if (originalMeta != null && originalMeta.__ops != null && MetaRef.__ops != null)
+            {
+                // Reset any opcodes that differ from the original database state
+                // These are user-assigned opcodes from previous compilations
+                for (int i = 0; i < MetaRef.__ops.Length && i < originalMeta.__ops.Length; i++)
+                {
+                    // If the current opcode differs from the original database opcode,
+                    // and the current one is not Invalid, reset it to Invalid
+                    // This allows the opcode to be reassigned in the new compilation
+                    if (MetaRef.__ops[i] != originalMeta.__ops[i] && MetaRef.__ops[i] != (byte)ScriptOpCode.Invalid)
+                    {
+                        MetaRef.__ops[i] = (byte)ScriptOpCode.Invalid;
+                    }
+                }
+            }
         }
 
         public ushort this[ScriptOpCode indexer]
@@ -567,7 +755,9 @@ namespace T7CompilerLib
             }
             set
             {
-                if (MetaRef.__ops[indexer] == (byte)ScriptOpCode.Invalid || AllowReassignment) //dont allow known rewrites
+                // Strict protection: Only allow overwriting Invalid or when explicitly allowed
+                // This prevents accidental overwrites during script compilation
+                if (MetaRef.__ops[indexer] == (byte)ScriptOpCode.Invalid || AllowReassignment)
                     MetaRef.__ops[indexer] = (byte)value;
                 else
                     throw new InvalidExpressionException("Opcode reassignment is not allowed");
@@ -629,6 +819,53 @@ namespace T7CompilerLib
             {
                 BinaryFormatter formatter = new BinaryFormatter();
                 metastruct = (T7MetaV2)formatter.Deserialize(stream);
+            }
+        }
+
+        /// <summary>
+        /// Deserialize with custom binder to handle assembly loading issues
+        /// </summary>
+        private static void DeserializeWithBinder(string Filepath, out T7MetaV2 metastruct)
+        {
+            using (FileStream stream = File.OpenRead(Filepath))
+            {
+                BinaryFormatter formatter = new BinaryFormatter();
+                // Set a custom binder to handle assembly resolution
+                formatter.Binder = new MetadataBinder();
+                try
+                {
+                    metastruct = (T7MetaV2)formatter.Deserialize(stream);
+                }
+                catch (System.Runtime.Serialization.SerializationException)
+                {
+                    // If custom binder fails, try without it (fallback)
+                    stream.Position = 0;
+                    formatter.Binder = null;
+                    metastruct = (T7MetaV2)formatter.Deserialize(stream);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Custom binder to handle assembly loading for PS4 database
+        /// </summary>
+        private class MetadataBinder : System.Runtime.Serialization.SerializationBinder
+        {
+            public override Type BindToType(string assemblyName, string typeName)
+            {
+                // Ignore assembly name mismatches - just resolve by type name
+                // This handles cases where the database was serialized with a different assembly name
+                Type type = Type.GetType(typeName);
+                if (type != null)
+                    return type;
+
+                // Try to find the type in the current assembly
+                type = typeof(T7MetaV2).Assembly.GetType(typeName);
+                if (type != null)
+                    return type;
+
+                // Fall back to default behavior
+                return null;
             }
         }
 

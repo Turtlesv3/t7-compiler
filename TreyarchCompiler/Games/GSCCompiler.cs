@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Irony.Parsing;
@@ -33,7 +33,29 @@ namespace TreyarchCompiler.Games
         private uint ScriptNamespace = 0xDEADBEEF;
         private string StubbedScript = null;
 
-        protected virtual dynamic NewScript => new T7ScriptObject(true);
+        protected virtual dynamic NewScript
+        {
+            get
+            {
+                // Determine database path based on platform
+                string dbPath = GetDatabasePathForPlatform();
+                // Use explicit type to avoid constructor resolution issues
+                return new T7CompilerLib.T7ScriptObject(true, dbPath);
+            }
+        }
+        
+        /// <summary>
+        /// Get the database path based on the current platform
+        /// Both database files (t7pcv2.db and T7PS4V2.db) can exist in the same directory.
+        /// The compiler will use the correct one based on the selected platform.
+        /// </summary>
+        private string GetDatabasePathForPlatform()
+        {
+            if (Platform == Platforms.PS4)
+                return "T7PS4V2.db"; // PS4 database file
+            else
+                return "t7pcv2.db"; // PC database file (default)
+        }
         private dynamic Script;
 
         private readonly Dictionary<string, ScriptFunctionMetaData> FunctionMetadata;
@@ -41,12 +63,13 @@ namespace TreyarchCompiler.Games
         private readonly Platforms Platform;
         private readonly Enums.Games Game;
 
-        private readonly bool LittleEndian = false;
+        // Note: LittleEndian was removed - not used anywhere in the codebase
 
         private readonly Stack<QOperand> ScriptOperands = new Stack<QOperand>();
 
         private Dictionary<string, string> Func_StatProtectMap = new Dictionary<string, string>();
         private HashSet<string> CustomInjects = new HashSet<string>();
+        private readonly string _sourceCode; // Store source code for token extraction
 
         public GSCCompiler(Modes mode, string code, string path, Platforms platform, Enums.Games game, bool uset8masking)
         {
@@ -55,10 +78,13 @@ namespace TreyarchCompiler.Games
             FunctionMetadata = new Dictionary<string, ScriptFunctionMetaData>();
             _mode = mode;
             _path = path;
-            uset8masking = false;
+            // Note: uset8masking parameter is currently ignored for T7 and set to false
+            // This may be intentional for compatibility reasons
+            // uset8masking = false;
 
-            if (platform == Platforms.PC || platform == Platforms.PS4 || platform == Platforms.XB1)
-                LittleEndian = true;
+            // PC, Steam, and XB1 are all PC clients (little-endian)
+            // PS4 is console but also little-endian
+            // Note: LittleEndian field removed - not used
 
             Script = NewScript;
             Script.UseMasking = uset8masking;
@@ -68,6 +94,7 @@ namespace TreyarchCompiler.Games
                 code = AppendProtectionSource(code);
             }
 
+            _sourceCode = code; // Store source code for error reporting
             _tree = ParseCode(game, code);
         }
 
@@ -76,7 +103,80 @@ namespace TreyarchCompiler.Games
             return code;
         }
 
+        /// <summary>
+        /// Extracts the token at the given line and position from source code
+        /// </summary>
+        private string ExtractTokenAtPosition(string sourceCode, int lineNum, int position)
+        {
+            if (string.IsNullOrEmpty(sourceCode) || lineNum < 1 || position < 0)
+                return null;
+
+            try
+            {
+                string[] lines = sourceCode.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                if (lineNum > lines.Length)
+                    return null;
+
+                string line = lines[lineNum - 1];
+                if (position >= line.Length)
+                    return null;
+
+                // Find the start of the token (skip whitespace before position)
+                int tokenStart = position;
+                while (tokenStart > 0 && char.IsWhiteSpace(line[tokenStart - 1]))
+                    tokenStart--;
+
+                // If we're at whitespace, try to find the next token
+                if (tokenStart < line.Length && char.IsWhiteSpace(line[tokenStart]))
+                {
+                    while (tokenStart < line.Length && char.IsWhiteSpace(line[tokenStart]))
+                        tokenStart++;
+                }
+
+                // Find the end of the token
+                int tokenEnd = tokenStart;
+                if (tokenStart < line.Length)
+                {
+                    char firstChar = line[tokenStart];
+                    // Check if it's a word character, operator, or punctuation
+                    if (char.IsLetterOrDigit(firstChar) || firstChar == '_')
+                    {
+                        // Identifier or number - read until non-word character
+                        while (tokenEnd < line.Length && (char.IsLetterOrDigit(line[tokenEnd]) || line[tokenEnd] == '_'))
+                            tokenEnd++;
+                    }
+                    else if (char.IsPunctuation(firstChar) || char.IsSymbol(firstChar))
+                    {
+                        // Operator or punctuation - read until different character type
+                        while (tokenEnd < line.Length && 
+                               (char.IsPunctuation(line[tokenEnd]) || char.IsSymbol(line[tokenEnd])) &&
+                               !char.IsWhiteSpace(line[tokenEnd]))
+                            tokenEnd++;
+                    }
+                    else
+                    {
+                        // Single character token
+                        tokenEnd = tokenStart + 1;
+                    }
+                }
+
+                if (tokenEnd > tokenStart && tokenEnd <= line.Length)
+                {
+                    string token = line.Substring(tokenStart, tokenEnd - tokenStart).Trim();
+                    return !string.IsNullOrEmpty(token) ? token : null;
+                }
+            }
+            catch
+            {
+                // If extraction fails, return null
+            }
+
+            return null;
+        }
+
         private ParseTree ParseCode(Enums.Games game, string code)
+        {
+            try
         {
             switch (game)
             {
@@ -84,6 +184,12 @@ namespace TreyarchCompiler.Games
                     return BO3Syntax.ParseCode(code);
                 default:
                     return BO2Syntax.ParseCode(code);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Wrap parsing exceptions with more context
+                throw new Exception($"Failed to parse GSC code for {game}: {ex.Message}", ex);
             }
         }
 
@@ -109,7 +215,29 @@ namespace TreyarchCompiler.Games
             }
             catch (Exception ex)
             {
-                data.Error = ex.Message;
+                // Enhanced error reporting - include stack trace for debugging
+                string errorMsg = ex.Message;
+                if (ex.InnerException != null)
+                {
+                    errorMsg += $"\nInner Exception: {ex.InnerException.Message}";
+                }
+                
+                // Try to extract file information from exception if available
+                if (ex.StackTrace != null && ex.StackTrace.Contains("File:"))
+                {
+                    int fileIndex = ex.StackTrace.IndexOf("File:");
+                    if (fileIndex >= 0)
+                    {
+                        int lineIndex = ex.StackTrace.IndexOf("Line:", fileIndex);
+                        if (lineIndex > fileIndex)
+                        {
+                            string fileInfo = ex.StackTrace.Substring(fileIndex, lineIndex - fileIndex + 20);
+                            errorMsg = $"File: {fileInfo}\n{errorMsg}";
+                        }
+                    }
+                }
+                
+                data.Error = errorMsg;
                 return data;
             }
 
@@ -128,7 +256,32 @@ namespace TreyarchCompiler.Games
                     data.StubScriptData = Script.Serialize();
                 }
 
-            } catch (Exception ex) { data.Error = ex.ToString(); }
+            } 
+            catch (Exception ex) 
+            { 
+                // Enhanced error reporting for serialization/assembly errors
+                string errorMsg = ex.Message;
+                if (ex.InnerException != null)
+                {
+                    errorMsg += $"\nInner Exception: {ex.InnerException.Message}";
+                }
+                
+                // For assembly/serialization errors, include more context
+                if (ex is System.IO.IOException || ex is System.Runtime.Serialization.SerializationException)
+                {
+                    errorMsg = $"Serialization/IO Error: {errorMsg}";
+                }
+                else if (ex is OutOfMemoryException)
+                {
+                    errorMsg = $"Out of Memory Error: {errorMsg}\nThe compiled script may be too large.";
+                }
+                else if (ex is ArgumentException || ex is InvalidOperationException)
+                {
+                    errorMsg = $"Compilation Error: {errorMsg}";
+                }
+                
+                data.Error = errorMsg;
+            }
             var finalticks = DateTime.Now.Ticks;
 
             //Temporary debugging stats to keep track of compiler speed
@@ -150,7 +303,34 @@ namespace TreyarchCompiler.Games
         private void CompileTree()
         {
             if (_tree.HasErrors())
-                throw new Exception($"Syntax error in input script! [line={_tree.ParserMessages[0].Location.Line}]");
+            {
+                var firstError = _tree.ParserMessages[0];
+                string errorMsg = firstError.Message ?? "Syntax error in input script!";
+                int lineNum = firstError.Location.Line;
+                int position = firstError.Location.Position;
+                
+                // Build detailed error message
+                string errorDetails = $"Syntax error in input script! [line={lineNum}]";
+                if (position > 0)
+                {
+                    errorDetails += $" [position={position}]";
+                }
+                
+                // Add the actual error message from the parser if it's more descriptive
+                if (!string.IsNullOrEmpty(errorMsg) && errorMsg != "Syntax error in input script!")
+                {
+                    errorDetails += $"\nError: {errorMsg}";
+                }
+                
+                // Extract token at error position
+                string tokenAtError = ExtractTokenAtPosition(_sourceCode, lineNum, position);
+                if (!string.IsNullOrEmpty(tokenAtError))
+                {
+                    errorDetails += $"\nToken: '{tokenAtError}'";
+                }
+                
+                throw new Exception(errorDetails);
+            }
 
             if(Game == Enums.Games.T6)
             {
@@ -183,7 +363,7 @@ namespace TreyarchCompiler.Games
                             {
                                 if(StubbedScript != null)
                                 {
-                                    throw new InvalidOperationException("Cannot declare two stub paths in the compilation batch.");
+                                    throw new InvalidOperationException("Cannot declare two stub paths in the compilation batch. Only one stub script path is allowed per compilation.");
                                 }
 
                                 StubbedScript = directive.ChildNodes[0].ChildNodes[3].Token.ValueString.ToLower() + directive.ChildNodes[0].ChildNodes[4].Token.ValueString;
@@ -219,7 +399,7 @@ namespace TreyarchCompiler.Games
                             var Parameters = function.ChildNodes[function.ChildNodes.FindIndex(e => e.Term.Name == "parameters")].ChildNodes[0].ChildNodes;
 
                             if(FunctionMetadata.ContainsKey(functionName))
-                                throw new ArgumentException($"Function '{functionName}' has been defined more than once.");
+                                throw new ArgumentException($"Function '{functionName}' has been defined more than once. Check for duplicate function declarations or conflicting #include statements.");
 
                             functionTree.Add(functionName, function);
                             FunctionMetadata[functionName] = new ScriptFunctionMetaData()

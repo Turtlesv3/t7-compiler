@@ -100,6 +100,6 @@ namespace SMC.UI.Core.Controls
 
         private Refract.UI.Core.Controls.CBorderedForm InnerForm;
         private System.Windows.Forms.RichTextBox ErrorRTB;
-        private System.Windows.Forms.Button AcceptButton;
+        private new System.Windows.Forms.Button AcceptButton;
     }
 }
