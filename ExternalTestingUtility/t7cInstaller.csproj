@@ -155,7 +155,13 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+<<<<<<< HEAD
   <ItemGroup />
+=======
+  <ItemGroup>
+    <Folder Include="Cheats\" />
+  </ItemGroup>
+>>>>>>> origin/T7CompilerGUIv3
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- Create clean __depot/build folders for distribution -->
   <Target Name="CreateDepotFolders" AfterTargets="AfterBuild" Condition="'$(Configuration)' == 'Release'">
@@ -165,6 +171,10 @@
       <DepotCompilerPath>$(DepotPath)\t7compiler</DepotCompilerPath>
       <DepotGuiPath>$(DepotPath)\t7gui</DepotGuiPath>
     </PropertyGroup>
+<<<<<<< HEAD
+=======
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Clear existing __depot\build folder if it exists -->
     <!-- Skip cleanup if files are locked (build might still work) -->
     <Message Text="Cleaning up depot folder (skipping if files are locked)..." Importance="normal" />
@@ -173,10 +183,18 @@
     </ItemGroup>
     <Delete Files="@(FilesToDelete)" ContinueOnError="true" Condition="Exists('$(DepotPath)')" />
     <RemoveDir Directories="$(DepotPath)" ContinueOnError="true" Condition="Exists('$(DepotPath)')" />
+<<<<<<< HEAD
+=======
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Create directories -->
     <MakeDir Directories="$(DepotPath)" />
     <MakeDir Directories="$(DepotCompilerPath)" />
     <MakeDir Directories="$(DepotGuiPath)" />
+<<<<<<< HEAD
+=======
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Create clean GUI folder -->
     <PropertyGroup>
       <GuiSourcePath>$(SolutionDir)T7CompilerGUI\bin\x64\Release</GuiSourcePath>
@@ -190,6 +208,10 @@
     <PropertyGroup Condition="!Exists('$(GuiSourcePath)')">
       <GuiSourcePath>$(SolutionDir)T7CompilerGUI\bin\Debug</GuiSourcePath>
     </PropertyGroup>
+<<<<<<< HEAD
+=======
+    
+>>>>>>> origin/T7CompilerGUIv3
     <ItemGroup Condition="Exists('$(GuiSourcePath)')">
       <GuiFilesToCopy Include="$(GuiSourcePath)\*.exe" />
       <!-- DLLs are embedded with Costura, so we don't copy them -->
@@ -200,7 +222,13 @@
       <GuiFilesToCopy Remove="$(GuiSourcePath)\*.pdb" />
       <GuiFilesToCopy Remove="$(GuiSourcePath)\*.dll.config" />
     </ItemGroup>
+<<<<<<< HEAD
     <Copy SourceFiles="@(GuiFilesToCopy)" DestinationFolder="$(DepotGuiPath)" SkipUnchangedFiles="true" Condition="Exists('$(GuiSourcePath)')" />
+=======
+    
+    <Copy SourceFiles="@(GuiFilesToCopy)" DestinationFolder="$(DepotGuiPath)" SkipUnchangedFiles="true" Condition="Exists('$(GuiSourcePath)')" />
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Create clean compiler folder -->
     <PropertyGroup>
       <CompilerSourcePath>$(SolutionDir)DebugCompiler\bin\Release</CompilerSourcePath>
@@ -208,6 +236,10 @@
     <PropertyGroup Condition="!Exists('$(CompilerSourcePath)')">
       <CompilerSourcePath>$(SolutionDir)DebugCompiler\bin\Debug</CompilerSourcePath>
     </PropertyGroup>
+<<<<<<< HEAD
+=======
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Copy compiler files if source exists -->
     <Message Text="Checking for compiler source path: $(CompilerSourcePath)" Importance="normal" />
     <ItemGroup Condition="Exists('$(CompilerSourcePath)')">
@@ -220,21 +252,44 @@
       <CompilerFilesToCopy Remove="$(CompilerSourcePath)\*.pdb" />
       <CompilerFilesToCopy Remove="$(CompilerSourcePath)\*.dll.config" />
     </ItemGroup>
+<<<<<<< HEAD
     <Message Text="Copying compiler files from $(CompilerSourcePath) to $(DepotCompilerPath) - Found @(CompilerFilesToCopy-&gt;Count()) files" Condition="Exists('$(CompilerSourcePath)')" Importance="normal" />
     <Message Text="ERROR: Compiler source path does not exist: $(CompilerSourcePath). t7compiler folder will be empty!" Condition="!Exists('$(CompilerSourcePath)')" Importance="high" />
     <Copy SourceFiles="@(CompilerFilesToCopy)" DestinationFolder="$(DepotCompilerPath)" SkipUnchangedFiles="true" Condition="Exists('$(CompilerSourcePath)') and '@(CompilerFilesToCopy)' != ''" />
+=======
+    
+    <Message Text="Copying compiler files from $(CompilerSourcePath) to $(DepotCompilerPath) - Found @(CompilerFilesToCopy->Count()) files" Condition="Exists('$(CompilerSourcePath)')" Importance="normal" />
+    <Message Text="ERROR: Compiler source path does not exist: $(CompilerSourcePath). t7compiler folder will be empty!" Condition="!Exists('$(CompilerSourcePath)')" Importance="high" />
+    
+    <Copy SourceFiles="@(CompilerFilesToCopy)" DestinationFolder="$(DepotCompilerPath)" SkipUnchangedFiles="true" Condition="Exists('$(CompilerSourcePath)') and '@(CompilerFilesToCopy)' != ''" />
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Verify files were copied -->
     <ItemGroup>
       <CompilerCopiedFiles Include="$(DepotCompilerPath)\*" />
     </ItemGroup>
+<<<<<<< HEAD
     <Message Text="Compiler installation complete: @(CompilerCopiedFiles-&gt;Count()) files in $(DepotCompilerPath)" Importance="normal" />
     <!-- Internal DLLs are now embedded with Costura, so we don't copy them separately -->
+=======
+    <Message Text="Compiler installation complete: @(CompilerCopiedFiles->Count()) files in $(DepotCompilerPath)" Importance="normal" />
+    
+    <!-- Internal DLLs are now embedded with Costura, so we don't copy them separately -->
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Create update.zip package using MSBuild ZipDirectory task (available in .NET SDK) -->
     <PropertyGroup>
       <UpdateZipPath>$(DepotPath)\..\update.zip</UpdateZipPath>
     </PropertyGroup>
+<<<<<<< HEAD
     <!-- Delete existing zip if it exists -->
     <Delete Files="$(UpdateZipPath)" Condition="Exists('$(UpdateZipPath)')" />
+=======
+    
+    <!-- Delete existing zip if it exists -->
+    <Delete Files="$(UpdateZipPath)" Condition="Exists('$(UpdateZipPath)')" />
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Copy default project into __depot/build/defaultproject -->
     <PropertyGroup>
       <DefaultProjectPath>$(SolutionDir)Default Project</DefaultProjectPath>
@@ -243,13 +298,24 @@
       <DefaultProjectFiles Include="$(DefaultProjectPath)\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(DefaultProjectFiles)" DestinationFolder="$(DepotPath)\defaultproject\%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(DefaultProjectPath)')" />
+<<<<<<< HEAD
+=======
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Copy VSIX files into __depot/build/ -->
     <ItemGroup>
       <VsixFiles Include="$(SolutionDir)*.vsix" />
     </ItemGroup>
     <Copy SourceFiles="@(VsixFiles)" DestinationFolder="$(DepotPath)" SkipUnchangedFiles="true" />
+<<<<<<< HEAD
     <!-- Copy installer to __depot/ -->
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DepotPath)\.." SkipUnchangedFiles="true" />
+=======
+    
+    <!-- Copy installer to __depot/ -->
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DepotPath)\.." SkipUnchangedFiles="true" />
+    
+>>>>>>> origin/T7CompilerGUIv3
     <!-- Verify folders exist and have files before creating zip -->
     <Message Text="Verifying folders before creating zip..." Importance="normal" />
     <ItemGroup>
@@ -257,6 +323,7 @@
       <T7GuiFiles Include="$(DepotGuiPath)\*" />
       <DefaultProjectFiles Include="$(DepotPath)\defaultproject\**\*" />
     </ItemGroup>
+<<<<<<< HEAD
     <Message Text="t7compiler has @(T7CompilerFiles-&gt;Count()) files" Importance="normal" />
     <Message Text="t7gui has @(T7GuiFiles-&gt;Count()) files" Importance="normal" />
     <Message Text="defaultproject has @(DefaultProjectFiles-&gt;Count()) files" Importance="normal" />
@@ -264,5 +331,18 @@
     <!-- Add a small delay to ensure files are closed before zipping -->
     <!-- Use -Recurse to include empty folders if needed -->
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;if (Test-Path '$(DepotPath)') { Start-Sleep -Milliseconds 500; $items = Get-ChildItem '$(DepotPath)' -Directory; if ($items) { Compress-Archive -Path '$(DepotPath)\*' -DestinationPath '$(UpdateZipPath)' -Force -CompressionLevel Optimal } else { Write-Error 'No directories found in $(DepotPath)' } }&quot;" Condition="Exists('$(DepotPath)')" IgnoreExitCode="false" />
+=======
+    <Message Text="t7compiler has @(T7CompilerFiles->Count()) files" Importance="normal" />
+    <Message Text="t7gui has @(T7GuiFiles->Count()) files" Importance="normal" />
+    <Message Text="defaultproject has @(DefaultProjectFiles->Count()) files" Importance="normal" />
+    
+    <!-- Create ZIP file from __depot/build folder using PowerShell -->
+    <!-- Add a small delay to ensure files are closed before zipping -->
+    <!-- Use -Recurse to include empty folders if needed -->
+    <Exec 
+      Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;if (Test-Path '$(DepotPath)') { Start-Sleep -Milliseconds 500; $items = Get-ChildItem '$(DepotPath)' -Directory; if ($items) { Compress-Archive -Path '$(DepotPath)\*' -DestinationPath '$(UpdateZipPath)' -Force -CompressionLevel Optimal } else { Write-Error 'No directories found in $(DepotPath)' } }&quot;" 
+      Condition="Exists('$(DepotPath)')" 
+      IgnoreExitCode="false" />
+>>>>>>> origin/T7CompilerGUIv3
   </Target>
 </Project>
