@@ -57,7 +57,7 @@
 
 Download and run the latest installer from:
 
-**[Download Installer](https://github.com/Turtlesv3/t7-compiler/releases/tag/current)**
+**[Download Installer](https://github.com/Turtlesv3/t7-compiler/releases/tag/GG)**
 
 The installer will automatically set up all required components including:
 
