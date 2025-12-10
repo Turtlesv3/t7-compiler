@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 
-public struct SourceTokenDef
+namespace T7CompilerGUI.Utils
+{
+    public struct SourceTokenDef
 {
     public string FilePath;
     public int LineStart;
@@ -17,6 +19,7 @@ public struct SourceTokenDef
         CharStart = 0;
         CharEnd = 0;
         LineMappings = new Dictionary<int, (int CStart, int CEnd)>();
+    }
     }
 }
 

@@ -3,22 +3,22 @@ using ReaLTaiizor.Forms;
 using ReaLTaiizor.Extension.Poison;
 using ReaLTaiizor.Manager;
 
-namespace T7CompilerGUI
+namespace T7CompilerGUI.Forms
 {
     partial class MainForm
     {
         private System.ComponentModel.IContainer components = null;
-        
+
         private ReaLTaiizor.Controls.PoisonTabControl tabControl;
         private ReaLTaiizor.Controls.PoisonTabPage tabCompile;
         private ReaLTaiizor.Controls.PoisonTabPage tabInject;
-        
+
         // Compile tab controls
         private ReaLTaiizor.Controls.PoisonLabel lblProjectFolder;
         private PoisonTextBox txtProjectFolder;
         private PoisonButton btnSelectProjectFolder;
+        private ReaLTaiizor.Controls.PoisonDropDownButton btnRecentProjects;
         private ReaLTaiizor.Controls.PoisonDropDownButton btnGscConfMode;
-        private ReaLTaiizor.Controls.PoisonContextMenuStrip gscConfModeMenu;
         private ReaLTaiizor.Controls.PoisonLabel lblOutputFile;
         private PoisonTextBox txtOutputFile;
         private PoisonButton btnSelectOutputFile;
@@ -26,18 +26,18 @@ namespace T7CompilerGUI
         private ReaLTaiizor.Controls.PoisonToggle chkOpcodeMasking;
         private ReaLTaiizor.Controls.PoisonLabel lblSaveOpcodeMap;
         private ReaLTaiizor.Controls.PoisonToggle chkSaveOpcodeMap;
-        private ReaLTaiizor.Controls.PoisonLabel lblPlatform;
         private ReaLTaiizor.Controls.PoisonDropDownButton btnPlatform;
         private ReaLTaiizor.Controls.PoisonContextMenuStrip platformMenu;
-        private ReaLTaiizor.Controls.PoisonLabel lblGame;
         private ReaLTaiizor.Controls.PoisonDropDownButton btnGame;
         private ReaLTaiizor.Controls.PoisonContextMenuStrip gameMenu;
         private PoisonButton btnCompile;
-        
+        private PoisonButton btnCodeEditor;
+
         // Inject tab controls
         private ReaLTaiizor.Controls.PoisonLabel lblInjectFile;
         private PoisonTextBox txtInjectFile;
         private PoisonButton btnSelectInjectFile;
+        private ReaLTaiizor.Controls.PoisonDropDownButton btnRecentFiles;
         private ReaLTaiizor.Controls.PoisonLabel lblInjectPath;
         private PoisonTextBox txtInjectPath;
         private ReaLTaiizor.Controls.PoisonLabel lblInjectGame;
@@ -45,6 +45,9 @@ namespace T7CompilerGUI
         private ReaLTaiizor.Controls.PoisonContextMenuStrip injectGameMenu;
         private ReaLTaiizor.Controls.PoisonLabel lblNoRuntime;
         private ReaLTaiizor.Controls.PoisonToggle chkNoRuntime;
+        private ReaLTaiizor.Controls.PoisonLabel lblHotReload;
+        private ReaLTaiizor.Controls.PoisonDropDownButton btnHotReload;
+        private ReaLTaiizor.Controls.PoisonContextMenuStrip hotReloadMenu;
         private PoisonButton btnInject;
         private PoisonButton btnResetParseTree;
         private PoisonButton btnLaunchBO3;
@@ -52,7 +55,7 @@ namespace T7CompilerGUI
         private ReaLTaiizor.Controls.PoisonProgressSpinner progressSpinner;
         private ReaLTaiizor.Controls.PoisonProgressBar progressBar;
         private ReaLTaiizor.Controls.PoisonToolTip poisonToolTip;
-        
+
         // Log panel controls
         private ReaLTaiizor.Controls.PoisonPanel panelLogControls;
         private PoisonButton btnLogClear;
@@ -60,7 +63,7 @@ namespace T7CompilerGUI
         private PoisonButton btnLogSave;
         private PoisonTextBox txtLogSearch;
         private ReaLTaiizor.Controls.PoisonLabel lblLogSearch;
-        
+
         // Settings tab
         private ReaLTaiizor.Controls.PoisonTabPage tabSettings;
         private ReaLTaiizor.Controls.PoisonLabel lblSettingsTheme;
@@ -69,20 +72,22 @@ namespace T7CompilerGUI
         private ReaLTaiizor.Controls.PoisonDropDownButton btnSettingsColorStyle;
         private ReaLTaiizor.Controls.PoisonContextMenuStrip settingsColorStyleMenu;
         private ReaLTaiizor.Controls.PoisonContextMenuStrip mainFormContextMenu;
+        private ReaLTaiizor.Controls.PoisonContextMenuStrip recentProjectsMenu;
+        private ReaLTaiizor.Controls.PoisonContextMenuStrip recentFilesMenu;
         private ReaLTaiizor.Controls.PoisonLabel lblSettingsDefaultOutputPath;
         private ReaLTaiizor.Controls.PoisonTextBox txtSettingsDefaultOutputPath;
         private ReaLTaiizor.Controls.PoisonButton btnSettingsBrowseOutputPath;
         private ReaLTaiizor.Controls.PoisonContextMenuStrip settingsContextMenu;
-        
+
         // About tab
         private ReaLTaiizor.Controls.PoisonTabPage tabAbout;
         private ReaLTaiizor.Controls.PoisonLabel lblVersion;
         private ReaLTaiizor.Controls.PoisonLabel lblAbout;
-        
+
         // Game status indicator
         private ReaLTaiizor.Controls.PoisonLabel lblGameStatus;
         // gameStatusTimer is defined in MainForm.cs
-        
+
         // Style Management
         private ReaLTaiizor.Manager.PoisonStyleManager poisonStyleManager;
         private ReaLTaiizor.Controls.PoisonStyleExtender poisonStyleExtender;
@@ -102,36 +107,40 @@ namespace T7CompilerGUI
             this.poisonStyleManager = new ReaLTaiizor.Manager.PoisonStyleManager(this.components);
             this.poisonStyleExtender = new ReaLTaiizor.Controls.PoisonStyleExtender(this.components);
             this.txtLog = new System.Windows.Forms.RichTextBox();
-            this.gscConfModeMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.platformMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.gameMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.injectGameMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.settingsColorStyleMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.mainFormContextMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
+            this.recentProjectsMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
+            this.recentFilesMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.lblProjectFolder = new ReaLTaiizor.Controls.PoisonLabel();
             this.lblOutputFile = new ReaLTaiizor.Controls.PoisonLabel();
             this.lblOpcodeMasking = new ReaLTaiizor.Controls.PoisonLabel();
             this.chkOpcodeMasking = new ReaLTaiizor.Controls.PoisonToggle();
             this.lblSaveOpcodeMap = new ReaLTaiizor.Controls.PoisonLabel();
             this.chkSaveOpcodeMap = new ReaLTaiizor.Controls.PoisonToggle();
-            this.lblPlatform = new ReaLTaiizor.Controls.PoisonLabel();
-            this.lblGame = new ReaLTaiizor.Controls.PoisonLabel();
             this.tabControl = new ReaLTaiizor.Controls.PoisonTabControl();
             this.tabCompile = new ReaLTaiizor.Controls.PoisonTabPage();
             this.btnGscConfMode = new ReaLTaiizor.Controls.PoisonDropDownButton();
             this.txtProjectFolder = new ReaLTaiizor.Controls.PoisonTextBox();
             this.btnSelectProjectFolder = new ReaLTaiizor.Controls.PoisonButton();
+            this.btnRecentProjects = new ReaLTaiizor.Controls.PoisonDropDownButton();
             this.txtOutputFile = new ReaLTaiizor.Controls.PoisonTextBox();
             this.btnSelectOutputFile = new ReaLTaiizor.Controls.PoisonButton();
             this.btnPlatform = new ReaLTaiizor.Controls.PoisonDropDownButton();
             this.btnGame = new ReaLTaiizor.Controls.PoisonDropDownButton();
             this.btnCompile = new ReaLTaiizor.Controls.PoisonButton();
+            this.btnCodeEditor = new ReaLTaiizor.Controls.PoisonButton();
             this.tabInject = new ReaLTaiizor.Controls.PoisonTabPage();
             this.lblInjectFile = new ReaLTaiizor.Controls.PoisonLabel();
             this.lblInjectPath = new ReaLTaiizor.Controls.PoisonLabel();
             this.lblInjectGame = new ReaLTaiizor.Controls.PoisonLabel();
             this.lblNoRuntime = new ReaLTaiizor.Controls.PoisonLabel();
             this.chkNoRuntime = new ReaLTaiizor.Controls.PoisonToggle();
+            this.lblHotReload = new ReaLTaiizor.Controls.PoisonLabel();
+            this.btnHotReload = new ReaLTaiizor.Controls.PoisonDropDownButton();
+            this.hotReloadMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.txtInjectFile = new ReaLTaiizor.Controls.PoisonTextBox();
             this.btnSelectInjectFile = new ReaLTaiizor.Controls.PoisonButton();
             this.txtInjectPath = new ReaLTaiizor.Controls.PoisonTextBox();
@@ -150,6 +159,7 @@ namespace T7CompilerGUI
             this.tabAbout = new ReaLTaiizor.Controls.PoisonTabPage();
             this.lblVersion = new ReaLTaiizor.Controls.PoisonLabel();
             this.lblAbout = new ReaLTaiizor.Controls.PoisonLabel();
+            this.btnRecentFiles = new ReaLTaiizor.Controls.PoisonDropDownButton();
             this.settingsContextMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.panelLog = new ReaLTaiizor.Controls.PoisonPanel();
             this.progressSpinner = new ReaLTaiizor.Controls.PoisonProgressSpinner();
@@ -191,13 +201,6 @@ namespace T7CompilerGUI
             this.txtLog.Text = "";
             this.txtLog.WordWrap = false;
             // 
-            // gscConfModeMenu
-            // 
-            this.gscConfModeMenu.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
-            this.gscConfModeMenu.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(0)))), ((int)(((byte)(0)))));
-            this.gscConfModeMenu.Name = "gscConfModeMenu";
-            this.gscConfModeMenu.Size = new System.Drawing.Size(61, 4);
-            // 
             // platformMenu
             // 
             this.platformMenu.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
@@ -230,6 +233,18 @@ namespace T7CompilerGUI
             // 
             this.mainFormContextMenu.Name = "mainFormContextMenu";
             this.mainFormContextMenu.Size = new System.Drawing.Size(61, 4);
+            // 
+            // recentProjectsMenu
+            // 
+            this.recentProjectsMenu.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
+            this.recentProjectsMenu.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(0)))), ((int)(((byte)(0)))));
+            this.recentProjectsMenu.Name = "recentProjectsMenu";
+            this.recentProjectsMenu.Size = new System.Drawing.Size(61, 4);
+            // 
+            // recentFilesMenu
+            // 
+            this.recentFilesMenu.Name = "recentFilesMenu";
+            this.recentFilesMenu.Size = new System.Drawing.Size(61, 4);
             // 
             // lblProjectFolder
             // 
@@ -295,29 +310,6 @@ namespace T7CompilerGUI
             this.chkSaveOpcodeMap.Text = "On";
             this.chkSaveOpcodeMap.UseSelectable = true;
             // 
-            // lblPlatform
-            // 
-            this.lblPlatform.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.lblPlatform.AutoSize = true;
-            this.lblPlatform.Location = new System.Drawing.Point(383, 68);
-            this.lblPlatform.Name = "lblPlatform";
-            this.lblPlatform.Size = new System.Drawing.Size(63, 19);
-            this.lblPlatform.TabIndex = 17;
-            this.lblPlatform.Text = "Platform:";
-            this.lblPlatform.UseStyleColors = true;
-            // 
-            // lblGame
-            // 
-            this.lblGame.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.lblGame.AutoSize = true;
-            this.lblGame.Location = new System.Drawing.Point(369, 96);
-            this.lblGame.Name = "lblGame";
-            this.lblGame.Size = new System.Drawing.Size(47, 19);
-            this.lblGame.TabIndex = 19;
-            this.lblGame.Text = "Game:";
-            this.lblGame.UseStyleColors = true;
-            this.lblGame.Click += new System.EventHandler(this.lblGame_Click);
-            // 
             // tabControl
             // 
             this.tabControl.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
@@ -341,6 +333,7 @@ namespace T7CompilerGUI
             this.tabCompile.Controls.Add(this.lblProjectFolder);
             this.tabCompile.Controls.Add(this.txtProjectFolder);
             this.tabCompile.Controls.Add(this.btnSelectProjectFolder);
+            this.tabCompile.Controls.Add(this.btnRecentProjects);
             this.tabCompile.Controls.Add(this.lblOutputFile);
             this.tabCompile.Controls.Add(this.txtOutputFile);
             this.tabCompile.Controls.Add(this.btnSelectOutputFile);
@@ -348,11 +341,10 @@ namespace T7CompilerGUI
             this.tabCompile.Controls.Add(this.chkSaveOpcodeMap);
             this.tabCompile.Controls.Add(this.lblOpcodeMasking);
             this.tabCompile.Controls.Add(this.chkOpcodeMasking);
-            this.tabCompile.Controls.Add(this.lblPlatform);
             this.tabCompile.Controls.Add(this.btnPlatform);
-            this.tabCompile.Controls.Add(this.lblGame);
             this.tabCompile.Controls.Add(this.btnGame);
             this.tabCompile.Controls.Add(this.btnCompile);
+            this.tabCompile.Controls.Add(this.btnCodeEditor);
             this.tabCompile.HorizontalScrollbarBarColor = true;
             this.tabCompile.HorizontalScrollbarHighlightOnWheel = false;
             this.tabCompile.HorizontalScrollbarSize = 3;
@@ -371,17 +363,15 @@ namespace T7CompilerGUI
             this.btnGscConfMode.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnGscConfMode.AutoSize = true;
             this.btnGscConfMode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.btnGscConfMode.ContextMenuStrip = this.gscConfModeMenu;
             this.btnGscConfMode.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnGscConfMode.Highlight = true;
-            this.btnGscConfMode.Location = new System.Drawing.Point(448, 121);
+            this.btnGscConfMode.Location = new System.Drawing.Point(383, 121);
             this.btnGscConfMode.Name = "btnGscConfMode";
-            this.btnGscConfMode.Size = new System.Drawing.Size(53, 23);
-            this.btnGscConfMode.SplitMenuStrip = this.gscConfModeMenu;
+            this.btnGscConfMode.Size = new System.Drawing.Size(118, 23);
             this.btnGscConfMode.TabIndex = 22;
-            this.btnGscConfMode.Tag = 0;
-            this.btnGscConfMode.Text = "MP";
+            this.btnGscConfMode.Text = "GSC Config";
             this.btnGscConfMode.UseSelectable = true;
+            this.btnGscConfMode.Click += new System.EventHandler(this.btnGscConfMode_Click);
             // 
             // txtProjectFolder
             // 
@@ -393,7 +383,7 @@ namespace T7CompilerGUI
             // 
             // 
             this.txtProjectFolder.CustomButton.Image = null;
-            this.txtProjectFolder.CustomButton.Location = new System.Drawing.Point(379, 2);
+            this.txtProjectFolder.CustomButton.Location = new System.Drawing.Point(290, 2);
             this.txtProjectFolder.CustomButton.Name = "";
             this.txtProjectFolder.CustomButton.Size = new System.Drawing.Size(17, 17);
             this.txtProjectFolder.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -413,7 +403,7 @@ namespace T7CompilerGUI
             this.txtProjectFolder.SelectionLength = 0;
             this.txtProjectFolder.SelectionStart = 0;
             this.txtProjectFolder.ShortcutsEnabled = true;
-            this.txtProjectFolder.Size = new System.Drawing.Size(399, 22);
+            this.txtProjectFolder.Size = new System.Drawing.Size(310, 22);
             this.txtProjectFolder.TabIndex = 6;
             this.txtProjectFolder.UseSelectable = true;
             this.txtProjectFolder.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
@@ -428,13 +418,28 @@ namespace T7CompilerGUI
             this.btnSelectProjectFolder.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             this.btnSelectProjectFolder.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnSelectProjectFolder.Highlight = true;
-            this.btnSelectProjectFolder.Location = new System.Drawing.Point(507, 8);
+            this.btnSelectProjectFolder.Location = new System.Drawing.Point(506, 8);
             this.btnSelectProjectFolder.Name = "btnSelectProjectFolder";
             this.btnSelectProjectFolder.Size = new System.Drawing.Size(88, 22);
             this.btnSelectProjectFolder.TabIndex = 7;
             this.btnSelectProjectFolder.Text = "Browse...";
             this.btnSelectProjectFolder.UseSelectable = true;
             this.btnSelectProjectFolder.Click += new System.EventHandler(this.btnSelectProjectFolder_Click);
+            // 
+            // btnRecentProjects
+            // 
+            this.btnRecentProjects.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnRecentProjects.AutoSize = true;
+            this.btnRecentProjects.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
+            this.btnRecentProjects.ContextMenuStrip = this.recentProjectsMenu;
+            this.btnRecentProjects.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
+            this.btnRecentProjects.Location = new System.Drawing.Point(418, 8);
+            this.btnRecentProjects.Name = "btnRecentProjects";
+            this.btnRecentProjects.Size = new System.Drawing.Size(80, 23);
+            this.btnRecentProjects.SplitMenuStrip = this.recentProjectsMenu;
+            this.btnRecentProjects.TabIndex = 8;
+            this.btnRecentProjects.Text = "Recent";
+            this.btnRecentProjects.UseSelectable = true;
             // 
             // txtOutputFile
             // 
@@ -525,6 +530,20 @@ namespace T7CompilerGUI
             this.btnCompile.UseStyleColors = true;
             this.btnCompile.Click += new System.EventHandler(this.btnCompile_Click);
             // 
+            // btnCodeEditor
+            // 
+            this.btnCodeEditor.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnCodeEditor.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
+            this.btnCodeEditor.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
+            this.btnCodeEditor.Highlight = true;
+            this.btnCodeEditor.Location = new System.Drawing.Point(344, 64);
+            this.btnCodeEditor.Name = "btnCodeEditor";
+            this.btnCodeEditor.Size = new System.Drawing.Size(102, 23);
+            this.btnCodeEditor.TabIndex = 19;
+            this.btnCodeEditor.Text = "Open Code Editor";
+            this.btnCodeEditor.UseSelectable = true;
+            this.btnCodeEditor.Click += new System.EventHandler(this.btnCodeEditor_Click);
+            // 
             // tabInject
             // 
             this.tabInject.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
@@ -533,6 +552,8 @@ namespace T7CompilerGUI
             this.tabInject.Controls.Add(this.lblInjectGame);
             this.tabInject.Controls.Add(this.lblNoRuntime);
             this.tabInject.Controls.Add(this.chkNoRuntime);
+            this.tabInject.Controls.Add(this.lblHotReload);
+            this.tabInject.Controls.Add(this.btnHotReload);
             this.tabInject.Controls.Add(this.txtInjectFile);
             this.tabInject.Controls.Add(this.btnSelectInjectFile);
             this.tabInject.Controls.Add(this.txtInjectPath);
@@ -604,6 +625,35 @@ namespace T7CompilerGUI
             this.chkNoRuntime.Text = "Off";
             this.chkNoRuntime.UseSelectable = true;
             // 
+            // lblHotReload
+            // 
+            this.lblHotReload.AutoSize = true;
+            this.lblHotReload.Location = new System.Drawing.Point(160, 92);
+            this.lblHotReload.Name = "lblHotReload";
+            this.lblHotReload.Size = new System.Drawing.Size(78, 19);
+            this.lblHotReload.TabIndex = 9;
+            this.lblHotReload.Text = "Hot Reload:";
+            this.lblHotReload.UseStyleColors = true;
+            // 
+            // btnHotReload
+            // 
+            this.btnHotReload.AutoSize = true;
+            this.btnHotReload.ContextMenuStrip = this.hotReloadMenu;
+            this.btnHotReload.Location = new System.Drawing.Point(246, 88);
+            this.btnHotReload.Name = "btnHotReload";
+            this.btnHotReload.Size = new System.Drawing.Size(94, 23);
+            this.btnHotReload.SplitMenuStrip = this.hotReloadMenu;
+            this.btnHotReload.TabIndex = 10;
+            this.btnHotReload.Text = "None";
+            this.btnHotReload.UseSelectable = true;
+            // 
+            // hotReloadMenu
+            // 
+            this.hotReloadMenu.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
+            this.hotReloadMenu.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(0)))), ((int)(((byte)(0)))));
+            this.hotReloadMenu.Name = "hotReloadMenu";
+            this.hotReloadMenu.Size = new System.Drawing.Size(61, 4);
+            // 
             // txtInjectFile
             // 
             this.txtInjectFile.AllowDrop = true;
@@ -649,7 +699,7 @@ namespace T7CompilerGUI
             this.btnSelectInjectFile.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             this.btnSelectInjectFile.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnSelectInjectFile.Highlight = true;
-            this.btnSelectInjectFile.Location = new System.Drawing.Point(507, 8);
+            this.btnSelectInjectFile.Location = new System.Drawing.Point(506, 8);
             this.btnSelectInjectFile.Name = "btnSelectInjectFile";
             this.btnSelectInjectFile.Size = new System.Drawing.Size(88, 22);
             this.btnSelectInjectFile.TabIndex = 2;
@@ -803,7 +853,7 @@ namespace T7CompilerGUI
             // 
             this.btnSettingsColorStyle.AutoSize = true;
             this.btnSettingsColorStyle.ContextMenuStrip = this.settingsColorStyleMenu;
-            this.btnSettingsColorStyle.Location = new System.Drawing.Point(92, 40);
+            this.btnSettingsColorStyle.Location = new System.Drawing.Point(92, 44);
             this.btnSettingsColorStyle.Name = "btnSettingsColorStyle";
             this.btnSettingsColorStyle.Size = new System.Drawing.Size(83, 23);
             this.btnSettingsColorStyle.SplitMenuStrip = this.settingsColorStyleMenu;
@@ -844,7 +894,7 @@ namespace T7CompilerGUI
             this.txtSettingsDefaultOutputPath.MaxLength = 32767;
             this.txtSettingsDefaultOutputPath.Name = "txtSettingsDefaultOutputPath";
             this.txtSettingsDefaultOutputPath.PasswordChar = '\0';
-            this.txtSettingsDefaultOutputPath.PromptText = "Select output folder...";
+            this.txtSettingsDefaultOutputPath.WaterMark = "Select output folder...";
             this.txtSettingsDefaultOutputPath.ScrollBars = System.Windows.Forms.ScrollBars.None;
             this.txtSettingsDefaultOutputPath.SelectedText = "";
             this.txtSettingsDefaultOutputPath.SelectionLength = 0;
@@ -908,6 +958,21 @@ namespace T7CompilerGUI
             this.lblAbout.TabIndex = 1;
             this.lblAbout.Text = "A powerful GSC compiler for Call of Duty: Black Ops 3/4";
             this.lblAbout.UseStyleColors = true;
+            // 
+            // btnRecentFiles
+            // 
+            this.btnRecentFiles.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnRecentFiles.AutoSize = true;
+            this.btnRecentFiles.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
+            this.btnRecentFiles.ContextMenuStrip = this.recentFilesMenu;
+            this.btnRecentFiles.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
+            this.btnRecentFiles.Location = new System.Drawing.Point(420, 8);
+            this.btnRecentFiles.Name = "btnRecentFiles";
+            this.btnRecentFiles.Size = new System.Drawing.Size(80, 22);
+            this.btnRecentFiles.SplitMenuStrip = this.recentFilesMenu;
+            this.btnRecentFiles.TabIndex = 3;
+            this.btnRecentFiles.Text = "Recent";
+            this.btnRecentFiles.UseSelectable = true;
             // 
             // settingsContextMenu
             // 
@@ -1047,7 +1112,7 @@ namespace T7CompilerGUI
             this.txtLogSearch.MaxLength = 32767;
             this.txtLogSearch.Name = "txtLogSearch";
             this.txtLogSearch.PasswordChar = '\0';
-            this.txtLogSearch.PromptText = "Search log...";
+            this.txtLogSearch.WaterMark = "Search log...";
             this.txtLogSearch.ScrollBars = System.Windows.Forms.ScrollBars.None;
             this.txtLogSearch.SelectedText = "";
             this.txtLogSearch.SelectionLength = 0;

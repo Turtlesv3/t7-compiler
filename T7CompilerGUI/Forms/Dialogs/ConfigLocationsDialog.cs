@@ -11,70 +11,16 @@ using ReaLTaiizor.Enum.Poison;
 using ReaLTaiizor.Manager;
 using ReaLTaiizor.Interface.Poison;
 using ReaLTaiizor.Drawing.Poison;
+using T7CompilerGUI.Controls;
+using T7CompilerGUI.Helpers;
 
-namespace T7CompilerGUI
+namespace T7CompilerGUI.Forms.Dialogs
 {
-    public class ConfigLocationsDialog : PoisonForm
+    public partial class ConfigLocationsDialog : PoisonForm
     {
-        #region Windows API for Modern Folder Dialog
-        
-        private const uint FOS_PICKFOLDERS = 0x00000020;
-        private const uint SIGDN_FILESYSPATH = 0x80058000;
-        
-        [ComImport]
-        [ClassInterface(ClassInterfaceType.None)]
-        [TypeLibType(TypeLibTypeFlags.FCanCreate)]
-        [Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
-        private class FileOpenDialogRCW { }
-
-        [ComImport]
-        [Guid("42F85136-DB7E-439C-85F1-E4075D135FC8")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IFileOpenDialog
-        {
-            [PreserveSig]
-            uint Show([In] IntPtr hwndParent);
-            [PreserveSig]
-            void SetOptions(uint fos);
-            void SetFolder(IShellItem psi);
-            [PreserveSig]
-            void SetTitle([In, MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
-            void GetResult(out IShellItem ppsi);
-        }
-
-        [ComImport]
-        [Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IShellItem
-        {
-            void BindToHandler(IntPtr pbc, [In] ref Guid bhid, [In] ref Guid riid, out IntPtr ppv);
-            void GetParent(out IShellItem ppsi);
-            [PreserveSig]
-            void GetDisplayName([In] uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
-            void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
-            void Compare(IShellItem psi, uint hint, out int piOrder);
-        }
-
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
-        private static extern uint SHParseDisplayName([MarshalAs(UnmanagedType.LPWStr)] string pszName, IntPtr pbc, out IntPtr ppidl, uint sfgaoIn, out uint psfgaoOut);
-
-        [DllImport("shell32.dll", PreserveSig = false)]
-        private static extern uint SHCreateItemFromIDList(IntPtr pidl, [MarshalAs(UnmanagedType.LPStruct)] Guid riid, [MarshalAs(UnmanagedType.Interface)] out IShellItem ppv);
-        
-        #endregion
         
         private PoisonStyleManager styleManager;
-        private MainForm parentForm; // Reference to parent form for rainbow access
-        private PoisonTextBox txtConfigPath;
-        private PoisonTextBox txtTempPath;
-        private PoisonTextBox txtDllExtractPath;
-        private PoisonTextBox txtAppDataRoaming;
-        private PoisonButton btnBrowseConfig;
-        private PoisonButton btnBrowseTemp;
-        private PoisonButton btnBrowseDll;
-        private PoisonButton btnBrowseAppDataRoaming;
-        private PoisonButton btnOK;
-        private PoisonButton btnCancel;
+        private Forms.MainForm parentForm; // Reference to parent form for rainbow access
         private System.Windows.Forms.Timer rainbowUpdateTimer; // Timer to update UI when rainbow is active
         private System.Windows.Forms.Timer syncTimer; // Timer to sync with StyleManager
         
@@ -99,7 +45,7 @@ namespace T7CompilerGUI
         {
         }
         
-        public ConfigLocationsDialog(PoisonStyleManager styleManager, string currentConfigPath, string currentTempPath, string currentDllExtractPath, string currentAppDataRoaming, MainForm parentForm)
+        public ConfigLocationsDialog(PoisonStyleManager styleManager, string currentConfigPath, string currentTempPath, string currentDllExtractPath, string currentAppDataRoaming, Forms.MainForm parentForm)
         {
             this.styleManager = styleManager;
             this.parentForm = parentForm;
@@ -107,6 +53,9 @@ namespace T7CompilerGUI
             this.TempPath = currentTempPath;
             this.DllExtractPath = currentDllExtractPath;
             this.AppDataRoaming = currentAppDataRoaming ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            
+            // Initialize designer-generated controls
+            InitializeComponent();
             
             // PoisonForm already sets ControlStyles in its constructor (OptimizedDoubleBuffer, ResizeRedraw, etc.)
             // We don't need to override them - PoisonForm handles smooth resizing internally
@@ -131,7 +80,13 @@ namespace T7CompilerGUI
                 // Also sync periodically to catch any changes
                 syncTimer = new System.Windows.Forms.Timer();
                 syncTimer.Interval = 100; // Check every 100ms
-                syncTimer.Tick += (s, e) => SyncAllControlsWithStyleManager();
+                syncTimer.Tick += (s, e) => 
+                {
+                    if (!this.IsDisposed && this.IsHandleCreated)
+                    {
+                        SyncAllControlsWithStyleManager();
+                    }
+                };
                 syncTimer.Start();
             }
         }
@@ -174,265 +129,137 @@ namespace T7CompilerGUI
         
         private void SetupControls()
         {
-            this.SuspendLayout();
+            // Controls are now created in InitializeComponent (Designer file)
+            // This method just wires up event handlers and sets dynamic properties
             
-            // Form properties - match demo pattern
-            this.Text = "Application Locations";
-            this.Size = new Size(700, 400);
-            this.MinimumSize = new Size(600, 350);
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.ShadowType = FormShadowType.DropShadow;
-            this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
-            
-            // Set StyleManager - all controls will inherit automatically (matching demo pattern)
             if (styleManager != null)
             {
                 this.StyleManager = styleManager;
             }
             
-            // Main panel - controls inherit from StyleManager automatically
-            var mainPanel = new PoisonPanel
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(20, 20, 30, 20), // Extra right padding to prevent button cutoff
-                AutoScroll = true,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            int yPos = 20;
-            const int spacing = 50;
-            const int labelWidth = 150;
-            const int textBoxWidth = 380;
-            const int buttonWidth = 80;
-            
-            // Config File Path - controls inherit from StyleManager automatically
-            var lblConfig = new PoisonLabel
-            {
-                Text = "Config File:",
-                Location = new Point(20, yPos),
-                Size = new Size(labelWidth, 23),
-                AutoSize = false,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            
-            txtConfigPath = new PoisonTextBox
-            {
-                Location = new Point(180, yPos),
-                Size = new Size(textBoxWidth, 23),
-                ReadOnly = true,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            btnBrowseConfig = new PoisonButton
-            {
-                Text = "Open",
-                Location = new Point(570, yPos),
-                Size = new Size(buttonWidth, 23),
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            btnBrowseConfig.Click += BtnBrowseConfig_Click;
-            
-            yPos += spacing;
-            
-            // Temp Path - controls inherit from StyleManager automatically
-            var lblTemp = new PoisonLabel
-            {
-                Text = "Temp Location:",
-                Location = new Point(20, yPos),
-                Size = new Size(labelWidth, 23),
-                AutoSize = false,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            
-            txtTempPath = new PoisonTextBox
-            {
-                Location = new Point(180, yPos),
-                Size = new Size(textBoxWidth, 23),
-                ReadOnly = false,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            btnBrowseTemp = new PoisonButton
-            {
-                Text = "Browse",
-                Location = new Point(570, yPos),
-                Size = new Size(buttonWidth, 23),
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            btnBrowseTemp.Click += BtnBrowseTemp_Click;
-            
-            yPos += spacing;
-            
-            // DLL Extract Path - controls inherit from StyleManager automatically
-            var lblDll = new PoisonLabel
-            {
-                Text = "DLL Extract Path:",
-                Location = new Point(20, yPos),
-                Size = new Size(labelWidth, 23),
-                AutoSize = false,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            
-            txtDllExtractPath = new PoisonTextBox
-            {
-                Location = new Point(180, yPos),
-                Size = new Size(textBoxWidth, 23),
-                ReadOnly = false,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            btnBrowseDll = new PoisonButton
-            {
-                Text = "Browse",
-                Location = new Point(570, yPos),
-                Size = new Size(buttonWidth, 23),
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            btnBrowseDll.Click += BtnBrowseDll_Click;
-            
-            yPos += spacing;
-            
-            // AppData (Roaming) Path - controls inherit from StyleManager automatically
-            var lblAppDataRoaming = new PoisonLabel
-            {
-                Text = "AppData (Roaming):",
-                Location = new Point(20, yPos),
-                Size = new Size(labelWidth, 23),
-                AutoSize = false,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            
-            txtAppDataRoaming = new PoisonTextBox
-            {
-                Location = new Point(180, yPos),
-                Size = new Size(textBoxWidth, 23),
-                ReadOnly = true,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            btnBrowseAppDataRoaming = new PoisonButton
-            {
-                Text = "Open",
-                Location = new Point(570, yPos),
-                Size = new Size(buttonWidth, 23),
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            btnBrowseAppDataRoaming.Click += BtnBrowseAppDataRoaming_Click;
-            
-            // Info label - controls inherit from StyleManager automatically
-            var lblInfo = new PoisonLabel
-            {
-                Text = "Note: DLL Extract Path is where Costura extracts embedded DLLs at runtime.",
-                Location = new Point(20, yPos + 40),
-                Size = new Size(630, 30),
-                AutoSize = false,
-                FontSize = ReaLTaiizor.Extension.Poison.PoisonLabelSize.Small,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            
-            // Buttons panel - controls inherit from StyleManager automatically
-            var buttonPanel = new PoisonPanel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 50,
-                Padding = new Padding(10, 10, 20, 10), // Extra right padding to prevent button cutoff
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            btnOK = new PoisonButton
-            {
-                Text = "OK",
-                Size = new Size(100, 30),
-                Location = new Point(10, 10), // Will be positioned correctly after panel is added
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            btnOK.Click += BtnOK_Click;
-            
-            btnCancel = new PoisonButton
-            {
-                Text = "Cancel",
-                Size = new Size(100, 30),
-                Location = new Point(10, 10), // Will be positioned correctly after panel is added
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
-            btnCancel.Click += (s, e) => 
-            {
-                ResetButtonState(s);
-                this.DialogResult = DialogResult.Cancel;
-            };
-            
-            // Add controls to panels
-            mainPanel.Controls.Add(lblConfig);
-            mainPanel.Controls.Add(txtConfigPath);
-            mainPanel.Controls.Add(btnBrowseConfig);
-            mainPanel.Controls.Add(lblTemp);
-            mainPanel.Controls.Add(txtTempPath);
-            mainPanel.Controls.Add(btnBrowseTemp);
-            mainPanel.Controls.Add(lblDll);
-            mainPanel.Controls.Add(txtDllExtractPath);
-            mainPanel.Controls.Add(btnBrowseDll);
-            mainPanel.Controls.Add(lblAppDataRoaming);
-            mainPanel.Controls.Add(txtAppDataRoaming);
-            mainPanel.Controls.Add(btnBrowseAppDataRoaming);
-            mainPanel.Controls.Add(lblInfo);
-            
-            buttonPanel.Controls.Add(btnOK);
-            buttonPanel.Controls.Add(btnCancel);
+            // Null check all controls before wiring up events
+            if (btnBrowseConfig != null)
+                btnBrowseConfig.Click += BtnBrowseConfig_Click;
+            if (btnBrowseTemp != null)
+                btnBrowseTemp.Click += BtnBrowseTemp_Click;
+            if (btnBrowseDll != null)
+                btnBrowseDll.Click += BtnBrowseDll_Click;
+            if (btnBrowseAppDataRoaming != null)
+                btnBrowseAppDataRoaming.Click += BtnBrowseAppDataRoaming_Click;
+            if (btnOK != null)
+                btnOK.Click += BtnOK_Click;
+            if (btnCancel != null)
+                btnCancel.Click += (s, e) => 
+                {
+                    ResetButtonState(s);
+                    this.DialogResult = DialogResult.Cancel;
+                };
             
             // Position buttons correctly after panel is added (accounting for padding)
-            buttonPanel.Layout += (s, e) =>
+            if (buttonPanel != null)
             {
-                int rightPadding = buttonPanel.Padding.Right;
-                int buttonSpacing = 10;
-                int dialogButtonWidth = 100;
+                buttonPanel.Layout += (s, e) =>
+                {
+                    if (btnOK != null && btnCancel != null)
+                    {
+                        int rightPadding = buttonPanel.Padding.Right;
+                        int buttonSpacing = 10;
+                        int dialogButtonWidth = 100;
+                        
+                        btnOK.Location = new Point(buttonPanel.Width - rightPadding - dialogButtonWidth, 10);
+                        btnCancel.Location = new Point(buttonPanel.Width - rightPadding - dialogButtonWidth - dialogButtonWidth - buttonSpacing, 10);
+                    }
+                };
+            }
+            
+            // Setup button hover effects after controls are created using centralized helper
+            if (btnBrowseConfig != null)
+                PoisonControlHelper.SetupButtonEffects(btnBrowseConfig);
+            if (btnBrowseTemp != null)
+                PoisonControlHelper.SetupButtonEffects(btnBrowseTemp);
+            if (btnBrowseDll != null)
+                PoisonControlHelper.SetupButtonEffects(btnBrowseDll);
+            if (btnBrowseAppDataRoaming != null)
+                PoisonControlHelper.SetupButtonEffects(btnBrowseAppDataRoaming);
+            if (btnOK != null)
+                PoisonControlHelper.SetupButtonEffects(btnOK);
+            if (btnCancel != null)
+                PoisonControlHelper.SetupButtonEffects(btnCancel);
+        }
+        
+        /// <summary>
+        /// Shortens a path by replacing common user directories with environment variables
+        /// </summary>
+        private string ShortenPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+            
+            try
+            {
+                // Get common environment paths
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
                 
-                btnOK.Location = new Point(buttonPanel.Width - rightPadding - dialogButtonWidth, 10);
-                btnCancel.Location = new Point(buttonPanel.Width - rightPadding - dialogButtonWidth - dialogButtonWidth - buttonSpacing, 10);
-            };
+                // Replace with environment variables (case-insensitive)
+                if (path.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(userProfile))
+                {
+                    return "%USERPROFILE%" + path.Substring(userProfile.Length);
+                }
+                if (path.StartsWith(appData, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(appData))
+                {
+                    return "%APPDATA%" + path.Substring(appData.Length);
+                }
+                if (path.StartsWith(localAppData, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(localAppData))
+                {
+                    return "%LOCALAPPDATA%" + path.Substring(localAppData.Length);
+                }
+                if (path.StartsWith(documents, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(documents))
+                {
+                    return "%USERPROFILE%\\Documents" + path.Substring(documents.Length);
+                }
+                if (path.StartsWith(desktop, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(desktop))
+                {
+                    return "%USERPROFILE%\\Desktop" + path.Substring(desktop.Length);
+                }
+                if (path.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(programFiles))
+                {
+                    return "%ProgramFiles%" + path.Substring(programFiles.Length);
+                }
+                if (path.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(programFilesX86))
+                {
+                    return "%ProgramFiles(x86)%" + path.Substring(programFilesX86.Length);
+                }
+            }
+            catch
+            {
+                // If anything fails, return original path
+            }
             
-            this.Controls.Add(mainPanel);
-            this.Controls.Add(buttonPanel);
+            return path;
+        }
+        
+        /// <summary>
+        /// Expands environment variables in a path back to full path
+        /// </summary>
+        private string ExpandPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
             
-            // StyleManager already set above - all controls with Style=Default and Theme=Default inherit automatically
-            // No need for ConnectControlsToStyleManager - StyleManager handles propagation (matching demo pattern)
-            
-            // Setup button hover effects after controls are created
-            SetupButtonHoverEffects(btnBrowseConfig);
-            SetupButtonHoverEffects(btnBrowseTemp);
-            SetupButtonHoverEffects(btnBrowseDll);
-            SetupButtonHoverEffects(btnBrowseAppDataRoaming);
-            SetupButtonHoverEffects(btnOK);
-            SetupButtonHoverEffects(btnCancel);
-            
-            this.ResumeLayout(false);
+            try
+            {
+                return Environment.ExpandEnvironmentVariables(path);
+            }
+            catch
+            {
+                return path;
+            }
         }
         
         // ConnectControlsToStyleManager() removed - not needed with StyleManager pattern
@@ -441,55 +268,85 @@ namespace T7CompilerGUI
         private void ConfigLocationsDialog_Load(object sender, EventArgs e)
         {
             // Ensure form and panels use theme background color
-            UpdateThemeBackgrounds();
+            // Only update if form is fully loaded and styleManager is available
+            if (styleManager != null && this.IsHandleCreated)
+            {
+                UpdateThemeBackgrounds();
+            }
         }
         
         private void UpdateThemeBackgrounds()
         {
-            if (styleManager == null) return;
+            if (styleManager == null || this.IsDisposed || !this.IsHandleCreated) return;
             
-            // Set form background color based on theme
-            this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-            
-            // Update all panels and controls
-            UpdateAllControlsRecursive(this);
-            
-            // Force a refresh
-            this.Invalidate();
-            this.Update();
+            try
+            {
+                // Set form background color based on theme
+                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                
+                // Update all panels and controls
+                UpdateAllControlsRecursive(this);
+                
+                // Force a refresh
+                if (this.IsHandleCreated && !this.IsDisposed)
+                {
+                    this.Invalidate();
+                    this.Update();
+                }
+            }
+            catch
+            {
+                // Silently ignore errors during theme update (form might be disposing)
+            }
         }
         
         private void SyncAllControlsWithStyleManager()
         {
-            if (styleManager == null) return;
+            if (styleManager == null || this.IsDisposed || !this.IsHandleCreated) return;
             
-            // Sync form properties
-            if (this.StyleManager != styleManager)
+            try
             {
-                this.StyleManager = styleManager;
+                // Sync form properties
+                if (this.StyleManager != styleManager)
+                {
+                    this.StyleManager = styleManager;
+                }
+                if (this.Theme != styleManager.Theme)
+                {
+                    this.Theme = styleManager.Theme;
+                }
+                if (this.Style != styleManager.Style)
+                {
+                    this.Style = styleManager.Style;
+                }
+                
+                // Sync all controls recursively
+                SyncControlsRecursive(this);
+                
+                // Update theme backgrounds
+                UpdateThemeBackgrounds();
             }
-            if (this.Theme != styleManager.Theme)
+            catch
             {
-                this.Theme = styleManager.Theme;
+                // Silently ignore errors during sync (form might be disposing)
             }
-            if (this.Style != styleManager.Style)
-            {
-                this.Style = styleManager.Style;
-            }
-            
-            // Sync all controls recursively
-            SyncControlsRecursive(this);
-            
-            // Update theme backgrounds
-            UpdateThemeBackgrounds();
         }
         
         private void SyncControlsRecursive(Control parent)
         {
             if (parent == null || styleManager == null) return;
             
-            foreach (Control ctrl in parent.Controls)
+            // Check if Controls collection is available
+            if (parent.Controls == null) return;
+            
+            // Create a copy of the collection to avoid modification during iteration
+            Control[] controls = new Control[parent.Controls.Count];
+            parent.Controls.CopyTo(controls, 0);
+            
+            foreach (Control ctrl in controls)
             {
+                if (ctrl == null) continue;
+                
                 // Sync IPoisonControl controls
                 if (ctrl is IPoisonControl poisonCtrl)
                 {
@@ -552,16 +409,26 @@ namespace T7CompilerGUI
         {
             if (parent == null || styleManager == null) return;
             
+            // Check if Controls collection is available
+            if (parent.Controls == null) return;
+            
             // Update panels background
             if (parent is PoisonPanel panel)
             {
                 panel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
             }
             
+            // Create a copy of the collection to avoid modification during iteration
+            Control[] controls = new Control[parent.Controls.Count];
+            parent.Controls.CopyTo(controls, 0);
+            
             // Recursively update all child controls
-            foreach (Control ctrl in parent.Controls)
+            foreach (Control ctrl in controls)
             {
-                UpdateAllControlsRecursive(ctrl);
+                if (ctrl != null)
+                {
+                    UpdateAllControlsRecursive(ctrl);
+                }
             }
         }
         
@@ -573,10 +440,15 @@ namespace T7CompilerGUI
         
         private void SetupButtonHoverEffectsRecursive(Control parent)
         {
+            // Use centralized helper for basic button effects
+            PoisonControlHelper.SetupButtonEffectsRecursive(parent);
+            
+            // Then apply custom rainbow effects if needed
             foreach (Control ctrl in parent.Controls)
             {
                 if (ctrl is PoisonButton btn)
                 {
+                    // Apply custom rainbow effects on top of basic effects
                     SetupButtonHoverEffects(btn);
                 }
                 
@@ -750,48 +622,31 @@ namespace T7CompilerGUI
         
         private void ResetButtonState(object sender)
         {
-            // Handle PoisonButton
-            if (sender is PoisonButton btn)
-            {
-                var isHoveredField = btn.GetType().GetField("isHovered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var isPressedField = btn.GetType().GetField("isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                if (isHoveredField != null)
-                    isHoveredField.SetValue(btn, false);
-                if (isPressedField != null)
-                    isPressedField.SetValue(btn, false);
-                
-                btn.Invalidate();
-            }
-            // Handle PoisonDropDownButton
-            else if (sender is PoisonDropDownButton dropDown)
-            {
-                var isHoveredField = dropDown.GetType().GetField("isHovered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var isPressedField = dropDown.GetType().GetField("isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                if (isHoveredField != null)
-                    isHoveredField.SetValue(dropDown, false);
-                if (isPressedField != null)
-                    isPressedField.SetValue(dropDown, false);
-                
-                dropDown.Invalidate();
-            }
+            // Use centralized helper
+            PoisonControlHelper.ResetButtonState(sender);
         }
         
         private void LoadCurrentPaths()
         {
-            txtConfigPath.Text = ConfigPath ?? "";
-            txtTempPath.Text = TempPath ?? Path.GetTempPath();
-            txtDllExtractPath.Text = DllExtractPath ?? "";
-            txtAppDataRoaming.Text = AppDataRoaming ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            // Null check controls before accessing
+            if (txtConfigPath != null)
+                txtConfigPath.Text = ShortenPath(ConfigPath ?? "");
+            if (txtTempPath != null)
+                txtTempPath.Text = ShortenPath(TempPath ?? Path.GetTempPath());
+            if (txtDllExtractPath != null)
+                txtDllExtractPath.Text = ShortenPath(DllExtractPath ?? "");
+            if (txtAppDataRoaming != null)
+                txtAppDataRoaming.Text = ShortenPath(AppDataRoaming ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
         }
         
         private void BtnBrowseAppDataRoaming_Click(object sender, EventArgs e)
         {
             ResetButtonState(sender);
+            if (txtAppDataRoaming == null) return;
+            
             try
             {
-                string appDataRoamingPath = txtAppDataRoaming.Text;
+                string appDataRoamingPath = ExpandPath(txtAppDataRoaming.Text);
                 if (Directory.Exists(appDataRoamingPath))
                 {
                     Process.Start("explorer.exe", appDataRoamingPath);
@@ -806,16 +661,19 @@ namespace T7CompilerGUI
         private void BtnBrowseConfig_Click(object sender, EventArgs e)
         {
             ResetButtonState(sender);
+            if (txtConfigPath == null) return;
+            
             try
             {
-                string configDir = Path.GetDirectoryName(txtConfigPath.Text);
-                if (Directory.Exists(configDir))
+                string configPath = ExpandPath(txtConfigPath.Text);
+                string configDir = Path.GetDirectoryName(configPath);
+                if (!string.IsNullOrEmpty(configDir) && Directory.Exists(configDir))
                 {
                     Process.Start("explorer.exe", configDir);
                 }
-                else if (File.Exists(txtConfigPath.Text))
+                else if (File.Exists(configPath))
                 {
-                    Process.Start("explorer.exe", $"/select,\"{txtConfigPath.Text}\"");
+                    Process.Start("explorer.exe", $"/select,\"{configPath}\"");
                 }
             }
             catch (Exception ex)
@@ -827,91 +685,49 @@ namespace T7CompilerGUI
         private void BtnBrowseTemp_Click(object sender, EventArgs e)
         {
             ResetButtonState(sender);
-            string folder = ShowModernFolderDialog("Select temporary file location", txtTempPath.Text);
+            if (txtTempPath == null) return;
+            
+            string initialPath = ExpandPath(txtTempPath.Text);
+            string folder = ShowModernFolderDialog("Select temporary file location", initialPath);
             if (!string.IsNullOrEmpty(folder))
             {
-                txtTempPath.Text = folder;
+                txtTempPath.Text = ShortenPath(folder);
             }
         }
         
         private void BtnBrowseDll_Click(object sender, EventArgs e)
         {
             ResetButtonState(sender);
-            string folder = ShowModernFolderDialog("Select DLL extract location", txtDllExtractPath.Text);
+            if (txtDllExtractPath == null) return;
+            
+            string initialPath = ExpandPath(txtDllExtractPath.Text);
+            string folder = ShowModernFolderDialog("Select DLL extract location", initialPath);
             if (!string.IsNullOrEmpty(folder))
             {
-                txtDllExtractPath.Text = folder;
+                txtDllExtractPath.Text = ShortenPath(folder);
             }
         }
         
         private string ShowModernFolderDialog(string title, string initialPath = null)
         {
-            try
-            {
-                var dialog = (IFileOpenDialog)new FileOpenDialogRCW();
-                dialog.SetOptions(FOS_PICKFOLDERS);
-                dialog.SetTitle(title);
-
-                if (!string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath))
-                {
-                    try
-                    {
-                        IntPtr pidl = IntPtr.Zero;
-                        uint hr = SHParseDisplayName(initialPath, IntPtr.Zero, out pidl, 0, out _);
-                        if (hr == 0 && pidl != IntPtr.Zero)
-                        {
-                            try
-                            {
-                                if (SHCreateItemFromIDList(pidl, typeof(IShellItem).GUID, out IShellItem folder) == 0)
-                                {
-                                    dialog.SetFolder(folder);
-                                }
-                            }
-                            finally
-                            {
-                                if (pidl != IntPtr.Zero)
-                                    Marshal.FreeCoTaskMem(pidl);
-                            }
-                        }
-                    }
-                    catch { }
-                }
-
-                uint result = dialog.Show(this.Handle);
-                if (result == 0) // S_OK
-                {
-                    dialog.GetResult(out IShellItem item);
-                    item.GetDisplayName(SIGDN_FILESYSPATH, out string path);
-                    return path;
-                }
-            }
-            catch
-            {
-                // Fallback to traditional folder dialog
-                using (var dialog = new FolderBrowserDialog())
-                {
-                    dialog.Description = title;
-                    if (!string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath))
-                        dialog.SelectedPath = initialPath;
-                    
-                    if (dialog.ShowDialog() == DialogResult.OK)
-                        return dialog.SelectedPath;
-                }
-            }
-
-            return null;
+            return ModernFolderDialog.Show(this, title, initialPath);
         }
         
         
         private void BtnOK_Click(object sender, EventArgs e)
         {
             ResetButtonState(sender);
+            
+            // Expand paths before validation and saving
+            string tempPath = txtTempPath != null ? ExpandPath(txtTempPath.Text) : "";
+            string dllExtractPath = txtDllExtractPath != null ? ExpandPath(txtDllExtractPath.Text) : "";
+            
             // Validate paths
-            if (!string.IsNullOrWhiteSpace(txtTempPath.Text) && !Directory.Exists(txtTempPath.Text))
+            if (!string.IsNullOrWhiteSpace(tempPath) && !Directory.Exists(tempPath))
             {
                 try
                 {
-                    Directory.CreateDirectory(txtTempPath.Text);
+                    Directory.CreateDirectory(tempPath);
                 }
                 catch (Exception ex)
                 {
@@ -920,11 +736,11 @@ namespace T7CompilerGUI
                 }
             }
             
-            if (!string.IsNullOrWhiteSpace(txtDllExtractPath.Text) && !Directory.Exists(txtDllExtractPath.Text))
+            if (!string.IsNullOrWhiteSpace(dllExtractPath) && !Directory.Exists(dllExtractPath))
             {
                 try
                 {
-                    Directory.CreateDirectory(txtDllExtractPath.Text);
+                    Directory.CreateDirectory(dllExtractPath);
                 }
                 catch (Exception ex)
                 {
@@ -933,9 +749,9 @@ namespace T7CompilerGUI
                 }
             }
             
-            // Save values
-            TempPath = txtTempPath.Text;
-            DllExtractPath = txtDllExtractPath.Text;
+            // Save expanded paths (full paths, not shortened)
+            TempPath = tempPath;
+            DllExtractPath = dllExtractPath;
             
             this.DialogResult = DialogResult.OK;
             this.Close();
@@ -945,12 +761,26 @@ namespace T7CompilerGUI
         {
             if (disposing)
             {
+                // Dispose components (from Designer.cs)
+                if (components != null)
+                {
+                    components.Dispose();
+                }
+                
                 // Dispose rainbow update timer
                 if (rainbowUpdateTimer != null)
                 {
                     rainbowUpdateTimer.Stop();
                     rainbowUpdateTimer.Dispose();
                     rainbowUpdateTimer = null;
+                }
+                
+                // Dispose sync timer
+                if (syncTimer != null)
+                {
+                    syncTimer.Stop();
+                    syncTimer.Dispose();
+                    syncTimer = null;
                 }
             }
             base.Dispose(disposing);

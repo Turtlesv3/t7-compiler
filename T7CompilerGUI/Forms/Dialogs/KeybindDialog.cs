@@ -10,13 +10,14 @@ using ReaLTaiizor.Enum.Poison;
 using ReaLTaiizor.Manager;
 using ReaLTaiizor.Drawing.Poison;
 using ReaLTaiizor.Interface.Poison;
+using T7CompilerGUI.Controls;
 
-namespace T7CompilerGUI
+namespace T7CompilerGUI.Forms.Dialogs
 {
-    public class KeybindDialog : PoisonForm
+    public partial class KeybindDialog : PoisonForm
     {
         private PoisonStyleManager styleManager;
-        private MainForm parentForm; // Reference to parent form for rainbow access
+        private Forms.MainForm parentForm; // Reference to parent form for rainbow access
         private Dictionary<string, KeybindInfo> keybinds;
         private Dictionary<string, KeybindRow> keybindRows;
         private System.Windows.Forms.Timer rainbowUpdateTimer; // Timer to update UI when rainbow is active
@@ -77,12 +78,15 @@ namespace T7CompilerGUI
         {
         }
         
-        public KeybindDialog(PoisonStyleManager styleManager, Dictionary<string, KeybindInfo> currentKeybinds, MainForm parentForm)
+        public KeybindDialog(PoisonStyleManager styleManager, Dictionary<string, KeybindInfo> currentKeybinds, Forms.MainForm parentForm)
         {
             this.styleManager = styleManager;
             this.parentForm = parentForm;
             this.keybinds = new Dictionary<string, KeybindInfo>(currentKeybinds);
             this.keybindRows = new Dictionary<string, KeybindRow>();
+            
+            // Initialize designer-generated controls
+            InitializeComponent();
             
             // PoisonForm already sets ControlStyles in its constructor (OptimizedDoubleBuffer, ResizeRedraw, etc.)
             // We don't need to override them - PoisonForm handles smooth resizing internally
@@ -150,86 +154,27 @@ namespace T7CompilerGUI
         
         private void SetupControls()
         {
-            this.SuspendLayout();
+            // Controls are now created in InitializeComponent (Designer file)
+            // This method just wires up event handlers and sets dynamic properties
             
-            // Form properties - match demo pattern
-            this.Text = "Keyboard Shortcuts";
-            this.Size = new Size(600, 500);
-            this.MinimumSize = new Size(500, 400);
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.ShadowType = FormShadowType.DropShadow;
-            this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
-            
-            // Set StyleManager - all controls will inherit automatically (matching demo pattern)
             if (styleManager != null)
             {
                 this.StyleManager = styleManager;
             }
             
-            // Create panel for keybinds - controls inherit from StyleManager automatically
-            var panel = new PoisonPanel
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(20, 20, 30, 20), // Extra right padding to prevent button cutoff
-                AutoScroll = true,
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            // Create buttons panel - controls inherit from StyleManager automatically
-            var buttonPanel = new PoisonPanel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 50,
-                Padding = new Padding(10, 10, 20, 10), // Extra right padding to prevent button cutoff
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default
-            };
-            
-            var btnReset = new PoisonButton
-            {
-                Text = "Reset to Defaults",
-                Size = new Size(150, 30),
-                Location = new Point(10, 10),
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
+            // Wire up button event handlers
             btnReset.Click += BtnReset_Click;
-            
-            var btnCancel = new PoisonButton
-            {
-                Text = "Cancel",
-                Size = new Size(100, 30),
-                Location = new Point(10, 10), // Will be positioned correctly after panel is added
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
-            };
+            btnClear.Click += BtnClear_Click;
             btnCancel.Click += (s, e) => 
             {
                 ResetButtonState(s);
                 this.DialogResult = DialogResult.Cancel;
-            };
-            
-            var btnOK = new PoisonButton
-            {
-                Text = "OK",
-                Size = new Size(100, 30),
-                Location = new Point(10, 10), // Will be positioned correctly after panel is added
-                Style = ColorStyle.Default,
-                Theme = ThemeStyle.Default,
-                UseStyleColors = true
             };
             btnOK.Click += (s, e) => 
             {
                 ResetButtonState(s);
                 this.DialogResult = DialogResult.OK;
             };
-            
-            buttonPanel.Controls.Add(btnReset);
-            buttonPanel.Controls.Add(btnCancel);
-            buttonPanel.Controls.Add(btnOK);
             
             // Position buttons correctly after panel is added (accounting for padding)
             buttonPanel.Layout += (s, e) =>
@@ -238,25 +183,19 @@ namespace T7CompilerGUI
                 int buttonSpacing = 10;
                 int buttonWidth = 100;
                 
+                // Position from right to left: OK, Cancel, Clear All, Reset to Defaults (on left)
                 btnOK.Location = new Point(buttonPanel.Width - rightPadding - buttonWidth, 10);
                 btnCancel.Location = new Point(buttonPanel.Width - rightPadding - buttonWidth - buttonWidth - buttonSpacing, 10);
+                btnClear.Location = new Point(buttonPanel.Width - rightPadding - buttonWidth - buttonWidth - buttonWidth - buttonSpacing - buttonSpacing, 10);
+                // btnReset stays at left (10, 10)
             };
-            
-            this.Controls.Add(panel);
-            this.Controls.Add(buttonPanel);
-            
-            // StyleManager already set above - all controls with Style=Default and Theme=Default inherit automatically
-            // No need for ConnectControlsToStyleManager - StyleManager handles propagation (matching demo pattern)
-            
-            this.ResumeLayout(false);
         }
         
-        // ConnectControlsToStyleManager() removed - not needed with StyleManager pattern
         // StyleManager automatically propagates to all controls with Style=Default and Theme=Default
         
         private void InitializeKeybinds()
         {
-            var panel = this.Controls.OfType<PoisonPanel>().FirstOrDefault(p => p.Dock == DockStyle.Fill);
+            // Use the designer-created panel
             if (panel == null) return;
             
             panel.Controls.Clear();
@@ -452,24 +391,8 @@ namespace T7CompilerGUI
         
         private void SetupButtonEffects()
         {
-            // Setup hover/pressed effects for all buttons in the form
-            SetupButtonHoverEffectsRecursive(this);
-        }
-        
-        private void SetupButtonHoverEffectsRecursive(Control parent)
-        {
-            foreach (Control ctrl in parent.Controls)
-            {
-                if (ctrl is PoisonButton btn)
-                {
-                    SetupButtonHoverEffects(btn);
-                }
-                
-                if (ctrl.HasChildren)
-                {
-                    SetupButtonHoverEffectsRecursive(ctrl);
-                }
-            }
+            // Use centralized helper to setup hover/pressed effects for all buttons in the form
+            PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
         }
         
         private void SetupButtonHoverEffects(PoisonButton poisonBtn)
@@ -690,34 +613,21 @@ namespace T7CompilerGUI
             InitializeKeybinds();
         }
         
+        private void BtnClear_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            // Clear all keybinds (set to None)
+            foreach (var kvp in keybinds.ToList())
+            {
+                keybinds[kvp.Key] = new KeybindInfo(kvp.Value.Action, Keys.None, false, false, false);
+            }
+            InitializeKeybinds();
+        }
+        
         private void ResetButtonState(object sender)
         {
-            // Handle PoisonButton
-            if (sender is PoisonButton btn)
-            {
-                var isHoveredField = btn.GetType().GetField("isHovered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var isPressedField = btn.GetType().GetField("isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                if (isHoveredField != null)
-                    isHoveredField.SetValue(btn, false);
-                if (isPressedField != null)
-                    isPressedField.SetValue(btn, false);
-                
-                btn.Invalidate();
-            }
-            // Handle PoisonDropDownButton
-            else if (sender is PoisonDropDownButton dropDown)
-            {
-                var isHoveredField = dropDown.GetType().GetField("isHovered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var isPressedField = dropDown.GetType().GetField("isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                if (isHoveredField != null)
-                    isHoveredField.SetValue(dropDown, false);
-                if (isPressedField != null)
-                    isPressedField.SetValue(dropDown, false);
-                
-                dropDown.Invalidate();
-            }
+            // Use centralized helper
+            PoisonControlHelper.ResetButtonState(sender);
         }
         
         public static Dictionary<string, KeybindInfo> GetDefaultKeybinds()
@@ -738,12 +648,26 @@ namespace T7CompilerGUI
         {
             if (disposing)
             {
+                // Dispose components (from Designer.cs)
+                if (components != null)
+                {
+                    components.Dispose();
+                }
+                
                 // Dispose rainbow update timer
                 if (rainbowUpdateTimer != null)
                 {
                     rainbowUpdateTimer.Stop();
                     rainbowUpdateTimer.Dispose();
                     rainbowUpdateTimer = null;
+                }
+                
+                // Dispose sync timer
+                if (syncTimer != null)
+                {
+                    syncTimer.Stop();
+                    syncTimer.Dispose();
+                    syncTimer = null;
                 }
             }
             base.Dispose(disposing);

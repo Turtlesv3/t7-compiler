@@ -18,7 +18,9 @@ namespace t7c_installer
 #if DEBUG
         private const bool NoErrorHandling = false;
 #endif
-        private static string PackageURL = "https://gsc.dev/t7c_package";
+        // GitHub releases URL: https://github.com/Turtlesv3/t7-compiler/releases/tag/GG
+        // Direct download format for GitHub releases: /releases/download/tag/filename
+        private static string PackageURL = "https://github.com/Turtlesv3/t7-compiler/releases/download/GG/update.zip";
         internal static bool IsUpdating = false;
         private const string InstallRoot = @"C:\";
         private static string UpdateTempFilename => Path.Combine(Path.GetTempPath(), "t7c_update.zip");
@@ -411,6 +413,31 @@ namespace t7c_installer
                         catch { /* Ignore locked files */ }
                     }
                     Directory.Delete(UpdateTempDirname, true);
+                }
+
+                // Cleanup: Delete any update.zip files from Downloads folder
+                try
+                {
+                    string downloadsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+                    if (Directory.Exists(downloadsFolder))
+                    {
+                        var updateZipFiles = Directory.GetFiles(downloadsFolder, "update.zip", SearchOption.TopDirectoryOnly);
+                        foreach (var zipFile in updateZipFiles)
+                        {
+                            try
+                            {
+                                File.Delete(zipFile);
+                            }
+                            catch
+                            {
+                                // Ignore if file is locked or can't be deleted
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore cleanup errors for Downloads folder
                 }
             }
             catch

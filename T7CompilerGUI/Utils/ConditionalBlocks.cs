@@ -3,17 +3,14 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 
-internal sealed class CBSyntaxException : Exception
+namespace T7CompilerGUI.Utils
+{
+    internal sealed class CBSyntaxException : Exception
 {
     public readonly int ErrorPosition;
-    public readonly int OpeningDirectivePosition; // For better error messages
-    public readonly string DirectiveToken; // For better error messages
-
-    public CBSyntaxException(string message, int spos, int openingPos = -1, string token = null) : base(message)
+    public CBSyntaxException(string message, int spos) : base(message)
     {
         ErrorPosition = spos;
-        OpeningDirectivePosition = openingPos;
-        DirectiveToken = token;
     }
 }
 
@@ -115,16 +112,8 @@ internal sealed class ConditionalBlocks
                     break;
             }
 
-            // Only replace characters with spaces if we're NOT in a comment or string
-            // This prevents corrupting comments like // which would become spaces
-            if (BlockState == RBCBlockState.FailsCondition && 
-                InPlace[SourcePosition] != '\n' &&
-                ParseState != RBCParseState.LineComment &&
-                ParseState != RBCParseState.BlockComment &&
-                ParseState != RBCParseState.String)
-            {
+            if (BlockState == RBCBlockState.FailsCondition && InPlace[SourcePosition] != '\n')
                 InPlace[SourcePosition] = ' ';
-            }
         }
 
         if (PrevConditions.Count > 0)
@@ -215,5 +204,6 @@ internal sealed class ConditionalBlocks
                 InPlace[i + SourcePosition] = ' ';
 
         SourcePosition += length;
+    }
     }
 }

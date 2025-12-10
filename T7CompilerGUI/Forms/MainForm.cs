@@ -22,283 +22,71 @@ using ReaLTaiizor.Manager;
 using ReaLTaiizor.Extension.Poison;
 using ReaLTaiizor.Drawing.Poison;
 using ReaLTaiizor.Interface.Poison;
+using T7CompilerGUI.Forms.Dialogs;
+using T7CompilerGUI.Controls;
+using T7CompilerGUI.Utils;
+using Vanara.PInvoke;
+using static Vanara.PInvoke.Shell32;
 
 #pragma warning disable IDE1006 // Naming rule violation - Windows Forms event handlers use controlName_EventName convention
 
-namespace T7CompilerGUI
+namespace T7CompilerGUI.Forms
 {
+    // Hot reload mode enum (matching debug compiler)
+    public enum HotMode
+    {
+        None,
+        Csc,
+        Gsc
+    }
+
     public partial class MainForm : PoisonForm
     {
-        #region Constants and Windows API Declarations
-        
-        // Windows API for modern folder picker
-        private const uint FOS_PICKFOLDERS = 0x00000020;
-        private const uint SIGDN_FILESYSPATH = 0x80058000;
-        
-        // Windows API for modern folder picker
-        [ComImport]
-        [ClassInterface(ClassInterfaceType.None)]
-        [TypeLibType(TypeLibTypeFlags.FCanCreate)]
-        [Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
-        private class FileOpenDialogRCW { }
-
-        [ComImport]
-        [Guid("42F85136-DB7E-439C-85F1-E4075D135FC8")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IFileOpenDialog
-        {
-            [PreserveSig]
-            uint Show([In] IntPtr hwndParent);
-            [PreserveSig]
-            uint SetOptions(uint fos); // Returns HRESULT, but we'll check it
-            [PreserveSig]
-            uint GetOptions(out uint pfos);
-            void SetFolder(IShellItem psi);
-            [PreserveSig]
-            void SetTitle([In, MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
-            void GetResult(out IShellItem ppsi);
-        }
-
-        [ComImport]
-        [Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IShellItem
-        {
-            void BindToHandler(IntPtr pbc, [In] ref Guid bhid, [In] ref Guid riid, out IntPtr ppv);
-            void GetParent(out IShellItem ppsi);
-            [PreserveSig]
-            void GetDisplayName([In] uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
-            void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
-            void Compare(IShellItem psi, uint hint, out int piOrder);
-        }
-
-        [ComImport]
-        [Guid("B63EA76D-1F85-456F-A19C-48159EFA858B")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IShellItemArray
-        {
-            void BindToHandler();
-            void GetPropertyStore();
-            void GetPropertyDescriptionList();
-            void GetAttributes();
-            void GetCount(out uint pdwNumItems);
-            void GetItemAt(uint dwIndex, out IShellItem ppsi);
-            void EnumItems();
-        }
-
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
-        private static extern uint SHParseDisplayName([MarshalAs(UnmanagedType.LPWStr)] string pszName, IntPtr pbc, out IntPtr ppidl, uint sfgaoIn, out uint psfgaoOut);
-
-        [DllImport("shell32.dll", PreserveSig = false)]
-        private static extern uint SHCreateItemFromIDList(IntPtr pidl, [MarshalAs(UnmanagedType.LPStruct)] Guid riid, [MarshalAs(UnmanagedType.Interface)] out IShellItem ppv);
-        
-        #endregion
+        // Windows API declarations moved to MainForm.WindowsAPI.cs
         
         #region Private Fields
         
-        // UI Theme and Style Management
-        // poisonStyleManager and poisonStyleExtender are now declared in MainForm.Designer.cs (matching Form20 pattern)
-        
-        // Game Status Detection
         private bool lastT7Status = false;
         private bool lastT8Status = false;
-        private bool isUpdatingGameStatus = false; // Prevent concurrent updates
+        private bool isUpdatingGameStatus = false;
         private System.Windows.Forms.Timer gameStatusTimer;
         
-        // Game Process Names (optimized static arrays)
         private static readonly string[] T7ProcessNames = { "blackops3", "BlackOps3" };
         private static readonly string[] T8ProcessNames = { "blackops4", "BlackOps4" };
         
-        // Injection State Tracking
         private int InjectedBuffSize;
         private PointerEx llpModifiedSPTStruct = 0;
         private PointerEx llpOriginalBuffer;
         private int OriginalSourceChecksum;
         private int OriginalPID = 0;
         private T7SPT InjectedScript;
-        private Games LastGameInjected = Games.T7;
+        private TreyarchCompiler.Enums.Games LastGameInjected = TreyarchCompiler.Enums.Games.T7;
         private bool isParseTreeReset = false;
+        private HotMode currentHotMode = HotMode.None;
         
-        // Compilation and Injection State
         private bool isCompiling = false;
         private bool isInjecting = false;
         
-        // UI Selection State
-        private int currentPlatformIndex = 0; // 0 = PC, 1 = PS4
-        private int currentGameIndex = 0; // 0 = T7, 1 = T8
-        private int currentGscConfModeIndex = 0; // 0 = MP, 1 = ZM
-        private int currentInjectGameIndex = 0; // 0 = T7, 1 = T8
-        private bool isLoadingGscConfMode = false;
+        private int currentPlatformIndex = 0;
+        private int currentGameIndex = 0;
+        private int currentInjectGameIndex = 0;
+        private List<string> compileSymbolsFromEditor = null; // Symbols from CodeEditorForm
         private bool isLoadingSettings = false;
         
-        // Build and Path Management
         private string buildFolder = Path.Combine(Application.StartupPath, "build");
         
-        // Recent Projects
         private const int MAX_RECENT_PROJECTS = 10;
+        private const int MAX_RECENT_FILES = 10;
         
-        // Keyboard Shortcuts
-        private Dictionary<string, KeybindDialog.KeybindInfo> keybinds = null;
+        private Dictionary<string, Dialogs.KeybindDialog.KeybindInfo> keybinds = null;
         
-        // Settings values (backing fields for SettingsPanel)
         private bool autoSaveSettings = true;
         private string defaultOutputPath = "";
         private bool restoreWindowState = true;
         
         #endregion
         
-        #region Windows API Interfaces (Modern Folder Dialog)
-        
-        // Interfaces are defined in the "Constants and Windows API Declarations" region above
-        
-        #endregion
-        
-        #region Helper Methods (Folder Dialog and Path Utilities)
-        
-        private string ShowModernFolderDialog(string title, string initialPath = null)
-        {
-            try
-            {
-                var dialog = (IFileOpenDialog)new FileOpenDialogRCW();
-                
-                // Set folder picker mode FIRST - this is critical for folder selection
-                // FOS_PICKFOLDERS = 0x00000020 - forces folder selection mode (no file name field)
-                uint hr = dialog.SetOptions(FOS_PICKFOLDERS);
-                
-                // Check HRESULT - 0 (S_OK) means success
-                if (hr != 0)
-                {
-                    // If SetOptions fails, fall back to FolderBrowserDialog
-                    throw new InvalidOperationException($"Failed to set folder picker options (HRESULT: 0x{hr:X8})");
-                }
-                
-                // Verify the options were set correctly
-                if (dialog.GetOptions(out uint verifyOptions) == 0)
-                {
-                    if ((verifyOptions & FOS_PICKFOLDERS) == 0)
-                    {
-                        // Folder picker flag not set, fall back
-                        throw new InvalidOperationException("Folder picker flag was not set correctly");
-                    }
-                }
-                
-                dialog.SetTitle(title);
-
-                // Normalize initialPath - ensure it's a directory path, not a file path
-                if (!string.IsNullOrWhiteSpace(initialPath))
-                {
-                    // If it's a file, get its directory
-                    if (File.Exists(initialPath))
-                    {
-                        initialPath = Path.GetDirectoryName(initialPath);
-                    }
-                    
-                    // Only proceed if we have a valid directory path
-                if (!string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath))
-                {
-                    try
-                    {
-                        IntPtr pidl = IntPtr.Zero;
-                            uint parseResult = SHParseDisplayName(initialPath, IntPtr.Zero, out pidl, 0, out _);
-                            if (parseResult == 0 && pidl != IntPtr.Zero)
-                        {
-                            try
-                            {
-                                if (SHCreateItemFromIDList(pidl, typeof(IShellItem).GUID, out IShellItem folder) == 0)
-                                {
-                                    dialog.SetFolder(folder);
-                                }
-                            }
-                            finally
-                            {
-                                if (pidl != IntPtr.Zero)
-                                    Marshal.FreeCoTaskMem(pidl);
-                            }
-                        }
-                    }
-                    catch { }
-                    }
-                }
-
-                uint result = dialog.Show(this.Handle);
-                if (result == 0) // S_OK
-                {
-                    dialog.GetResult(out IShellItem item);
-                    item.GetDisplayName(SIGDN_FILESYSPATH, out string path);
-                    return path;
-                }
-            }
-            catch (Exception ex)
-            {
-                // Modern folder dialog failed - fallback to traditional FolderBrowserDialog
-                // FolderBrowserDialog does NOT have "File name:" field - it's a proper folder picker
-                System.Diagnostics.Debug.WriteLine($"Modern folder dialog failed: {ex.Message}. Falling back to FolderBrowserDialog.");
-                
-                using (var dialog = new FolderBrowserDialog())
-                {
-                    dialog.Description = title;
-                    dialog.ShowNewFolderButton = true; // Allow creating new folders
-                    
-                    // Normalize initialPath for fallback dialog too
-                    if (!string.IsNullOrWhiteSpace(initialPath))
-                    {
-                        // If it's a file, get its directory
-                        if (File.Exists(initialPath))
-                        {
-                            initialPath = Path.GetDirectoryName(initialPath);
-                        }
-                        
-                        // Only set if it's a valid directory
-                    if (!string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath))
-                        {
-                        dialog.SelectedPath = initialPath;
-                        }
-                    }
-                    
-                    if (dialog.ShowDialog(this) == DialogResult.OK)
-                        return dialog.SelectedPath;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Helper function to shorten file paths to show just 1-2 directories before filename
-        /// </summary>
-        private string GetShortPath(string fullPath)
-        {
-            try
-            {
-                string fileName = Path.GetFileName(fullPath);
-                string directory = Path.GetDirectoryName(fullPath);
-                if (string.IsNullOrEmpty(directory))
-                    return fileName;
-
-                string[] parts = directory.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                int partCount = parts.Length;
-                
-                if (partCount <= 2)
-                {
-                    // If 2 or fewer directories, show all
-                    return Path.Combine(directory, fileName);
-                }
-                else
-                {
-                    // Show last 2 directories before filename
-                    string dir1 = parts[partCount - 2];
-                    string dir2 = parts[partCount - 1];
-                    return Path.Combine("...", dir1, dir2, fileName);
-                }
-            }
-            catch
-            {
-                // Fallback to just filename if anything goes wrong
-                return Path.GetFileName(fullPath);
-            }
-        }
-        
-        #endregion
+        // Helper methods moved to MainForm.Helpers.cs
         
         #region Paint Override for Rainbow Support
         
@@ -365,45 +153,57 @@ namespace T7CompilerGUI
         {
             InitializeComponent();
             
-            // PoisonForm already sets ControlStyles in its constructor (OptimizedDoubleBuffer, ResizeRedraw, etc.)
-            // We don't need to override them - PoisonForm handles smooth resizing internally
+            // PoisonForm already sets ControlStyles in its constructor:
+            // - AllPaintingInWmPaint
+            // - OptimizedDoubleBuffer (not DoubleBuffer)
+            // - ResizeRedraw
+            // - UserPaint
+            // We don't need to override them - PoisonForm handles it correctly
             
-            // Set form border style and shadow type to match Form20 (Poison demo)
             this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.AeroShadow;
             
-            // Initialize build folder - ensure it exists
+            // Ensure form is ready to paint (PoisonForm handles rendering automatically)
+            // The form will paint correctly when shown - no need to force it here
+            
+            // Enable form dragging from anywhere (except interactive controls)
+            this.MouseDown += Form_MouseDown;
+            
+            // Enable dragging from all labels
+            EnableLabelDragging();
+            
             InitializeBuildFolder();
             
-            // StyleManager is configured in Designer - no initialization needed (matching demo pattern)
-            
-            // Set default output file path (after buildFolder is initialized)
-            string defaultOutput = Path.Combine(buildFolder, "compiled.gscc");
-            txtOutputFile.Text = defaultOutput;
-            
-            // Setup dropdown buttons (platform, game, inject game)
             SetupDropdownButtons();
-            
-            // Setup dropdown menu (gsc conf mode - keep as dropdown)
-            SetupGscConfModeMenu();
-            
-            // Wire up event handlers for dropdown menu
             WireUpMenuEvents();
             
-            // StyleManager handles all styling automatically (configured in Designer, matching demo pattern)
-            
-            // Load all settings from unified config file FIRST (replaces all individual load methods)
-            // This ensures keybinds are loaded before SetupKeyboardShortcuts
             LoadAllSettings();
             
-            // Setup new features (after settings are loaded)
-            SetupKeyboardShortcuts();
+            // Initialize recent projects menus after settings are loaded
+            UpdateRecentProjectsMenu();
+            UpdateRecentFilesMenu();
             
-            // Setup tooltips AFTER StyleManager is initialized and settings are loaded
-            // This ensures tooltips use the correct theme/style from the start
+            // Ensure recent projects button is visible and properly set up
+            if (btnRecentProjects != null)
+            {
+                btnRecentProjects.Visible = true;
+                PoisonControlHelper.SetupDropDownButtonEffects(btnRecentProjects);
+            }
+            if (btnRecentFiles != null)
+            {
+                btnRecentFiles.Visible = true;
+                PoisonControlHelper.SetupDropDownButtonEffects(btnRecentFiles);
+            }
+            
+            if (string.IsNullOrWhiteSpace(txtOutputFile.Text))
+            {
+                string defaultOutput = Path.Combine(buildFolder, "compiled.gscc");
+                txtOutputFile.Text = defaultOutput;
+            }
+            
+            SetupKeyboardShortcuts();
             SetupToolTips();
             
-            // Verify injection state after loading (if injection state was loaded)
             if (llpModifiedSPTStruct != 0 && OriginalPID != 0)
             {
                 try
@@ -442,10 +242,8 @@ namespace T7CompilerGUI
             // Update reset parse tree button state after loading injection state
             UpdateResetParseTreeButton();
             
-            // StyleManager handles all updates automatically (matching demo pattern)
             UpdateAboutTab();
             
-            // Wire up Load event to ensure form background is set
             this.Load += MainForm_Load;
             
             // Setup main form context menu (right-click on title bar/form)
@@ -457,6 +255,24 @@ namespace T7CompilerGUI
             // Update UI state
             UpdateUI();
             
+            // Initialize Launch BO3 button state based on current game status
+            if (btnLaunchBO3 != null)
+            {
+                bool t7Running = IsGameRunning(TreyarchCompiler.Enums.Games.T7);
+                btnLaunchBO3.Enabled = !t7Running;
+                if (poisonToolTip != null)
+                {
+                    if (t7Running)
+                    {
+                        poisonToolTip.SetToolTip(btnLaunchBO3, "Black Ops 3 is already running");
+                    }
+                    else
+                    {
+                        poisonToolTip.SetToolTip(btnLaunchBO3, "Launch Black Ops 3 (requires Steam)");
+                    }
+                }
+            }
+            
             // Setup game status label to be non-interactive
             SetupGameStatusLabel();
             
@@ -464,10 +280,7 @@ namespace T7CompilerGUI
             this.SizeChanged += MainForm_SizeChanged;
             this.Shown += MainForm_Shown;
             
-            // Enable simple tab content dragging (only TabPage, not all controls)
             EnableTabContentDragging();
-            
-            // Enable dragging from tab headers (tab names)
             EnableTabHeaderDragging();
             
             // Enable dragging from text panel controls
@@ -475,29 +288,36 @@ namespace T7CompilerGUI
             
             // Enable dragging from game status label area
             EnableGameStatusDragging();
+            
+            // Setup comprehensive click handlers for all controls
+            SetupAllControlClickHandlers();
+            
+            // Setup button effects system-wide to ensure proper state reset
+            PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
         }
         
         private void MainForm_Load(object sender, EventArgs e)
         {
-            // Ensure form and tab panels use theme background color
             if (poisonStyleManager != null)
             {
-                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(poisonStyleManager.Theme);
+                this.BackColor = PoisonPaint.BackColor.Form(poisonStyleManager.Theme);
                 
-                // Apply theme colors to txtLog (RichTextBox doesn't automatically inherit from StyleManager)
                 ChangeTheme(poisonStyleManager.Theme);
             }
         }
         
         private void MainForm_Shown(object sender, EventArgs e)
         {
-            // Adjust panelLog height after form is shown to ensure correct initial layout
             AdjustPanelLogHeight();
             
-            // Delay the start of game status monitoring to avoid Win32Exception on startup
+            // PoisonForm's OnPaint handles all rendering automatically
+            // Just ensure the form refreshes once it's fully visible
+            // This ensures rounded edges and borders render immediately
+            this.Refresh();
+            
             System.Windows.Forms.Timer delayTimer = new System.Windows.Forms.Timer
             {
-                Interval = 3000 // 3 seconds delay
+                Interval = 3000
             };
             delayTimer.Tick += (s, args) =>
             {
@@ -508,12 +328,29 @@ namespace T7CompilerGUI
             delayTimer.Start();
         }
         
+        /// <summary>
+        /// Recursively invalidates all controls to force a repaint (ensures rounded edges render properly)
+        /// </summary>
+        private void InvalidateAllControlsRecursive(Control parent)
+        {
+            if (parent == null) return;
+            
+            // Invalidate the control itself
+            parent.Invalidate();
+            
+            // Recursively invalidate all child controls
+            foreach (Control ctrl in parent.Controls)
+            {
+                InvalidateAllControlsRecursive(ctrl);
+            }
+        }
+        
         #endregion
         
         #region Theme and Style Management
         
         /// <summary>
-        /// Adjusts panelLog height to ensure it doesn't overlap with panelLogControls
+        /// Adjusts panelLog height to prevent overlap with panelLogControls.
         /// </summary>
         private void AdjustPanelLogHeight()
         {
@@ -542,12 +379,10 @@ namespace T7CompilerGUI
         }
         
         /// <summary>
-        /// Enables simple form dragging from tab content (TabPage only, not all controls)
-        /// This is a minimal approach - only TabPage controls can trigger dragging
+        /// Enables form dragging from tab content.
         /// </summary>
         private void EnableTabContentDragging()
         {
-            // Add MouseDown handler to TabPage controls only
             foreach (System.Windows.Forms.TabPage tabPage in tabControl.Controls)
             {
                 tabPage.MouseDown += TabPage_MouseDown;
@@ -572,7 +407,6 @@ namespace T7CompilerGUI
         {
             if (e.Button == MouseButtons.Left)
             {
-                // Check if clicking on tab header area (not on tab content)
                 if (sender is System.Windows.Forms.TabControl)
                 {
                     // Only drag if clicking in the tab header area (top portion of TabControl)
@@ -585,6 +419,51 @@ namespace T7CompilerGUI
                         ReleaseCapture();
                         SendMessage(this.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
                     }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Handles mouse down on the form itself - makes form draggable from anywhere (except interactive controls)
+        /// </summary>
+        private void Form_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left && this.Movable)
+            {
+                // Check if clicking on an interactive control
+                Control controlAtPoint = this.GetChildAtPoint(e.Location, GetChildAtPointSkip.Invisible | GetChildAtPointSkip.Disabled);
+                
+                // Allow dragging if:
+                // 1. No control at this point (clicking on form background)
+                // 2. Control is a label, panel, or other non-interactive control
+                // 3. Control is a tab page (empty space)
+                bool canDrag = false;
+                
+                if (controlAtPoint == null || controlAtPoint == this)
+                {
+                    canDrag = true;
+                }
+                else if (controlAtPoint is PoisonLabel || 
+                         controlAtPoint is System.Windows.Forms.Label ||
+                         controlAtPoint is PoisonPanel)
+                {
+                    canDrag = true;
+                }
+                else if (controlAtPoint is System.Windows.Forms.TabPage tabPage)
+                {
+                    // For TabPage, check if clicking on empty space (not on child controls)
+                    Point tabPoint = tabPage.PointToClient(this.PointToScreen(e.Location));
+                    Control childAtPoint = tabPage.GetChildAtPoint(tabPoint, GetChildAtPointSkip.Invisible | GetChildAtPointSkip.Disabled);
+                    canDrag = (childAtPoint == null || childAtPoint == tabPage);
+                }
+                
+                if (canDrag)
+                {
+                    // Use Windows API to simulate title bar drag
+                    const int WM_NCLBUTTONDOWN = 0xA1;
+                    const int HT_CAPTION = 0x2;
+                    ReleaseCapture();
+                    SendMessage(this.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
                 }
             }
         }
@@ -616,11 +495,57 @@ namespace T7CompilerGUI
         }
         
         /// <summary>
+        /// Enables form dragging from all label controls (PoisonLabel and regular Label)
+        /// </summary>
+        private void EnableLabelDragging()
+        {
+            // Attach MouseDown handler to all existing labels
+            AttachLabelHandlersRecursive(this);
+            
+            // Also attach to labels added dynamically
+            this.ControlAdded += (s, e) =>
+            {
+                if (e.Control is PoisonLabel || e.Control is System.Windows.Forms.Label)
+                {
+                    e.Control.MouseDown += Label_MouseDown;
+                }
+                else if (e.Control.HasChildren)
+                {
+                    AttachLabelHandlersRecursive(e.Control);
+                }
+            };
+        }
+        
+        /// <summary>
+        /// Recursively attaches MouseDown handler to all labels in a container
+        /// </summary>
+        private void AttachLabelHandlersRecursive(Control parent)
+        {
+            if (parent == null) return;
+            
+            foreach (Control control in parent.Controls)
+            {
+                if (control is PoisonLabel || control is System.Windows.Forms.Label)
+                {
+                    // Remove existing handler if any, then add our handler
+                    control.MouseDown -= Label_MouseDown;
+                    control.MouseDown += Label_MouseDown;
+                }
+                
+                // Recursively process child controls
+                if (control.HasChildren)
+                {
+                    AttachLabelHandlersRecursive(control);
+                }
+            }
+        }
+        
+        /// <summary>
         /// Handles mouse down on Label controls - makes label areas draggable
         /// </summary>
         private void Label_MouseDown(object sender, MouseEventArgs e)
         {
-            if (e.Button == MouseButtons.Left)
+            if (e.Button == MouseButtons.Left && this.Movable)
             {
                 // Use Windows API to simulate title bar drag
                 const int WM_NCLBUTTONDOWN = 0xA1;
@@ -715,7 +640,7 @@ namespace T7CompilerGUI
             ToolStripMenuItem keyboardShortcutsItem = new ToolStripMenuItem("Keyboard Shortcuts...");
             keyboardShortcutsItem.Click += (s, e) =>
             {
-                using (var dialog = new KeybindDialog(poisonStyleManager, keybinds ?? KeybindDialog.GetDefaultKeybinds(), this))
+                using (var dialog = new Dialogs.KeybindDialog(poisonStyleManager, keybinds ?? Dialogs.KeybindDialog.GetDefaultKeybinds(), this))
                 {
                     if (dialog.ShowDialog(this) == DialogResult.OK)
                     {
@@ -745,7 +670,7 @@ namespace T7CompilerGUI
                     string appDataRoaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                     string dllExtractPath = Path.Combine(appDataLocal, "Costura", Assembly.GetExecutingAssembly().GetName().Name);
                     
-                    using (var dialog = new ConfigLocationsDialog(poisonStyleManager, configPath, tempPath, dllExtractPath, appDataRoaming, this))
+                    using (var dialog = new Dialogs.ConfigLocationsDialog(poisonStyleManager, configPath, tempPath, dllExtractPath, appDataRoaming, this))
                     {
                         dialog.ShowDialog(this);
                     }
@@ -768,7 +693,6 @@ namespace T7CompilerGUI
             // Enhance menu items with theme styling
             EnhanceMenuItems(mainFormContextMenu);
             
-            // Ensure menu updates with rainbow colors when opened
             mainFormContextMenu.Opening += (s, e) =>
             {
                 if (poisonStyleManager != null && mainFormContextMenu.Renderer is StyleBasedMenuRenderer renderer)
@@ -787,7 +711,6 @@ namespace T7CompilerGUI
         /// </summary>
         private void ShowAdvancedSettingsDialog()
         {
-            // Create a simple dialog with PropertyGrid, matching Form20's Legacy tab pattern
             using (var dialog = new PoisonForm())
             {
                 dialog.Text = "Advanced Settings";
@@ -828,7 +751,10 @@ namespace T7CompilerGUI
                     HelpVisible = true
                 };
                 
-                // Apply Poison theme to PropertyGrid (same as Form20)
+                // Apply Poison theme to PropertyGrid to match StyleManager
+                ApplyPoisonThemeToPropertyGrid(propertyGrid, poisonStyleManager);
+                
+                // Also use StyleExtender for additional styling
                 poisonStyleExtender?.SetApplyPoisonTheme(propertyGrid, true);
                 
                 // Button panel at bottom
@@ -889,10 +815,10 @@ namespace T7CompilerGUI
                             );
                             
                             // Get background color to erase original text
-                            Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(btnClose.Theme);
+                            Color backColor = PoisonPaint.BackColor.Button.Normal(btnClose.Theme);
                             if (!btnClose.Enabled)
                             {
-                                backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Disabled(btnClose.Theme);
+                                backColor = PoisonPaint.BackColor.Button.Disabled(btnClose.Theme);
                             }
                             
                             // Erase original text by filling text area
@@ -925,7 +851,7 @@ namespace T7CompilerGUI
                 // Sync dialog with StyleManager periodically
                 var                 syncTimer = new System.Windows.Forms.Timer
                 {
-                    Interval = 100 // Check every 100ms
+                    Interval = 100
                 };
                 syncTimer.Tick += (s, e) =>
                 {
@@ -964,6 +890,72 @@ namespace T7CompilerGUI
                 };
                 
                 dialog.ShowDialog(this);
+            }
+        }
+        
+        /// <summary>
+        /// Applies Poison theme colors to PropertyGrid to match StyleManager
+        /// </summary>
+        private void ApplyPoisonThemeToPropertyGrid(System.Windows.Forms.PropertyGrid propertyGrid, PoisonStyleManager styleManager)
+        {
+            if (propertyGrid == null || styleManager == null) return;
+            
+            try
+            {
+                ThemeStyle theme = styleManager.Theme;
+                ColorStyle style = styleManager.Style;
+                
+                // Get theme colors
+                Color backColor = PoisonPaint.BackColor.Form(theme);
+                Color foreColor = theme == ThemeStyle.Dark ? Color.White : Color.Black;
+                Color categoryForeColor = PoisonPaint.GetStyleColor(style);
+                Color lineColor = theme == ThemeStyle.Dark ? Color.FromArgb(60, 60, 60) : Color.FromArgb(200, 200, 200);
+                Color selectedBackColor = PoisonPaint.GetStyleColor(style);
+                Color selectedForeColor = Color.White;
+                
+                // Apply colors to PropertyGrid
+                propertyGrid.BackColor = backColor;
+                propertyGrid.ForeColor = foreColor;
+                propertyGrid.LineColor = lineColor;
+                propertyGrid.ViewBackColor = backColor;
+                propertyGrid.ViewForeColor = foreColor;
+                propertyGrid.HelpBackColor = backColor;
+                propertyGrid.HelpForeColor = foreColor;
+                propertyGrid.CategoryForeColor = categoryForeColor;
+                propertyGrid.CategorySplitterColor = lineColor;
+                propertyGrid.CommandsBackColor = backColor;
+                propertyGrid.CommandsForeColor = foreColor;
+                propertyGrid.CommandsBorderColor = lineColor;
+                
+                // Selected item colors
+                propertyGrid.SelectedItemWithFocusBackColor = selectedBackColor;
+                propertyGrid.SelectedItemWithFocusForeColor = selectedForeColor;
+                
+                // Toolbar colors (if accessible)
+                try
+                {
+                    var toolbarProp = propertyGrid.GetType().GetProperty("ToolStripRenderer");
+                    if (toolbarProp != null)
+                    {
+                        // Try to set toolbar colors
+                        var toolbar = propertyGrid.Controls.OfType<System.Windows.Forms.ToolStrip>().FirstOrDefault();
+                        if (toolbar != null)
+                        {
+                            toolbar.BackColor = backColor;
+                            toolbar.ForeColor = foreColor;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Toolbar styling is optional
+                }
+                
+                propertyGrid.Invalidate();
+            }
+            catch
+            {
+                // If styling fails, PropertyGrid will use default colors
             }
         }
         
@@ -1036,11 +1028,7 @@ namespace T7CompilerGUI
                 statusLabel.Font = new System.Drawing.Font("Consolas", 9F);
                 
                 // PoisonLabel is naturally non-interactive and non-selectable
-                // Don't use style colors - we want green/red for running/not running
                 statusLabel.UseStyleColors = false;
-                
-                // Don't connect to StyleManager - we want fixed green/red colors
-                // Colors will be set directly in UpdateGameStatus based on running status
             }
         }
         
@@ -1070,14 +1058,12 @@ namespace T7CompilerGUI
             }
         }
         
-        // WndProc override removed - scrollbar hiding is now handled by NoScrollRichTextBox class
         
         /// <summary>
         /// Initializes the game status monitoring timer and label - optimized for smooth operation
         /// </summary>
         private void InitializeGameStatusMonitoring()
         {
-            // Create timer to check game status every 2.5 seconds (slightly longer to reduce overhead)
             gameStatusTimer = new System.Windows.Forms.Timer
             {
                 Interval = 2500 // 2.5 seconds - smooth operation with less overhead
@@ -1102,7 +1088,7 @@ namespace T7CompilerGUI
         }
         
         /// <summary>
-        /// Timer tick event to periodically check game status - optimized to prevent overlapping calls
+        /// Timer tick event to periodically check game status.
         /// </summary>
         private void GameStatusTimer_Tick(object sender, EventArgs e)
         {
@@ -1119,7 +1105,6 @@ namespace T7CompilerGUI
             {
                 try
                 {
-                    // Double-check after invoke (form might have been disposed)
                     if (this.IsDisposed || this.Disposing)
                         return;
                     
@@ -1140,29 +1125,24 @@ namespace T7CompilerGUI
         {
             try
             {
-                // Early exit checks - avoid unnecessary work
                 if (lblGameStatus == null || lblGameStatus.IsDisposed)
                     return;
                 
                 if (this.IsDisposed || this.Disposing)
                     return;
                 
-                // Ensure we're on the UI thread - use BeginInvoke to avoid blocking
                 if (this.InvokeRequired)
                 {
                     this.BeginInvoke(new Action(UpdateGameStatus));
                     return;
                 }
                 
-                // Check game status (optimized methods)
-                bool t7Running = IsGameRunning(Games.T7);
-                bool t8Running = IsGameRunning(Games.T8);
+                bool t7Running = IsGameRunning(TreyarchCompiler.Enums.Games.T7);
+                bool t8Running = IsGameRunning(TreyarchCompiler.Enums.Games.T8);
                 
-                // Check if status changed
                 bool statusChanged = (t7Running != lastT7Status || t8Running != lastT8Status);
                 bool isFirstUpdate = (lastT7Status == false && lastT8Status == false);
                 
-                    // Only update UI if status changed or it's the first update
                 if (isFirstUpdate || statusChanged)
                 {
                     // Update status tracking
@@ -1171,6 +1151,23 @@ namespace T7CompilerGUI
                     
                     // Update reset parse tree button when game status changes
                     UpdateResetParseTreeButton();
+                    
+                    // Update Launch BO3 button - disable if BO3 is running
+                    if (btnLaunchBO3 != null && !btnLaunchBO3.IsDisposed)
+                    {
+                        btnLaunchBO3.Enabled = !t7Running;
+                        if (poisonToolTip != null)
+                        {
+                            if (t7Running)
+                            {
+                                poisonToolTip.SetToolTip(btnLaunchBO3, "Black Ops 3 is already running");
+                            }
+                            else
+                            {
+                                poisonToolTip.SetToolTip(btnLaunchBO3, "Launch Black Ops 3 (requires Steam)");
+                            }
+                        }
+                    }
                     
                     // Build status text and set colors based on running status
                     if (lblGameStatus is ReaLTaiizor.Controls.PoisonLabel statusLabel)
@@ -1191,8 +1188,6 @@ namespace T7CompilerGUI
                         }
                     }
                     
-                    // Only update UI when status changes (not every tick)
-                    // This reduces unnecessary UI refreshes for smoother operation
                     UpdateUI();
                 }
             }
@@ -1212,36 +1207,27 @@ namespace T7CompilerGUI
         
         private void SetupUITheme()
         {
-            // Setup labels to use style colors - PoisonStyleManager handles this automatically
-            // This makes labels use the current Style color for their text
             if (lblProjectFolder != null) lblProjectFolder.UseStyleColors = true;
             if (lblOutputFile != null) lblOutputFile.UseStyleColors = true;
             if (lblOpcodeMasking != null) lblOpcodeMasking.UseStyleColors = true;
             if (lblSaveOpcodeMap != null) lblSaveOpcodeMap.UseStyleColors = true;
-            if (lblPlatform != null) lblPlatform.UseStyleColors = true;
-            if (lblGame != null) lblGame.UseStyleColors = true;
             if (lblInjectFile != null) lblInjectFile.UseStyleColors = true;
             if (lblNoRuntime != null) lblNoRuntime.UseStyleColors = true;
+            if (lblHotReload != null) lblHotReload.UseStyleColors = true;
             if (lblInjectPath != null) lblInjectPath.UseStyleColors = true;
             if (lblInjectGame != null) lblInjectGame.UseStyleColors = true;
             if (lblLogSearch != null) lblLogSearch.UseStyleColors = true;
             // Settings panel labels are handled by SettingsPanel
             if (lblVersion != null) lblVersion.UseStyleColors = true;
             if (lblAbout != null) lblAbout.UseStyleColors = true;
-            // lblGameStatus uses fixed green/red colors (not style colors)
-            // Colors are set in UpdateGameStatus based on running status
-            
-            // All controls are automatically connected to StyleManager via Designer (matching demo pattern)
-            // No manual connection or updates needed - StyleManager handles everything
         }
         
-        // UpdateUITheme() removed - functionality moved into ChangeTheme() to avoid duplication
         
         private void UpdateTabPanelsBackground()
         {
             if (poisonStyleManager == null) return;
             
-            Color formBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(poisonStyleManager.Theme);
+            Color formBackColor = PoisonPaint.BackColor.Form(poisonStyleManager.Theme);
             
             // Update all tab pages
             if (tabControl != null)
@@ -1253,7 +1239,6 @@ namespace T7CompilerGUI
             }
         }
         
-        // UpdateAllControlsStyle() removed - functionality moved into ChangeTheme() and ChangeColorStyle()
         
         private void UpdateControlStyle(Control parent, ColorStyle style, ThemeStyle theme, bool forceUpdate = false)
         {
@@ -1262,17 +1247,14 @@ namespace T7CompilerGUI
                 // Update Poison controls
                 if (ctrl is IPoisonControl poisonCtrl)
                 {
-                    // Always ensure StyleManager is connected first
                     if (poisonStyleManager != null)
                     {
                         poisonCtrl.StyleManager = poisonStyleManager;
                     }
                     
-                    // Ensure all controls use Style = Default and Theme = Default to follow StyleManager
                     var styleProp = ctrl.GetType().GetProperty("Style");
                     var themeProp = ctrl.GetType().GetProperty("Theme");
                     
-                    // Only set to Default if not explicitly set to a specific style (when not forcing update)
                     if (!forceUpdate)
                     {
                         if (styleProp != null && styleProp.CanWrite)
@@ -1296,19 +1278,16 @@ namespace T7CompilerGUI
                         }
                     }
                     
-                    // For buttons, ensure UseStyleColors is enabled so they respect Style
                     if (ctrl is ReaLTaiizor.Controls.PoisonButton poisonBtn)
                     {
                         poisonBtn.UseStyleColors = true;
                     }
                     
-                    // For dropdown buttons, ensure UseStyleColors is enabled so they respect Style
                     if (ctrl is ReaLTaiizor.Controls.PoisonDropDownButton poisonDropDownBtn)
                     {
                         poisonDropDownBtn.UseStyleColors = true;
                     }
                     
-                    // For labels, ensure UseStyleColors is enabled
                     if (ctrl is ReaLTaiizor.Controls.PoisonLabel)
                     {
                         var useStyleColorsProp = ctrl.GetType().GetProperty("UseStyleColors");
@@ -1318,7 +1297,6 @@ namespace T7CompilerGUI
                         }
                     }
                     
-                    // Force update style and theme if forceUpdate is true, otherwise check for Default
                     if (forceUpdate)
                     {
                         // Force update regardless of current value
@@ -1344,11 +1322,9 @@ namespace T7CompilerGUI
                     }
                     else
                     {
-                        // Only update if control doesn't have a specific style set (inherits from StyleManager)
                         var stylePropInner = ctrl.GetType().GetProperty("Style");
                         var currentStyle = stylePropInner?.GetValue(ctrl);
                         
-                        // If style is Default or matches current, update it
                         if (currentStyle == null || currentStyle.ToString() == "Default" || 
                             (currentStyle is ColorStyle currentStyleEnum && currentStyleEnum == style))
                         {
@@ -1426,7 +1402,7 @@ namespace T7CompilerGUI
             poisonToolTip.SetToolTip(chkOpcodeMasking, "Enable opcode masking for obfuscation");
             if (btnPlatform != null) poisonToolTip.SetToolTip(btnPlatform, "Select target platform (PC or PS4)");
             if (btnGame != null) poisonToolTip.SetToolTip(btnGame, "Select target game (T7/BO3 or T8/BO4)");
-            poisonToolTip.SetToolTip(btnGscConfMode, "Select compilation mode (MP for Multiplayer or ZM for Zombies)");
+            poisonToolTip.SetToolTip(btnGscConfMode, "Quick editor for gsc.conf - Select game modes (MP/ZM/SP)");
             poisonToolTip.SetToolTip(btnCompile, "Compile GSC scripts into .gscc file");
             
             // Inject tab tooltips
@@ -1457,27 +1433,21 @@ namespace T7CompilerGUI
         
         private void InitializeBuildFolder()
         {
-            // Only create build folder if user hasn't set a custom default output path
-            // This will be checked when actually needed (in AutoPopulateOutputFile)
-            // For now, just ensure the path is set, but don't create the directory yet
             try
             {
-                // Try to set buildFolder to a valid location, but don't create it yet
                 if (!Directory.Exists(Path.GetDirectoryName(buildFolder)))
                 {
-                    // If parent directory doesn't exist, try alternatives
                     buildFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
                 }
             }
             catch
             {
-                // Fallback to user's Documents folder
                 buildFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
             }
         }
         
         /// <summary>
-        /// Ensures the build folder exists. Only called when actually needed (when no custom output path is set).
+        /// Ensures the build folder exists.
         /// </summary>
         private void EnsureBuildFolderExists()
         {
@@ -1490,7 +1460,6 @@ namespace T7CompilerGUI
             }
             catch
             {
-                // If we can't create in current location, fallback to user's Documents folder
                 buildFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
                 try
                 {
@@ -1509,9 +1478,6 @@ namespace T7CompilerGUI
         
         private void WireUpMenuEvents()
         {
-            // Only wire up gsc conf mode menu (platform/game/inject game now use radio buttons)
-            if (gscConfModeMenu != null)
-                gscConfModeMenu.ItemClicked += gscConfModeMenu_ItemClicked;
         }
         
         private void SetupDropdownButtons()
@@ -1524,6 +1490,7 @@ namespace T7CompilerGUI
             
             // Setup Inject Game dropdown button
             SetupInjectGameMenu();
+            SetupHotReloadMenu();
             
             // Initialize Settings Tab Controls
             SetupSettingsTab();
@@ -1537,12 +1504,12 @@ namespace T7CompilerGUI
             var pcItem = new ToolStripMenuItem("PC")
             {
                 Tag = 0,
-                Checked = false // Don't show checkmark - selection is indicated by background color
+                Checked = false
             };
             var ps4Item = new ToolStripMenuItem("PS4")
             {
                 Tag = 1,
-                Checked = false // Don't show checkmark - selection is indicated by background color
+                Checked = false
             };
             
             pcItem.Click += (s, e) => platformMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(pcItem));
@@ -1570,12 +1537,12 @@ namespace T7CompilerGUI
             var t7Item = new ToolStripMenuItem("T7 (BO3)")
             {
                 Tag = 0,
-                Checked = false // Don't show checkmark - selection is indicated by background color
+                Checked = false
             };
             var t8Item = new ToolStripMenuItem("T8 (BO4)")
             {
                 Tag = 1,
-                Checked = false // Don't show checkmark - selection is indicated by background color
+                Checked = false
             };
             
             t7Item.Click += (s, e) => gameMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(t7Item));
@@ -1603,20 +1570,21 @@ namespace T7CompilerGUI
             // Setup context menu for settings
             SetupSettingsContextMenu();
             
-            // Set default theme toggle (Dark = unchecked)
-            if (toggleSettingsTheme != null)
+            if (toggleSettingsTheme != null && !toggleSettingsTheme.Checked && toggleSettingsTheme.Text == "")
             {
-                toggleSettingsTheme.Checked = false; // Dark theme (unchecked)
+                toggleSettingsTheme.Checked = false;
                 toggleSettingsTheme.Text = "Dark";
             }
             
-            // Connect controls to style manager
             if (poisonStyleManager != null)
             {
                 if (btnSettingsColorStyle != null)
                 {
                     btnSettingsColorStyle.StyleManager = poisonStyleManager;
+                    if (string.IsNullOrWhiteSpace(btnSettingsColorStyle.Text))
+                    {
                     btnSettingsColorStyle.Text = poisonStyleManager.Style.ToString();
+                    }
                     EnhanceMenuItems(settingsColorStyleMenu);
                 }
             }
@@ -1632,7 +1600,7 @@ namespace T7CompilerGUI
             ToolStripMenuItem keyboardShortcutsItem = new ToolStripMenuItem("Keyboard Shortcuts...");
             keyboardShortcutsItem.Click += (s, e) =>
             {
-                using (var dialog = new KeybindDialog(poisonStyleManager, keybinds ?? KeybindDialog.GetDefaultKeybinds(), this))
+                using (var dialog = new Dialogs.KeybindDialog(poisonStyleManager, keybinds ?? Dialogs.KeybindDialog.GetDefaultKeybinds(), this))
                 {
                     if (dialog.ShowDialog(this) == DialogResult.OK)
                     {
@@ -1666,7 +1634,6 @@ namespace T7CompilerGUI
             // Enhance menu items with theme styling
             EnhanceMenuItems(settingsContextMenu);
             
-            // Ensure menu updates with rainbow colors when opened
             settingsContextMenu.Opening += (s, e) =>
             {
                 if (poisonStyleManager != null && settingsContextMenu.Renderer is StyleBasedMenuRenderer renderer)
@@ -1694,7 +1661,7 @@ namespace T7CompilerGUI
                 var item = new ToolStripMenuItem(style.ToString())
                 {
                     Tag = style,
-                    Checked = false // Don't show checkmark - selection is indicated by background color
+                    Checked = false
                 };
                 item.Click += (s, e) =>
                 {
@@ -1711,7 +1678,7 @@ namespace T7CompilerGUI
             var rainbowItem = new ToolStripMenuItem("Rainbow")
             {
                 Tag = "Rainbow",
-                Checked = false // Don't show checkmark - selection is indicated by background color
+                Checked = false
             };
             rainbowItem.Click += (s, e) =>
             {
@@ -1772,12 +1739,12 @@ namespace T7CompilerGUI
             var t7Item = new ToolStripMenuItem("T7 (BO3)")
             {
                 Tag = 0,
-                Checked = false // Don't show checkmark - selection is indicated by background color
+                Checked = false
             };
             var t8Item = new ToolStripMenuItem("T8 (BO4)")
             {
                 Tag = 1,
-                Checked = false // Don't show checkmark - selection is indicated by background color
+                Checked = false
             };
             
             t7Item.Click += (s, e) => injectGameMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(t7Item));
@@ -1797,6 +1764,101 @@ namespace T7CompilerGUI
             }
         }
         
+        private void SetupHotReloadMenu()
+        {
+            if (hotReloadMenu == null || btnHotReload == null) return;
+            
+            hotReloadMenu.Items.Clear();
+            var noneItem = new ToolStripMenuItem("None") { Tag = HotMode.None };
+            var cscItem = new ToolStripMenuItem("CSC") { Tag = HotMode.Csc };
+            var gscItem = new ToolStripMenuItem("GSC") { Tag = HotMode.Gsc };
+            
+            noneItem.Click += (s, e) => hotReloadMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(noneItem));
+            cscItem.Click += (s, e) => hotReloadMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(cscItem));
+            gscItem.Click += (s, e) => hotReloadMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(gscItem));
+            
+            hotReloadMenu.Items.Add(noneItem);
+            hotReloadMenu.Items.Add(cscItem);
+            hotReloadMenu.Items.Add(gscItem);
+            
+            UpdateHotReloadButton();
+            
+            // Connect to style manager
+            if (poisonStyleManager != null)
+            {
+                btnHotReload.StyleManager = poisonStyleManager;
+                EnhanceMenuItems(hotReloadMenu);
+            }
+        }
+        
+        private void hotReloadMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+            if (e.ClickedItem is ToolStripMenuItem item && item.Tag is HotMode mode)
+            {
+                currentHotMode = mode;
+                UpdateHotReloadButton();
+                ResetButtonState(btnHotReload);
+                SaveHotReloadToGscConf();
+            }
+        }
+        
+        private void UpdateHotReloadButton()
+        {
+            if (btnHotReload == null) return;
+            
+            // Use Designer-set text as base, update based on mode
+            switch (currentHotMode)
+            {
+                case HotMode.None:
+                    btnHotReload.Text = "None"; // Matches Designer default
+                    break;
+                case HotMode.Csc:
+                    btnHotReload.Text = "CSC";
+                    break;
+                case HotMode.Gsc:
+                    btnHotReload.Text = "GSC";
+                    break;
+            }
+        }
+        
+        private void SaveHotReloadToGscConf()
+        {
+            try
+            {
+                string expandedProjectFolder = ExpandPath(txtProjectFolder.Text);
+                if (string.IsNullOrEmpty(expandedProjectFolder) || !Directory.Exists(expandedProjectFolder))
+                    return;
+                
+                string gscConfPath = Path.Combine(expandedProjectFolder, "gsc.conf");
+                if (!File.Exists(gscConfPath))
+                    gscConfPath = "gsc.conf";
+                
+                if (File.Exists(gscConfPath))
+                {
+                    var lines = File.ReadAllLines(gscConfPath).ToList();
+                    bool found = false;
+                    
+                    for (int i = 0; i < lines.Count; i++)
+                    {
+                        if (lines[i].Trim().StartsWith("hot=", StringComparison.OrdinalIgnoreCase))
+                        {
+                            lines[i] = $"hot={currentHotMode.ToString().ToLower()}";
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!found)
+                    {
+                        lines.Add($"hot={currentHotMode.ToString().ToLower()}");
+                    }
+                    
+                    File.WriteAllLines(gscConfPath, lines);
+                }
+            }
+            catch { }
+        }
+        
         private void platformMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
         {
             if (e.ClickedItem is ToolStripMenuItem item && item.Tag is int index)
@@ -1804,7 +1866,6 @@ namespace T7CompilerGUI
                 currentPlatformIndex = index;
                 btnPlatform.Text = item.Text;
                 
-                // Menu items don't use checkmarks - selection is indicated by background color
                 
                 // Reset dropdown button pressed state after menu item selection
                 ResetButtonState(btnPlatform);
@@ -1820,7 +1881,6 @@ namespace T7CompilerGUI
                 currentGameIndex = index;
                 btnGame.Text = item.Text;
                 
-                // Menu items don't use checkmarks - selection is indicated by background color
                 
                 // Reset dropdown button pressed state after menu item selection
                 ResetButtonState(btnGame);
@@ -1836,7 +1896,6 @@ namespace T7CompilerGUI
                 currentInjectGameIndex = index;
                 btnInjectGame.Text = item.Text;
                 
-                // Menu items don't use checkmarks - selection is indicated by background color
                 
                 // Reset dropdown button pressed state after menu item selection
                 ResetButtonState(btnInjectGame);
@@ -1846,7 +1905,6 @@ namespace T7CompilerGUI
             }
         }
                        
-        // StyleManager initialization removed - everything is configured in Designer (matching demo pattern)
         // StyleManager automatically propagates to all controls with Style=Default and Theme=Default
         
         private void SetupControlInteractivity()
@@ -1869,14 +1927,10 @@ namespace T7CompilerGUI
         
         private void EnhanceCheckBoxInteractivity()
         {
-            // Note: Toggles are now PoisonToggle controls - DisplayFocus and font settings are configured in Designer
-            // This method is kept for potential future enhancements, but most settings are handled by StyleManager
         }
         
-        // Progress spinner setup removed - configured in Designer (matching demo pattern)
         // Spinner automatically inherits from StyleManager when form has StyleManager set
         
-        // Setup progress bar rainbow support (only custom functionality needed)
         private void SetupProgressBarRainbow()
         {
             if (progressBar != null)
@@ -1904,9 +1958,14 @@ namespace T7CompilerGUI
         private void SetupMenuStyling()
         {
             // List of all dropdown menus
-            var menus = new[]
+            var menus = new ReaLTaiizor.Controls.PoisonContextMenuStrip[]
             {
-                gscConfModeMenu
+                platformMenu,
+                gameMenu,
+                injectGameMenu,
+                settingsColorStyleMenu,
+                mainFormContextMenu,
+                settingsContextMenu
             };
             
             foreach (var menu in menus)
@@ -1956,7 +2015,6 @@ namespace T7CompilerGUI
                     menuItem.MouseEnter += (s, e) =>
                     {
                         // Menu item hover effect is handled by PoisonContextMenuStrip
-                        // But we can ensure it uses the current style
                         if (menu.StyleManager != null)
                         {
                             menu.Style = menu.StyleManager.Style;
@@ -2029,7 +2087,7 @@ namespace T7CompilerGUI
                 if (styleManager != null)
                 {
                     ThemeStyle theme = styleManager.Theme;
-                    Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(theme);
+                    Color backColor = PoisonPaint.BackColor.Form(theme);
                     
                     using (SolidBrush brush = new SolidBrush(backColor))
                     {
@@ -2044,14 +2102,10 @@ namespace T7CompilerGUI
             
             protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
             {
-                // Hide separator lines - don't render them at all
-                // This removes the white vertical line
             }
             
             protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
             {
-                // Hide toolstrip border - don't render it
-                // This prevents any unwanted borders from showing
             }
             
             protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
@@ -2060,7 +2114,7 @@ namespace T7CompilerGUI
                 if (styleManager != null)
                 {
                     ThemeStyle theme = styleManager.Theme;
-                    Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(theme);
+                    Color backColor = PoisonPaint.BackColor.Form(theme);
                     
                     using (SolidBrush brush = new SolidBrush(backColor))
                     {
@@ -2071,7 +2125,6 @@ namespace T7CompilerGUI
             
             protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
             {
-                // Hide checkmarks - don't render them at all
                 // The selected state is already indicated by the background color
             }
             
@@ -2091,16 +2144,15 @@ namespace T7CompilerGUI
                     }
                     else
                     {
-                        styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(currentStyle);
+                        styleColor = PoisonPaint.GetStyleColor(currentStyle);
                     }
                     
-                    Color menuBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(theme);
+                    Color menuBackColor = PoisonPaint.BackColor.Form(theme);
                     
                     // Check if item is hovered (Selected) or is the current active style (for color style menu)
                     bool isActiveStyle = false;
                     if (menuItem.Tag is ColorStyle tagStyle && styleManager != null)
                     {
-                        // For color style menu, highlight if this is the current style
                         isActiveStyle = (styleManager.Style == tagStyle && !IsRainbowStyleActive());
                     }
                     else if (menuItem.Tag is string tag && tag == "Rainbow" && IsRainbowStyleActive())
@@ -2147,7 +2199,7 @@ namespace T7CompilerGUI
                 if (styleManager != null)
                 {
                     ThemeStyle theme = styleManager.Theme;
-                    Color foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(theme);
+                    Color foreColor = PoisonPaint.ForeColor.Label.Normal(theme);
                     
                     // Draw text with theme color
                     TextRenderer.DrawText(e.Graphics, e.Text, e.TextFont, e.TextRectangle, foreColor, 
@@ -2167,7 +2219,6 @@ namespace T7CompilerGUI
             // Update all dropdown menus and context menus immediately with current theme
             var menus = new[]
             {
-                gscConfModeMenu,
                 platformMenu,
                 gameMenu,
                 injectGameMenu,
@@ -2207,7 +2258,6 @@ namespace T7CompilerGUI
             // Update all dropdown menus and context menus immediately with current style
             var menus = new[]
             {
-                gscConfModeMenu,
                 platformMenu,
                 gameMenu,
                 injectGameMenu,
@@ -2244,28 +2294,7 @@ namespace T7CompilerGUI
         private void UpdateAllMenuRenderers()
         {
             // Update all menu renderers to use the current style from StyleManager
-            var menus = new[]
-            {
-                gscConfModeMenu
-            };
-            
-            foreach (var menu in menus)
-            {
-                if (menu != null && poisonStyleManager != null)
-                {
-                    // Update renderer to use current style
-                    if (menu.Renderer is StyleBasedMenuRenderer renderer)
-                    {
-                        renderer.UpdateStyleManager(poisonStyleManager);
-                    }
-                    else
-                    {
-                        menu.Renderer = new StyleBasedMenuRenderer(poisonStyleManager);
-                    }
-                    
-                    menu.Invalidate();
-                }
-            }
+            // No menus to enhance for gsc.conf editor
         }
         
         private void SetControlDisplayFocus(Control parent)
@@ -2392,7 +2421,7 @@ namespace T7CompilerGUI
                             }
                             else if (poisonBtn.Style != ColorStyle.Default)
                             {
-                                styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(poisonBtn.Style);
+                                styleColor = PoisonPaint.GetStyleColor(poisonBtn.Style);
                             }
                             else
                             {
@@ -2521,19 +2550,19 @@ namespace T7CompilerGUI
                                     // Fallback to theme color based on state
                                     if (!poisonDropDown.Enabled)
                                     {
-                                        backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Disabled(theme);
+                                        backColor = PoisonPaint.BackColor.Button.Disabled(theme);
                                     }
                                     else if (isPressed)
                                     {
-                                        backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Press(theme);
+                                        backColor = PoisonPaint.BackColor.Button.Press(theme);
                                     }
                                     else if (isHovered)
                                     {
-                                        backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Hover(theme);
+                                        backColor = PoisonPaint.BackColor.Button.Hover(theme);
                                     }
                                     else
                                     {
-                                        backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(theme);
+                                        backColor = PoisonPaint.BackColor.Button.Normal(theme);
                                     }
                                 }
                             }
@@ -2574,7 +2603,7 @@ namespace T7CompilerGUI
                             }
                             else if (currentStyle != ColorStyle.Default)
                             {
-                                hoverColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(currentStyle);
+                                hoverColor = PoisonPaint.GetStyleColor(currentStyle);
                             }
                             else
                             {
@@ -2814,7 +2843,7 @@ namespace T7CompilerGUI
                         if (isHovered && !isPressed && dropDown.Enabled && dropDown.Style != ColorStyle.Default)
                         {
                             // Use the style color with transparency for hover overlay
-                            Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(dropDown.Style);
+                            Color styleColor = PoisonPaint.GetStyleColor(dropDown.Style);
                             using (SolidBrush brush = new SolidBrush(Color.FromArgb(80, styleColor)))
                             {
                                 e.Graphics.FillRectangle(brush, dropDown.ClientRectangle);
@@ -2823,7 +2852,7 @@ namespace T7CompilerGUI
                         else if (isHovered && isPressed && dropDown.Enabled && dropDown.Style != ColorStyle.Default)
                         {
                             // Use a more opaque style color for pressed state
-                            Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(dropDown.Style);
+                            Color styleColor = PoisonPaint.GetStyleColor(dropDown.Style);
                             using (SolidBrush brush = new SolidBrush(Color.FromArgb(120, styleColor)))
                             {
                                 e.Graphics.FillRectangle(brush, dropDown.ClientRectangle);
@@ -2878,191 +2907,49 @@ namespace T7CompilerGUI
             }
         }
         
-        private void LoadGscConfMode()
+        private void btnGscConfMode_Click(object sender, EventArgs e)
         {
-            isLoadingGscConfMode = true;
-            try
+            // Reset button state immediately
+            ResetButtonState(sender);
+            
+            if (string.IsNullOrWhiteSpace(txtProjectFolder.Text) || !Directory.Exists(ExpandPath(txtProjectFolder.Text)))
             {
-                if (string.IsNullOrWhiteSpace(txtProjectFolder.Text) || !Directory.Exists(txtProjectFolder.Text))
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Please select a project folder first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string expandedProjectFolder = ExpandPath(txtProjectFolder.Text);
+            string gscConfPath = Path.Combine(expandedProjectFolder, "gsc.conf");
+            
+            // If file doesn't exist, create it with default content
+            if (!File.Exists(gscConfPath))
+            {
+                try
                 {
-                    btnGscConfMode.Text = "";
-                    btnGscConfMode.Tag = -1;
+                    File.WriteAllText(gscConfPath, "symbols=MP\n");
+                    txtLog.AppendText($"[INFO] Created gsc.conf at: {gscConfPath}\r\n");
+                }
+                catch (Exception ex)
+                {
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Failed to create gsc.conf:\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
-
-                // Ensure menu is populated before accessing items
-                if (gscConfModeMenu != null && gscConfModeMenu.Items.Count == 0)
+            }
+            
+            // Open the GSC Configuration Editor dialog
+            try
+            {
+                using (var dialog = new Dialogs.GscConfEditorDialog(StyleManager, gscConfPath, this))
                 {
-                    SetupGscConfModeMenu();
-                }
-
-                string projectFolder = txtProjectFolder.Text;
-                string gscConfPath = Path.Combine(projectFolder, "gsc.conf");
-                
-                bool hasMP = false;
-                bool hasZM = false;
-                
-                // First, try to read from gsc.conf if it exists
-                if (File.Exists(gscConfPath))
-                {
-                    try
+                    if (dialog.ShowDialog(this) == DialogResult.OK)
                     {
-                        foreach (string line in File.ReadAllLines(gscConfPath))
-                        {
-                            if (line.Trim().StartsWith("#")) continue;
-                            var split = line.Trim().Split('=');
-                            if (split.Length < 2) continue;
-                            
-                            if (split[0].Trim().Equals("symbols", StringComparison.OrdinalIgnoreCase))
-                            {
-                                string symbols = split[1].Trim();
-                                var symbolList = symbols.Split(',').Select(s => s.Trim());
-                                
-                                hasMP = symbolList.Any(s => s.Equals("MP", StringComparison.OrdinalIgnoreCase));
-                                hasZM = symbolList.Any(s => s.Equals("ZM", StringComparison.OrdinalIgnoreCase));
-                                break;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // If reading gsc.conf fails, fall through to folder scanning
-                    }
-                }
-                
-                // If gsc.conf doesn't exist or doesn't have MP/ZM, scan folder structure
-                if (!hasMP && !hasZM)
-                {
-                    try
-                    {
-                        // Scan for GSC files and check folder structure
-                        // Exclude Zombies files if MP is set, exclude Multiplayer files if ZM is set
-                        var gscFiles = Directory.GetFiles(projectFolder, "*.gsc", SearchOption.AllDirectories)
-                            .Where(f => !f.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase) && 
-                                        !f.EndsWith(".stub.gscc", StringComparison.OrdinalIgnoreCase))
-                            .ToList();
-                        
-                        if (gscFiles.Count > 0)
-                        {
-                            // Check folder structure to determine MP vs ZM
-                            int mpFiles = 0;
-                            int zmFiles = 0;
-                            
-                            foreach (string file in gscFiles)
-                            {
-                                string normalizedPath = file.Replace("\\", "/").ToLower();
-                                
-                                // Check for Multiplayer folder/files
-                                if (normalizedPath.Contains("/multiplayer/") || 
-                                    normalizedPath.EndsWith("/multiplayer.gsc") ||
-                                    normalizedPath.Contains("\\multiplayer\\"))
-                                {
-                                    mpFiles++;
-                                }
-                                
-                                // Check for Zombies folder/files
-                                if (normalizedPath.Contains("/zombies/") || 
-                                    normalizedPath.EndsWith("/zombies.gsc") ||
-                                    normalizedPath.Contains("\\zombies\\"))
-                                {
-                                    zmFiles++;
-                                }
-                            }
-                            
-                            // Determine mode based on file counts
-                            if (mpFiles > 0 && zmFiles == 0)
-                                hasMP = true;
-                            else if (zmFiles > 0 && mpFiles == 0)
-                                hasZM = true;
-                            else if (mpFiles > zmFiles)
-                                hasMP = true; // More MP files, default to MP
-                            else if (zmFiles > mpFiles)
-                                hasZM = true; // More ZM files, default to ZM
-                            // If equal or both zero, default to MP below
-                        }
-                    }
-                    catch
-                    {
-                        // If scanning fails, default to MP
-                    }
-                }
-                // If MP is set in gsc.conf, ensure ZM is not detected (even if ZM files exist)
-                else if (hasMP && hasZM)
-                {
-                    // If both are set, prefer MP (MP takes priority)
-                    hasZM = false;
-                }
-                
-                // Set selection based on what was found (MP takes priority if both exist or neither found)
-                int selectedIndex = 0; // Default to MP
-                if (hasMP && !hasZM)
-                    selectedIndex = 0; // MP
-                else if (hasZM && !hasMP)
-                    selectedIndex = 1; // ZM
-                else
-                    selectedIndex = 0; // Default to MP if both exist or neither found
-                
-                currentGscConfModeIndex = selectedIndex;
-                btnGscConfMode.Tag = selectedIndex;
-                if (gscConfModeMenu != null && gscConfModeMenu.Items.Count > selectedIndex)
-                {
-                    if (gscConfModeMenu.Items[selectedIndex] is ToolStripMenuItem selectedItem)
-                    {
-                        btnGscConfMode.Text = selectedItem.Text;
-                        foreach (ToolStripMenuItem menuItem in gscConfModeMenu.Items)
-                        {
-                            menuItem.Checked = (menuItem.Tag is int tag && tag == selectedIndex);
-                        }
+                        txtLog.AppendText($"[INFO] Updated gsc.conf with symbols: {dialog.SelectedSymbols}\r\n");
                     }
                 }
             }
-            finally
+            catch (Exception ex)
             {
-                isLoadingGscConfMode = false;
-            }
-        }
-        
-        private void SetupGscConfModeMenu()
-        {
-            if (gscConfModeMenu == null) return;
-            
-            gscConfModeMenu.Items.Clear();
-            var mpItem = new ToolStripMenuItem("MP")
-            {
-                Tag = 0,
-                Checked = false // Don't show checkmark - selection is indicated by background color
-            };
-            var zmItem = new ToolStripMenuItem("ZM")
-            {
-                Tag = 1,
-                Checked = false // Don't show checkmark - selection is indicated by background color
-            };
-            
-            gscConfModeMenu.Items.Add(mpItem);
-            gscConfModeMenu.Items.Add(zmItem);
-            
-            // Enhance menu items with proper styling
-            if (poisonStyleManager != null)
-            {
-                EnhanceMenuItems(gscConfModeMenu);
-            }
-        }
-        
-        private void gscConfModeMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
-        {
-            if (e.ClickedItem is ToolStripMenuItem item && item.Tag is int index)
-            {
-                currentGscConfModeIndex = index;
-                btnGscConfMode.Text = item.Text;
-                btnGscConfMode.Tag = index;
-                
-                // Menu items don't use checkmarks - selection is indicated by background color
-                
-                // Update gsc.conf file
-                UpdateGscConfFile(item.Text);
-                
-                // Save state
-                SaveSelectionState();
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Failed to open GSC Configuration Editor:\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
         
@@ -3196,90 +3083,14 @@ namespace T7CompilerGUI
             SaveAllSettings();
         }
         
-        private void UpdateGscConfFile(string selectedMode)
-        {
-            if (isLoadingGscConfMode) return; // Don't update file during initial load
-            if (string.IsNullOrWhiteSpace(txtProjectFolder.Text) || !Directory.Exists(txtProjectFolder.Text))
-            {
-                txtLog.AppendText("[ERROR] Please select a project folder first.\r\n");
-                txtLog.SelectionStart = txtLog.Text.Length;
-                txtLog.ScrollToCaret();
-                return;
-            }
-
-            string gscConfPath = Path.Combine(txtProjectFolder.Text, "gsc.conf");
-            
-            try
-            {
-                List<string> lines = new List<string>();
-                bool symbolsLineFound = false;
-                
-                if (File.Exists(gscConfPath))
-                {
-                    lines = File.ReadAllLines(gscConfPath).ToList();
-                }
-                
-                // Find and update the symbols line
-                for (int i = 0; i < lines.Count; i++)
-                {
-                    string line = lines[i];
-                    if (line.Trim().StartsWith("#")) continue;
-                    
-                    var split = line.Trim().Split('=');
-                    if (split.Length >= 2 && split[0].Trim().Equals("symbols", StringComparison.OrdinalIgnoreCase))
-                    {
-                        symbolsLineFound = true;
-                        string symbols = split[1].Trim();
-                        var symbolList = symbols.Split(',').Select(s => s.Trim()).ToList();
-                        
-                        // Remove both MP and ZM if they exist
-                        symbolList.RemoveAll(s => s.Equals("MP", StringComparison.OrdinalIgnoreCase));
-                        symbolList.RemoveAll(s => s.Equals("ZM", StringComparison.OrdinalIgnoreCase));
-                        
-                        // Add the selected mode
-                        symbolList.Add(selectedMode);
-                        
-                        // Rebuild the symbols line
-                        lines[i] = $"symbols={string.Join(",", symbolList)}";
-                        break;
-                    }
-                }
-                
-                // If symbols line not found, add it
-                if (!symbolsLineFound)
-                {
-                    // Default symbols if file is new
-                    if (lines.Count == 0)
-                    {
-                        lines.Add($"symbols=BO3,SYNERGY,{selectedMode},DEBUG,V3CLIENTEDITIN,SynergyModding");
-                    }
-                    else
-                    {
-                        // Insert at the beginning
-                        lines.Insert(0, $"symbols=BO3,SYNERGY,{selectedMode},DEBUG,V3CLIENTEDITIN,SynergyModding");
-                    }
-                }
-                
-                // Write the file
-                File.WriteAllLines(gscConfPath, lines);
-                txtLog.AppendText($"[INFO] Updated gsc.conf: Set mode to {selectedMode}\r\n");
-                txtLog.SelectionStart = txtLog.Text.Length;
-                txtLog.ScrollToCaret();
-            }
-            catch (Exception ex)
-            {
-                txtLog.AppendText($"[ERROR] Failed to update gsc.conf: {ex.Message}\r\n");
-                txtLog.SelectionStart = txtLog.Text.Length;
-                txtLog.ScrollToCaret();
-            }
-        }
         
         private void btnSelectProjectFolder_Click(object sender, EventArgs e)
         {
             // Ensure we start from a directory, not a file path
-            string initialPath = txtProjectFolder.Text;
-            if (!string.IsNullOrWhiteSpace(initialPath))
+            string initialPath = null;
+            if (!string.IsNullOrWhiteSpace(txtProjectFolder.Text))
             {
+                initialPath = ExpandPath(txtProjectFolder.Text);
                 if (File.Exists(initialPath))
                 {
                     // If it's a file, use its directory
@@ -3295,10 +3106,10 @@ namespace T7CompilerGUI
             string folder = ShowModernFolderDialog("Select GSC Project Folder", initialPath);
             if (!string.IsNullOrEmpty(folder))
             {
-                txtProjectFolder.Text = folder;
+                txtProjectFolder.Text = ShortenPath(folder);
+                AddToRecentProjects(folder); // Add to recent projects (use full path)
                 AutoPopulateOutputFile();
                 UpdateUI();
-                LoadGscConfMode(); // Reload gsc.conf mode when project folder changes
             }
             // Explicitly reset button state after dialog closes
             ResetButtonState(sender);
@@ -3306,30 +3117,8 @@ namespace T7CompilerGUI
 
         private void ResetButtonState(object sender)
         {
-            // Handle PoisonButton
-            if (sender is PoisonButton btn)
-            {
-                // Use reflection to reset button internal state
-                var isHoveredField = btn.GetType().GetField("isHovered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var isPressedField = btn.GetType().GetField("isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                isHoveredField?.SetValue(btn, false);
-                isPressedField?.SetValue(btn, false);
-                
-                btn.Invalidate();
-            }
-            // Handle PoisonDropDownButton
-            else if (sender is PoisonDropDownButton dropDown)
-            {
-                // Use reflection to reset dropdown button internal state
-                var isHoveredField = dropDown.GetType().GetField("isHovered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var isPressedField = dropDown.GetType().GetField("isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                isHoveredField?.SetValue(dropDown, false);
-                isPressedField?.SetValue(dropDown, false);
-                
-                dropDown.Invalidate();
-            }
+            // Use centralized helper
+            PoisonControlHelper.ResetButtonState(sender);
         }
 
         private void btnSelectOutputFile_Click(object sender, EventArgs e)
@@ -3366,7 +3155,7 @@ namespace T7CompilerGUI
                 
                 if (saveDialog.ShowDialog(this) == DialogResult.OK)
                 {
-                    txtOutputFile.Text = saveDialog.FileName;
+                    txtOutputFile.Text = ShortenPath(saveDialog.FileName);
                     UpdateUI();
                 }
             }
@@ -3374,12 +3163,87 @@ namespace T7CompilerGUI
             // Explicitly reset button state after dialog closes
             ResetButtonState(sender);
         }
+        
+        /// <summary>
+        /// Shortens a path by replacing common user directories with environment variables
+        /// </summary>
+        private string ShortenPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+            
+            try
+            {
+                // Get common environment paths
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                
+                // Replace with environment variables (case-insensitive)
+                if (path.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(userProfile))
+                {
+                    return "%USERPROFILE%" + path.Substring(userProfile.Length);
+                }
+                if (path.StartsWith(appData, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(appData))
+                {
+                    return "%APPDATA%" + path.Substring(appData.Length);
+                }
+                if (path.StartsWith(localAppData, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(localAppData))
+                {
+                    return "%LOCALAPPDATA%" + path.Substring(localAppData.Length);
+                }
+                if (path.StartsWith(documents, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(documents))
+                {
+                    return "%USERPROFILE%\\Documents" + path.Substring(documents.Length);
+                }
+                if (path.StartsWith(desktop, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(desktop))
+                {
+                    return "%USERPROFILE%\\Desktop" + path.Substring(desktop.Length);
+                }
+                if (path.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(programFiles))
+                {
+                    return "%ProgramFiles%" + path.Substring(programFiles.Length);
+                }
+                if (path.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(programFilesX86))
+                {
+                    return "%ProgramFiles(x86)%" + path.Substring(programFilesX86.Length);
+                }
+            }
+            catch
+            {
+                // If anything fails, return original path
+            }
+            
+            return path;
+        }
+        
+        /// <summary>
+        /// Expands environment variables in a path back to full path
+        /// </summary>
+        private string ExpandPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+            
+            try
+            {
+                return Environment.ExpandEnvironmentVariables(path);
+            }
+            catch
+            {
+                return path;
+            }
+        }
 
         private void UpdateUI()
         {
             bool hasProjectFolder = !string.IsNullOrWhiteSpace(txtProjectFolder.Text);
             bool hasOutputFile = !string.IsNullOrWhiteSpace(txtOutputFile.Text);
-            bool folderExists = hasProjectFolder && Directory.Exists(txtProjectFolder.Text);
+            bool folderExists = hasProjectFolder && Directory.Exists(ExpandPath(txtProjectFolder.Text));
             
             // Check if we can compile (all conditions met AND not currently compiling or injecting)
             bool canCompile = hasProjectFolder && 
@@ -3405,9 +3269,9 @@ namespace T7CompilerGUI
             bool hasInjectPath = !string.IsNullOrWhiteSpace(txtInjectPath.Text);
             
             // Determine which game we're targeting
-            Games targetGame = Games.T7;
+            TreyarchCompiler.Enums.Games targetGame = TreyarchCompiler.Enums.Games.T7;
             if (currentInjectGameIndex == 1)
-                targetGame = Games.T8;
+                targetGame = TreyarchCompiler.Enums.Games.T8;
             
             // Check if game is running
             bool gameRunning = IsGameRunning(targetGame);
@@ -3438,6 +3302,112 @@ namespace T7CompilerGUI
             }
         }
 
+        private void btnCodeEditor_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            try
+            {
+                Forms.CodeEditorForm editorForm = new Forms.CodeEditorForm(poisonStyleManager);
+                editorForm.Show();
+            }
+            catch (Exception ex)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
+                    $"Error opening code editor: {ex.Message}", 
+                    "Error", 
+                    MessageBoxButtons.OK, 
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        // Public method for CodeEditorForm to use MainForm's compile logic
+        public void CompileProject(string projectPath, string outputPath, TreyarchCompiler.Enums.Games game, TreyarchCompiler.Enums.Modes mode, List<string> symbols = null)
+        {
+            if (string.IsNullOrWhiteSpace(projectPath) || string.IsNullOrWhiteSpace(outputPath))
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Please provide a project folder and output file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!Directory.Exists(projectPath))
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Project folder does not exist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Set the project folder and output file
+            if (txtProjectFolder != null)
+                txtProjectFolder.Text = projectPath;
+            if (txtOutputFile != null)
+                txtOutputFile.Text = outputPath;
+
+            // Set the game index
+            if (game == TreyarchCompiler.Enums.Games.T7)
+                currentGameIndex = 0; // T7
+            else
+                currentGameIndex = 1; // T8
+            
+            // Update the game button text
+            if (btnGame != null)
+                btnGame.Text = (currentGameIndex == 0) ? "T7 (BO3)" : "T8 (BO4)";
+
+            // Store symbols for btnCompile_Click to use
+            compileSymbolsFromEditor = symbols;
+
+            // Show and activate MainForm
+            Show();
+            BringToFront();
+            Activate();
+
+            // Switch to compile tab
+            if (tabControl != null && tabCompile != null)
+            {
+                tabControl.SelectedTab = tabCompile;
+            }
+
+            // Trigger compile by calling the button click handler
+            btnCompile_Click(btnCompile, EventArgs.Empty);
+        }
+
+        // Public method for CodeEditorForm to use MainForm's inject logic
+        public void InjectPrecompiledScript(string filePath, TreyarchCompiler.Enums.Games game, string replacePath = null)
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Please select a valid compiled file to inject.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Set the inject file
+            if (txtInjectFile != null)
+                txtInjectFile.Text = filePath;
+
+            // Set the replace path if provided
+            if (!string.IsNullOrWhiteSpace(replacePath) && txtInjectPath != null)
+                txtInjectPath.Text = replacePath;
+
+            // Set the game
+            if (game == TreyarchCompiler.Enums.Games.T7)
+                currentInjectGameIndex = 0; // T7
+            else
+                currentInjectGameIndex = 1; // T8
+
+            // Show and activate MainForm
+            Show();
+            BringToFront();
+            Activate();
+
+            // Switch to inject tab
+            if (tabControl != null && tabInject != null)
+            {
+                tabControl.SelectedTab = tabInject;
+            }
+
+            // Trigger inject by calling the button click handler
+            btnInject_Click(btnInject, EventArgs.Empty);
+        }
+
         private void btnCompile_Click(object sender, EventArgs e)
         {
             // Reset button state immediately
@@ -3449,7 +3419,8 @@ namespace T7CompilerGUI
                 return;
             }
 
-            if (!Directory.Exists(txtProjectFolder.Text))
+            string expandedProjectFolder = ExpandPath(txtProjectFolder.Text);
+            if (!Directory.Exists(expandedProjectFolder))
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Project folder does not exist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
@@ -3476,16 +3447,32 @@ namespace T7CompilerGUI
 
             try
             {
-                // Get game first (needed for BO3/BO4 determination)
-                Games game = Games.T7; // DebugCompiler default
+                TreyarchCompiler.Enums.Games game = TreyarchCompiler.Enums.Games.T7;
                 if (GetGameIndex() == 1)
-                    game = Games.T8;
-                bool isT7 = game == Games.T7;
+                    game = TreyarchCompiler.Enums.Games.T8;
+                bool isT7 = game == TreyarchCompiler.Enums.Games.T7;
 
-                // Load conditional symbols from gsc.conf (DebugCompiler ALWAYS reads it if it exists)
                 List<string> conditionalSymbols = new List<string>();
-                string gscConfPath = Path.Combine(txtProjectFolder.Text, "gsc.conf");
-                string scriptLocation = txtProjectFolder.Text; // Default to project folder
+                // Use expandedProjectFolder already declared above
+                string scriptLocation = expandedProjectFolder;
+                
+                // If symbols were provided from CodeEditorForm, use them instead of reading from gsc.conf
+                bool useProvidedSymbols = (compileSymbolsFromEditor != null && compileSymbolsFromEditor.Count > 0);
+                
+                if (useProvidedSymbols)
+                {
+                    // Use symbols provided from CodeEditorForm (includes mode and custom symbols)
+                    conditionalSymbols.AddRange(compileSymbolsFromEditor);
+                    txtLog.AppendText($"Using symbols from Code Editor: {string.Join(", ", compileSymbolsFromEditor)}\r\n");
+                    Application.DoEvents();
+                    // Clear the stored symbols after use
+                    compileSymbolsFromEditor = null;
+                }
+                
+                // Check for gsc.conf in project folder first, then current directory (matching debug compiler behavior)
+                string gscConfPath = Path.Combine(expandedProjectFolder, "gsc.conf");
+                if (!File.Exists(gscConfPath))
+                    gscConfPath = "gsc.conf"; // Fallback to current directory (like debug compiler)
                 
                 if (File.Exists(gscConfPath))
                 {
@@ -3499,30 +3486,88 @@ namespace T7CompilerGUI
                         if (line.Trim().StartsWith("#")) continue;
                         var split = line.Trim().Split('=');
                         if (split.Length < 2) continue;
-                        switch (split[0].Trim().ToLower())
+                        switch (split[0].ToLower().Trim())
                         {
                             case "symbols":
-                                foreach (string token in split[1].Trim().Split(','))
+                                // Only read symbols from gsc.conf if not provided from CodeEditorForm
+                                if (!useProvidedSymbols)
                                 {
-                                    string trimmedToken = token.Trim();
-                                    if (!string.IsNullOrEmpty(trimmedToken))
+                                    // Read all symbols from gsc.conf (including custom symbols)
+                                    // Split by comma and trim each token to handle spaces
+                                    foreach (string token in split[1].Trim().Split(','))
                                     {
-                                        conditionalSymbols.Add(trimmedToken);
+                                        string trimmedToken = token.Trim();
+                                        if (!string.IsNullOrWhiteSpace(trimmedToken) && !conditionalSymbols.Contains(trimmedToken))
+                                        {
+                                            conditionalSymbols.Add(trimmedToken);
+                                        }
                                     }
                                 }
                                 break;
                             case "scriptlocation":
-                                // Support relative or absolute script location (DebugCompiler line 577-579)
                                 string loc = split[1].Trim();
                                 if (Path.IsPathRooted(loc))
                                     scriptLocation = loc;
                                 else
-                                    scriptLocation = Path.Combine(txtProjectFolder.Text, loc);
+                                    scriptLocation = Path.Combine(expandedProjectFolder, loc);
                                 txtLog.AppendText($"Using scriptlocation: {scriptLocation}\r\n");
                                 break;
+                            case "script":
+                                // Injection path (e.g., scripts/shared/duplicaterender_mgr.gsc)
+                                string scriptPath = split[1].Trim().Replace("\\", "/");
+                                if (txtInjectPath != null)
+                                {
+                                    txtInjectPath.Text = scriptPath;
+                                    txtLog.AppendText($"Injection path set from gsc.conf: {scriptPath}\r\n");
+                                }
+                                break;
+                            case "file":
+                                // Output filename (without extension, will get .gscc or .gsic added)
+                                // Match debug compiler: uses lowercase and writes to current directory
+                                // In GUI, we use buildFolder as the default directory
+                                string confOutputFile = split[1].Trim().ToLower();
+                                if (txtOutputFile != null && !string.IsNullOrWhiteSpace(confOutputFile))
+                                {
+                                    // If it's just a filename (no directory), use the buildFolder
+                                    if (!Path.IsPathRooted(confOutputFile) && !confOutputFile.Contains("\\") && !confOutputFile.Contains("/"))
+                                    {
+                                        // Just a filename - use buildFolder directory
+                                        txtOutputFile.Text = Path.Combine(buildFolder, confOutputFile);
+                                    }
+                                    else if (!Path.IsPathRooted(confOutputFile))
+                                    {
+                                        // Relative path - combine with project folder or buildFolder
+                                        string baseDir = !string.IsNullOrWhiteSpace(txtProjectFolder.Text) ? expandedProjectFolder : buildFolder;
+                                        txtOutputFile.Text = ShortenPath(Path.Combine(baseDir, confOutputFile));
+                                    }
+                                    else
+                                    {
+                                        // Absolute path - use as-is
+                                        txtOutputFile.Text = confOutputFile;
+                                    }
+                                    txtLog.AppendText($"Output file set from gsc.conf: {confOutputFile}\r\n");
+                                }
+                                break;
+                            case "noruntime":
+                                // No runtime flag (true/false)
+                                bool noRuntime = split[1].Trim().ToLower() == "true";
+                                if (chkNoRuntime != null)
+                                {
+                                    chkNoRuntime.Checked = noRuntime;
+                                    txtLog.AppendText($"No runtime set from gsc.conf: {noRuntime}\r\n");
+                                }
+                                break;
+                            case "hot":
+                                // Hot reload mode (none, csc, gsc)
+                                if (Enum.TryParse<HotMode>(split[1].Trim(), true, out HotMode hotMode))
+                                {
+                                    currentHotMode = hotMode;
+                                    UpdateHotReloadButton();
+                                    txtLog.AppendText($"Hot reload mode set from gsc.conf: {hotMode}\r\n");
+                                }
+                                break;
                             case "game":
-                                // Allow gsc.conf to override game selection (DebugCompiler line 583-588)
-                                if (Enum.TryParse<Games>(split[1].Trim(), true, out Games confGame))
+                                if (Enum.TryParse<TreyarchCompiler.Enums.Games>(split[1].Trim(), true, out TreyarchCompiler.Enums.Games confGame))
                                 {
                                     game = confGame;
                                     txtLog.AppendText($"Game set from gsc.conf: {game}\r\n");
@@ -3538,13 +3583,8 @@ namespace T7CompilerGUI
                     Application.DoEvents();
                 }
 
-                // Always add BO3/BO4 AFTER loading gsc.conf (matching DebugCompiler line 645)
-                // DebugCompiler ALWAYS adds it without checking for duplicates
-                // ConditionalBlocks uses a HashSet internally, so duplicates are handled there
-                string boSymbol = isT7 ? "BO3" : "BO4";
-                conditionalSymbols.Add(boSymbol);
+                // BO3/BO4 symbol will be added after creating ConditionalBlocks (matching debug compiler order)
 
-                // Verify script location exists
                 if (!Directory.Exists(scriptLocation))
                 {
                     txtLog.AppendText($"ERROR: Script location does not exist: {scriptLocation}\r\n");
@@ -3552,42 +3592,13 @@ namespace T7CompilerGUI
                     return;
                 }
 
-                // Smart folder exclusion based on symbols - determine mode first
-                bool hasMP = conditionalSymbols.Any(s => s.Equals("MP", StringComparison.OrdinalIgnoreCase));
-                bool hasZM = conditionalSymbols.Any(s => s.Equals("ZM", StringComparison.OrdinalIgnoreCase));
-                
-                // Load all GSC files with immediate filtering based on symbols
-                // This ensures ZM files are never loaded/processed when compiling for MP
-                // Match DebugCompiler exactly: Directory.GetFiles(scriptLocation, "*.gsc", SearchOption.AllDirectories)
-                // Filter out compiled files (.gscc, .stub.gscc, etc.) - only include source .gsc files
-                var allGscFiles = Directory.GetFiles(scriptLocation, "*.gsc", SearchOption.AllDirectories)
+                // Match debug compiler: get all .gsc files without filtering
+                // The debug compiler doesn't filter files - it includes all .gsc files
+                // Conditional compilation (#ifdef MP, #ifdef ZM) handles mode-specific code
+                var gscFiles = Directory.GetFiles(scriptLocation, "*.gsc", SearchOption.AllDirectories)
                     .Where(f => !f.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase) && 
-                                !f.EndsWith(".stub.gscc", StringComparison.OrdinalIgnoreCase));
-                
-                // Apply folder exclusion immediately during file loading to prevent ZM/MP files from being processed
-                // The debug compiler handles this via symbols, so we filter silently without logging
-                List<string> gscFiles;
-                if (hasMP && !hasZM)
-                {
-                    // Compiling for MP only - exclude Zombies folder immediately
-                    gscFiles = allGscFiles.Where(f => 
-                        !f.Replace("\\", "/").ToLower().Contains("/zombies/") &&
-                        !f.Replace("\\", "/").ToLower().EndsWith("/zombies.gsc"))
+                                !f.EndsWith(".stub.gscc", StringComparison.OrdinalIgnoreCase))
                         .ToList();
-                }
-                else if (hasZM && !hasMP)
-                {
-                    // Compiling for ZM only - exclude Multiplayer folder immediately
-                    gscFiles = allGscFiles.Where(f => 
-                        !f.Replace("\\", "/").ToLower().Contains("/multiplayer/") &&
-                        !f.Replace("\\", "/").ToLower().EndsWith("/multiplayer.gsc"))
-                        .ToList();
-                }
-                else
-                {
-                    // Both or neither set - include all files
-                    gscFiles = allGscFiles.ToList();
-                }
                 
                 // Show symbols and file count in one line
                 string symbolsStr = conditionalSymbols.Count > 0 ? string.Join(", ", conditionalSymbols) : "none";
@@ -3601,29 +3612,27 @@ namespace T7CompilerGUI
                     return;
                 }
 
-                // Combine all GSC files - matching DebugCompiler exactly
                 StringBuilder sb = new StringBuilder();
-                List<SourceTokenDef> sourceTokens = new List<SourceTokenDef>();
-                int currentLineCount = 0;  // 0-based like DebugCompiler
+                List<Utils.SourceTokenDef> sourceTokens = new List<Utils.SourceTokenDef>();
+                int currentLineCount = 0;
                 int currentCharCount = 0;
 
                 foreach (string file in gscFiles)
                 {
-                    var token = new SourceTokenDef
+                    var token = new Utils.SourceTokenDef
                     {
                         FilePath = file.Replace(scriptLocation, "").Substring(1).Replace("\\", "/"),
-                        LineStart = currentLineCount,  // 0-based like DebugCompiler
+                        LineStart = currentLineCount,
                         CharStart = currentCharCount,
                         LineMappings = new Dictionary<int, (int CStart, int CEnd)>()
                     };
 
                     foreach (var line in File.ReadAllLines(file))
                     {
-                        // Map BEFORE incrementing (matching DebugCompiler line 629)
                         token.LineMappings[currentLineCount] = (currentCharCount, currentCharCount + line.Length + 1);
                         sb.Append(line);
                         sb.Append("\n");
-                        currentLineCount += 1;  // Increment AFTER mapping (matching DebugCompiler line 632)
+                        currentLineCount += 1;
                         currentCharCount += line.Length + 1; // + \n
                     }
 
@@ -3631,7 +3640,6 @@ namespace T7CompilerGUI
                     token.CharEnd = currentCharCount;
                     sourceTokens.Add(token);
                     
-                    // Account for the extra newline between files (matching DebugCompiler line 639)
                     sb.Append("\n");
                     currentLineCount += 1;
                     currentCharCount += 1;
@@ -3641,11 +3649,18 @@ namespace T7CompilerGUI
                 txtLog.AppendText("Processing conditionals...\r\n");
                 Application.DoEvents();
 
-                // Process conditional compilation
-                var ppc = new ConditionalBlocks();
+                // Process conditional compilation (matching debug compiler order)
+                var ppc = new Utils.ConditionalBlocks();
+                // Add BO3/BO4 symbol AFTER creating ConditionalBlocks but BEFORE LoadConditionalTokens (matching debug compiler)
+                // Only add if not already present (CodeEditorForm may have already included it)
+                string boSymbol = isT7 ? "BO3" : "BO4";
+                if (!conditionalSymbols.Contains(boSymbol, StringComparer.OrdinalIgnoreCase))
+                {
+                    conditionalSymbols.Add(boSymbol);
+                }
                 ppc.LoadConditionalTokens(conditionalSymbols);
 
-                List<SourceTokenDef> originalTokens = new List<SourceTokenDef>(sourceTokens);
+                List<Utils.SourceTokenDef> originalTokens = new List<Utils.SourceTokenDef>(sourceTokens);
 
                 try
                 {
@@ -3653,9 +3668,8 @@ namespace T7CompilerGUI
                 }
                 catch (CBSyntaxException error)
                 {
-                    // Match DebugCompiler's error handling logic exactly
                     int errorCharPos = error.ErrorPosition;
-                    int numLineBreaks = 0; // Track extra newlines between files
+                    int numLineBreaks = 0;
                     string errorFile = null;
                     int errorLine = 0;
                     int errorPos = 0;
@@ -3667,16 +3681,13 @@ namespace T7CompilerGUI
                         if (errorCharPos >= stok.CharStart && errorCharPos <= stok.CharEnd)
                         {
                             errorFile = stok.FilePath;
-                            // Adjust for inserted linebreaks between files (DebugCompiler line 666)
                             int adjustedCharPos = errorCharPos - numLineBreaks;
                             
-                            // Find the exact line
                             foreach (var lineMapping in stok.LineMappings)
                             {
                                 var (CStart, CEnd) = lineMapping.Value;
                                 if (adjustedCharPos >= CStart && adjustedCharPos <= CEnd)
                                 {
-                                    // Match DebugCompiler: line.Key - stok.LineStart (no +1)
                                     errorLine = lineMapping.Key - stok.LineStart;
                                     errorPos = adjustedCharPos - CStart;
                                     found = true;
@@ -3685,7 +3696,7 @@ namespace T7CompilerGUI
                             }
                             break;
                         }
-                        numLineBreaks++; // Account for \n appended after each file
+                        numLineBreaks++;
                     }
                     
                     txtLog.AppendText($"\r\n=== PREPROCESSOR SYNTAX ERROR ===\r\n");
@@ -3739,22 +3750,12 @@ namespace T7CompilerGUI
                     return;
                 }
 
-                // Determine compilation mode from symbols (hasMP/hasZM already defined above)
-                Modes compileMode = Modes.MP; // Default to MP
+                // Match debug compiler: always use Modes.MP and false for masking
+                // Mode-specific code is handled by #ifdef directives in the source, not by the compile mode parameter
+                Modes compileMode = Modes.MP;
+                bool useMasking = false;
                 
-                if (hasZM && !hasMP)
-                {
-                    compileMode = Modes.ZM;
-                }
-                else if (hasMP)
-                {
-                    compileMode = Modes.MP;
-                }
-                // If both are present, default to MP
-
-                // Get platform from UI (game already declared above, line 285-287)
-                // Only PC and PS4 now (PC, Steam, XB1 are all the same)
-                Platforms platform = Platforms.PC; // Default fallback
+                Platforms platform = Platforms.PC;
                 int platformIndex = GetPlatformIndex();
                 switch (platformIndex)
                 {
@@ -3763,14 +3764,15 @@ namespace T7CompilerGUI
                     default: platform = Platforms.PC; break;
                 }
 
-                bool useMasking = chkOpcodeMasking.Checked;
-
                 // Log platform selection and expected database file
                 string expectedDbFile = (platform == Platforms.PS4) ? "T7PS4V2.db" : "t7pcv2.db";
                 string expectedDbPath = Path.Combine(exeDir, expectedDbFile);
                 bool dbExists = File.Exists(expectedDbPath);
                 
+                // Show all symbols being used for compilation
+                string allSymbolsStr = conditionalSymbols.Count > 0 ? string.Join(", ", conditionalSymbols) : "none";
                 txtLog.AppendText($"Compiling with Platform: {platform}, Game: {game}, Mode: {compileMode}, Masking: {useMasking}\r\n");
+                txtLog.AppendText($"Symbols: {allSymbolsStr}\r\n");
                 txtLog.AppendText($"Expected database: {expectedDbFile}\r\n");
                 txtLog.AppendText($"Database path: {expectedDbPath}\r\n");
                 txtLog.AppendText($"Database exists: {dbExists}\r\n");
@@ -3780,10 +3782,7 @@ namespace T7CompilerGUI
                 }
                 Application.DoEvents();
 
-                // Compile - matching DebugCompiler exactly: no try-catch, no path parameter (empty string default)
-                // DebugCompiler line 683: code = Compiler.Compile(platform, game, Modes.MP, false, source);
                 
-                // Update progress bar to show compilation started
                 if (progressBar != null)
                 {
                     progressBar.Value = 10;
@@ -3793,7 +3792,6 @@ namespace T7CompilerGUI
                 
                 CompiledCode code = Compiler.Compile(platform, game, compileMode, useMasking, source);
                 
-                // Update progress bar to show compilation completed
                 if (progressBar != null)
                 {
                     progressBar.Value = 90;
@@ -3916,7 +3914,6 @@ namespace T7CompilerGUI
                             }
                         }
                         
-                        // If still not found, show debug info
                         if (string.IsNullOrEmpty(errorFile))
                         {
                             txtLog.AppendText($"Could not map line {errorLine} to source file.\r\n");
@@ -3959,14 +3956,6 @@ namespace T7CompilerGUI
                                         
                                     // Provide helpful suggestions based on error type
                                         txtLog.AppendText($"\r\n");
-                                    if (errorDescription.Contains("Syntax error"))
-                                    {
-                                        txtLog.AppendText("Common syntax issues:\r\n");
-                                        txtLog.AppendText("  - Missing semicolons (;)\r\n");
-                                        txtLog.AppendText("  - Unmatched braces { }\r\n");
-                                        txtLog.AppendText("  - Invalid operators (GSC doesn't support && or || - use nested if statements)\r\n");
-                                        txtLog.AppendText("  - Incomplete if/for/while statements\r\n");
-                                    }
                                     if (errorDescription.Contains("defined more than once") || errorDescription.Contains("duplicate"))
                                     {
                                         txtLog.AppendText("Duplicate definition detected:\r\n");
@@ -3997,13 +3986,21 @@ namespace T7CompilerGUI
                 string outputDirectory = buildFolder;
                 string outputFileName = Path.GetFileName(txtOutputFile.Text);
                 
-                // If txtOutputFile contains a full path, use its directory
-                if (!string.IsNullOrWhiteSpace(txtOutputFile.Text) && Path.IsPathRooted(txtOutputFile.Text))
+                // Expand path first to handle %USERPROFILE% and other environment variables
+                if (!string.IsNullOrWhiteSpace(txtOutputFile.Text))
                 {
-                    string selectedDir = Path.GetDirectoryName(txtOutputFile.Text);
-                    if (!string.IsNullOrWhiteSpace(selectedDir))
+                    string expandedOutputFile = ExpandPath(txtOutputFile.Text);
+                    
+                    // If txtOutputFile contains a full path, use its directory
+                    if (Path.IsPathRooted(expandedOutputFile))
                     {
-                        outputDirectory = selectedDir;
+                        string selectedDir = Path.GetDirectoryName(expandedOutputFile);
+                        if (!string.IsNullOrWhiteSpace(selectedDir))
+                        {
+                            outputDirectory = selectedDir;
+                        }
+                        // Get filename from expanded path
+                        outputFileName = Path.GetFileName(expandedOutputFile);
                     }
                 }
                 
@@ -4049,8 +4046,11 @@ namespace T7CompilerGUI
                     StringBuilder hashes = new StringBuilder();
                     hashes.AppendLine("# Hash Table Generated by T7 Compiler GUI");
                     hashes.AppendLine($"# Compilation Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-                    hashes.AppendLine($"# Source: {txtProjectFolder.Text}");
-                    hashes.AppendLine($"# Output: {outputPath}");
+                    // Expand paths to hide %USERPROFILE% in output
+                    string expandedSourcePath = ExpandPath(txtProjectFolder.Text);
+                    string expandedOutputPath = ExpandPath(outputPath);
+                    hashes.AppendLine($"# Source: {expandedSourcePath}");
+                    hashes.AppendLine($"# Output: {expandedOutputPath}");
                     hashes.AppendLine();
                     hashes.AppendLine($"Total Functions: {code.HashMap.Count}");
                     hashes.AppendLine();
@@ -4114,6 +4114,7 @@ namespace T7CompilerGUI
 
                 // Auto-populate inject file field with the compiled output
                 txtInjectFile.Text = outputPath;
+                AddToRecentFiles(outputPath); // Add to recent files
                 UpdateUI();
                 
                 // Switch to inject tab automatically on successful compilation
@@ -4181,7 +4182,6 @@ namespace T7CompilerGUI
             }
             UpdateUI();
             // Auto-scan for GSC files and populate combobox when project folder changes
-            LoadGscConfMode();
         }
 
         private void txtOutputFile_TextChanged(object sender, EventArgs e)
@@ -4201,21 +4201,49 @@ namespace T7CompilerGUI
 
         private void btnSelectInjectFile_Click(object sender, EventArgs e)
         {
-            using (var dialog = new OpenFileDialog())
+            try
             {
-                dialog.Filter = "GSC Compiled Files (*.gscc)|*.gscc|GSC Injection Files (*.gsc)|*.gsc|All Files (*.*)|*.*";
-                dialog.Title = "Select Compiled GSC File to Inject";
-                if (!string.IsNullOrWhiteSpace(txtInjectFile.Text) && File.Exists(txtInjectFile.Text))
-                    dialog.InitialDirectory = Path.GetDirectoryName(txtInjectFile.Text);
+                // Check if form is disposed
+                if (this.IsDisposed || this.Disposing)
+                    return;
                 
-                if (dialog.ShowDialog() == DialogResult.OK)
+                // Use modern Windows file picker (IFileOpenDialog) - same look as folder picker
+                string initialPath = null;
+                if (txtInjectFile != null && !string.IsNullOrWhiteSpace(txtInjectFile.Text) && File.Exists(txtInjectFile.Text))
+                    initialPath = Path.GetDirectoryName(txtInjectFile.Text);
+                    
+                string selectedFile = ShowModernFileDialog(
+                    title: "Select Compiled GSC File to Inject",
+                    filter: "GSC Compiled Files (*.gscc)|*.gscc|GSC Injection Files (*.gsc)|*.gsc|All Files (*.*)|*.*",
+                    initialPath: initialPath);
+                
+                if (!string.IsNullOrEmpty(selectedFile))
                 {
-                    txtInjectFile.Text = dialog.FileName;
-                    UpdateUI();
+                    if (txtInjectFile != null && !this.IsDisposed && !this.Disposing)
+                    {
+                        txtInjectFile.Text = selectedFile;
+                        AddToRecentFiles(selectedFile); // Add to recent files
+                        UpdateUI();
+                    }
                 }
             }
-            // Reset button state after dialog closes
-            ResetButtonState(sender);
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in btnSelectInjectFile_Click: {ex.Message}");
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    $"Error opening file dialog: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+                // Reset button state after dialog closes
+                if (!this.IsDisposed && !this.Disposing)
+                {
+                    ResetButtonState(sender);
+                }
+            }
         }
 
         private void btnInject_Click(object sender, EventArgs e)
@@ -4224,9 +4252,9 @@ namespace T7CompilerGUI
             ResetButtonState(sender);
             
             // Determine which game we're targeting
-            Games game = Games.T7;
+            TreyarchCompiler.Enums.Games game = TreyarchCompiler.Enums.Games.T7;
             if (currentInjectGameIndex == 1)
-                game = Games.T8;
+                game = TreyarchCompiler.Enums.Games.T8;
             
             // Check if game is running FIRST - this is required for injection
             if (!IsGameRunning(game))
@@ -4263,7 +4291,8 @@ namespace T7CompilerGUI
             txtLog.AppendText($"File: {txtInjectFile.Text}\r\n");
             txtLog.AppendText($"Replace Path: {txtInjectPath.Text}\r\n");
             txtLog.AppendText($"Game: {game}\r\n");
-            txtLog.AppendText($"No Runtime: {chkNoRuntime.Checked}\r\n\r\n");
+            txtLog.AppendText($"No Runtime: {chkNoRuntime.Checked}\r\n");
+            txtLog.AppendText($"Hot Reload: {currentHotMode}\r\n\r\n");
             
             // Update progress bar
             if (progressBar != null)
@@ -4328,7 +4357,7 @@ namespace T7CompilerGUI
                 }
                 
                 // Implement injection
-                int result = InjectScript(txtInjectPath.Text, buffer, game, chkNoRuntime.Checked);
+                int result = InjectScript(txtInjectPath.Text, buffer, game, chkNoRuntime.Checked, currentHotMode);
                 
                 // Update progress
                 if (progressBar != null)
@@ -4385,10 +4414,10 @@ namespace T7CompilerGUI
         }
         
         // Check if the game process is running - optimized for smooth operation
-        private bool IsGameRunning(Games game)
+        private bool IsGameRunning(TreyarchCompiler.Enums.Games game)
         {
             // Use static arrays to avoid allocations on every call
-            string[] processNames = game == Games.T7 ? T7ProcessNames : T8ProcessNames;
+            string[] processNames = game == TreyarchCompiler.Enums.Games.T7 ? T7ProcessNames : T8ProcessNames;
             
             // Check most common process name first (usually "blackops3" or "blackops4")
             try
@@ -4404,7 +4433,7 @@ namespace T7CompilerGUI
                     return true;
                 }
             }
-            catch (System.ComponentModel.Win32Exception)
+            catch (Win32Exception)
             {
                 // Access denied - try alternative name
             }
@@ -4438,12 +4467,12 @@ namespace T7CompilerGUI
         }
         
         // Get ProcessEx for a game - optimized for smooth operation
-        private ProcessEx GetGameProcessEx(Games game)
+        private ProcessEx GetGameProcessEx(TreyarchCompiler.Enums.Games game)
         {
             try
             {
                 // Use static arrays - check most common name first
-                string[] processNames = game == Games.T7 ? T7ProcessNames : T8ProcessNames;
+                string[] processNames = game == TreyarchCompiler.Enums.Games.T7 ? T7ProcessNames : T8ProcessNames;
                 
                 // Try first (most common) process name
                 try
@@ -4479,7 +4508,6 @@ namespace T7CompilerGUI
         
         #region Compilation Logic
         
-        // btnCompile_Click is defined earlier in the file (around line 2871)
         
         #endregion
         
@@ -4509,9 +4537,9 @@ namespace T7CompilerGUI
             }
         }
 
-        private int InjectScript(string replacePath, byte[] buffer, Games game, bool noruntime)
+        private int InjectScript(string replacePath, byte[] buffer, TreyarchCompiler.Enums.Games game, bool noruntime, HotMode hot = HotMode.None)
         {
-            if (game != Games.T7)
+            if (game != TreyarchCompiler.Enums.Games.T7)
             {
                 txtLog.AppendText("T8 injection not yet implemented in GUI.\r\n");
                 return -1;
@@ -4565,7 +4593,7 @@ namespace T7CompilerGUI
                 }
 
                 // Find game process
-                ProcessEx bo3 = GetGameProcessEx(Games.T7);
+                ProcessEx bo3 = GetGameProcessEx(TreyarchCompiler.Enums.Games.T7);
                 if (bo3 == null)
                 {
                     txtLog.AppendText("ERROR: No game process found for Black Ops III.\r\n");
@@ -4594,26 +4622,38 @@ namespace T7CompilerGUI
                     try
                     {
                         var name = bo3.GetString(entry.llpName);
-                        if (name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
+                        // In hot mode, match any script; otherwise match the replace path
+                        if (hot != HotMode.None || name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
                         {
                             found = true;
                             
-                            // Cache target info
+                            // Cache target info (only for normal injection, not hot reload)
+                            if (hot == HotMode.None)
+                            {
                             llpModifiedSPTStruct = (ulong)(i * Marshal.SizeOf(typeof(T7SPT))) + sptGlob;
                             llpOriginalBuffer = entry.lpBuffer;
                             OriginalSourceChecksum = bo3.GetValue<int>(llpOriginalBuffer + 0x8);
+                            }
+                            else
+                            {
+                                // For hot reload, get checksum from current buffer
+                                OriginalSourceChecksum = bo3.GetValue<int>(entry.lpBuffer + 0x8);
+                            }
 
                             // Patch script into memory
                             entry.lpBuffer = bo3.QuickAlloc(buffer.Length);
                             BitConverter.GetBytes(OriginalSourceChecksum).CopyTo(buffer, 0x8);
                             bo3.SetBytes(entry.lpBuffer, buffer);
 
-                            // Patch spt struct
+                            // Patch spt struct (only for normal injection)
+                            if (hot == HotMode.None)
+                            {
                             bo3.SetStruct(llpModifiedSPTStruct, entry);
 
                             // Cache the struct data for uninjection
                             InjectedScript = entry;
                             InjectedBuffSize = buffer.Length;
+                            }
                             
                             // Reset the parse tree reset flag since we just injected
                             isParseTreeReset = false;
@@ -4645,6 +4685,42 @@ namespace T7CompilerGUI
                                     return 3;
                                 }
                             }
+                            
+                            // Hot reload logic (matching debug compiler)
+                            if (hot != HotMode.None)
+                            {
+                                try
+                                {
+                                    string exeFilePath = Assembly.GetExecutingAssembly().Location;
+                                    string t7cPath = Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll");
+                                    
+                                    if (!File.Exists(t7cPath))
+                                    {
+                                        txtLog.AppendText($"ERROR: t7cinternal.dll not found at {t7cPath}\r\n");
+                                        txtLog.AppendText("Hot reload requires t7cinternal.dll to be present.\r\n");
+                                        return -1;
+                                    }
+                                    
+                                    // Note: Hot reload requires System.Evasion.ModuleMapper which may not be available
+                                    // This is a simplified implementation - full hot reload may need additional dependencies
+                                    txtLog.AppendText($"Hot reload mode: {hot}\r\n");
+                                    txtLog.AppendText("WARNING: Full hot reload implementation requires ModuleMapper.\r\n");
+                                    txtLog.AppendText("Script buffer has been patched, but hotload function call is not yet implemented.\r\n");
+                                    txtLog.AppendText("Consider using normal injection (None) for now.\r\n");
+                                    
+                                    // TODO: Implement full hotload function extraction and call
+                                    // This would require:
+                                    // 1. Loading t7cinternal.dll with ModuleMapper
+                                    // 2. Extracting HotloadScript_WinStore or HotloadScript_Steam export
+                                    // 3. Copying the function to game memory
+                                    // 4. Calling it with entry.lpBuffer, (hot == HotMode.Csc) ? 1 : 0, error_data
+                                }
+                                catch (Exception e)
+                                {
+                                    txtLog.AppendText($"ERROR during hot reload: {e.Message}\r\n");
+                                    return -1;
+                                }
+                            }
 
                             break;
                         }
@@ -4670,6 +4746,28 @@ namespace T7CompilerGUI
                 if (OriginalPID == 0)
                 {
                     OriginalPID = bo3.BaseProcess.Id;
+                }
+
+                // Auto-reset parse tree after successful injection (matching debug compiler behavior)
+                // Only for normal injection (not hot reload), and only if not already reset
+                if (hot == HotMode.None && !isParseTreeReset)
+                {
+                    try
+                    {
+                        // Use FreeActiveScript which handles both T7 and T8
+                        bool resetSuccess = FreeActiveScript();
+                        if (resetSuccess)
+                        {
+                            isParseTreeReset = true;
+                            txtLog.AppendText("Parse tree automatically reset after injection.\r\n");
+                            UpdateResetParseTreeButton();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        txtLog.AppendText($"WARNING: Could not auto-reset parse tree: {e.Message}\r\n");
+                        txtLog.AppendText("You may need to manually reset it using the Reset Tree button.\r\n");
+                    }
                 }
 
                 return 0;
@@ -4828,9 +4926,9 @@ namespace T7CompilerGUI
             {
                 switch (LastGameInjected)
                 {
-                    case Games.T7:
+                    case TreyarchCompiler.Enums.Games.T7:
                         return FreeT7Script();
-                    case Games.T8:
+                    case TreyarchCompiler.Enums.Games.T8:
                         // T8 reset not implemented yet
                         txtLog.AppendText("T8 script reset not yet implemented.\r\n");
                         return false;
@@ -4848,7 +4946,7 @@ namespace T7CompilerGUI
 
         private bool FreeT7Script()
         {
-            ProcessEx bo3 = GetGameProcessEx(Games.T7);
+            ProcessEx bo3 = GetGameProcessEx(TreyarchCompiler.Enums.Games.T7);
             if (bo3 == null)
             {
                 txtLog.AppendText("ERROR: No game process found for Black Ops III.\r\n");
@@ -4946,7 +5044,7 @@ namespace T7CompilerGUI
             }
         }
 
-        private void SaveInjectionState(string _replacePath, Games _game)
+        private void SaveInjectionState(string _replacePath, TreyarchCompiler.Enums.Games _game)
         {
             try
             {
@@ -5048,7 +5146,8 @@ namespace T7CompilerGUI
                         string folderPath = path;
                         
                         // Set the project folder
-                        txtProjectFolder.Text = folderPath;
+                        txtProjectFolder.Text = ShortenPath(folderPath);
+                        AddToRecentProjects(folderPath); // Add to recent projects (use full path)
                         
                         // Save the folder for next time (saved via SaveAllSettings)
                         SaveAllSettings();
@@ -5071,6 +5170,8 @@ namespace T7CompilerGUI
                             
                             // Set the inject file
                             txtInjectFile.Text = filePath;
+                            AddToRecentFiles(filePath); // Add to recent files
+                            AddToRecentFiles(filePath); // Add to recent files
                             
                             // Switch to inject tab if we're not already on it
                             if (tabControl.SelectedTab != tabInject)
@@ -5130,10 +5231,10 @@ namespace T7CompilerGUI
             ThemeStyle displayTheme = poisonStyleManager.Theme;
             
             // Get colors using PoisonPaint - match the form's theme
-            Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(displayTheme);
+            Color backColor = PoisonPaint.BackColor.Form(displayTheme);
             // Use rainbow color if active, otherwise use style color for border
-            Color borderColor = IsRainbowStyleActive() ? currentRainbowColor : ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(poisonStyleManager.Style);
-            Color foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(displayTheme);
+            Color borderColor = IsRainbowStyleActive() ? currentRainbowColor : PoisonPaint.GetStyleColor(poisonStyleManager.Style);
+            Color foreColor = PoisonPaint.ForeColor.Label.Normal(displayTheme);
             
             // For better contrast, slightly adjust background if needed
             if (displayTheme == ThemeStyle.Dark)
@@ -5442,7 +5543,6 @@ namespace T7CompilerGUI
                 
                 // For controls that support Style property, we need to force them to use rainbow
                 // We'll do this by subscribing to their paint events
-                // NOTE: We keep Style=Default so StyleManager can still manage the control
                 // The paint handlers will override the visual appearance when rainbow is active
                 if (poisonCtrl is ReaLTaiizor.Controls.PoisonLabel poisonLabel)
                 {
@@ -5462,7 +5562,7 @@ namespace T7CompilerGUI
                             Color backColor = poisonLabel.BackColor;
                             if (!poisonLabel.UseCustomBackColor)
                             {
-                                backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(poisonLabel.Theme);
+                                backColor = PoisonPaint.BackColor.Form(poisonLabel.Theme);
                             }
                             
                             // Draw text with rainbow color
@@ -5550,7 +5650,7 @@ namespace T7CompilerGUI
                                 );
                                 
                                 // Get background color to erase original text
-                                Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(poisonToggle.Theme);
+                                Color backColor = PoisonPaint.BackColor.Form(poisonToggle.Theme);
                                 
                                 // Measure text
                                 Size textSize = TextRenderer.MeasureText(e.Graphics, poisonToggle.Text, toggleFont);
@@ -5709,10 +5809,10 @@ namespace T7CompilerGUI
                                 }
                                 
                                 // Get background color to erase original text
-                                Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(poisonDropDown.Theme);
+                                Color backColor = PoisonPaint.BackColor.Button.Normal(poisonDropDown.Theme);
                                 if (!poisonDropDown.Enabled)
                                 {
-                                    backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Disabled(poisonDropDown.Theme);
+                                    backColor = PoisonPaint.BackColor.Button.Disabled(poisonDropDown.Theme);
                                 }
                                 
                                 // Erase original text by filling the text area with background color
@@ -5745,7 +5845,7 @@ namespace T7CompilerGUI
             }
         }
         
-        private void TabControl_CustomPaintForeground(object sender, ReaLTaiizor.Drawing.Poison.PoisonPaintEventArgs e)
+        private void TabControl_CustomPaintForeground(object sender, PoisonPaintEventArgs e)
         {
             if (tabControl == null || !IsRainbowStyleActive()) return;
             
@@ -5768,6 +5868,33 @@ namespace T7CompilerGUI
                 {
                     e.Graphics.FillRectangle(borderBrush, selectedTabBorderRectangle);
                 }
+            }
+        }
+        
+        /// <summary>
+        /// Removes rainbow event handlers from all controls recursively.
+        /// Note: Anonymous lambda handlers can't be easily removed, but they're safe because
+        /// they check IsRainbowStyleActive() before doing anything. This method removes
+        /// the named handler (TabControl_CustomPaintForeground) and invalidates controls.
+        /// </summary>
+        private void RemoveRainbowEventHandlersRecursive(Control parent)
+        {
+            if (parent == null) return;
+            
+            // Remove tab control rainbow handler
+            if (parent is ReaLTaiizor.Controls.PoisonTabControl tabCtrl)
+            {
+                tabCtrl.CustomPaintForeground -= TabControl_CustomPaintForeground;
+                tabCtrl.Invalidate();
+            }
+            
+            // Recursively process all child controls
+            foreach (Control child in parent.Controls)
+            {
+                RemoveRainbowEventHandlersRecursive(child);
+                
+                // Invalidate control to force repaint without rainbow
+                child.Invalidate();
             }
         }
         
@@ -5876,7 +6003,6 @@ namespace T7CompilerGUI
             {
                 mainFormContextMenu,
                 settingsContextMenu,
-                gscConfModeMenu,
                 platformMenu,
                 gameMenu,
                 injectGameMenu,
@@ -6056,7 +6182,7 @@ namespace T7CompilerGUI
             poisonStyleManager.Theme = theme;
             
             // Set form background color based on theme
-            this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(theme);
+            this.BackColor = PoisonPaint.BackColor.Form(theme);
             
             // Update PoisonStyleExtender theme (needed for non-Poison controls like RichTextBox)
                 if (poisonStyleExtender != null)
@@ -6118,7 +6244,7 @@ namespace T7CompilerGUI
         {
             if (poisonStyleManager == null) return;
             
-            // Stop rainbow animation if active and remove tab handler
+            // Stop rainbow animation if active and remove all rainbow handlers
             bool wasRainbowActive = rainbowColorTimer != null && rainbowColorTimer.Enabled;
             if (wasRainbowActive)
             {
@@ -6126,11 +6252,8 @@ namespace T7CompilerGUI
                 rainbowColorTimer.Dispose();
                 rainbowColorTimer = null;
                 
-                // Remove tab control rainbow handler when rainbow is disabled
-                if (tabControl != null)
-                {
-                    tabControl.CustomPaintForeground -= TabControl_CustomPaintForeground;
-                }
+                // Remove all rainbow event handlers from controls
+                RemoveRainbowEventHandlersRecursive(this);
             }
             
             // Match demo approach: Just set StyleManager.Style and let it propagate automatically
@@ -6266,15 +6389,25 @@ namespace T7CompilerGUI
                 else
                 {
                     // Relative path - combine with project folder if available
-                    if (!string.IsNullOrWhiteSpace(txtProjectFolder.Text) && Directory.Exists(txtProjectFolder.Text))
+                    if (!string.IsNullOrWhiteSpace(txtProjectFolder.Text))
                     {
-                        txtOutputFile.Text = Path.Combine(txtProjectFolder.Text, defaultPath);
+                        string expandedProjectFolder = ExpandPath(txtProjectFolder.Text);
+                        if (Directory.Exists(expandedProjectFolder))
+                        {
+                            txtOutputFile.Text = ShortenPath(Path.Combine(expandedProjectFolder, defaultPath));
                     }
                     else
                     {
                         // Fallback to build folder (only create if needed)
                         EnsureBuildFolderExists();
-                        txtOutputFile.Text = Path.Combine(buildFolder, defaultPath);
+                            txtOutputFile.Text = ShortenPath(Path.Combine(buildFolder, defaultPath));
+                        }
+                    }
+                    else
+                    {
+                        // Fallback to build folder (only create if needed)
+                        EnsureBuildFolderExists();
+                        txtOutputFile.Text = ShortenPath(Path.Combine(buildFolder, defaultPath));
                     }
                 }
             }
@@ -6284,6 +6417,300 @@ namespace T7CompilerGUI
                 // This means we only create the build folder when actually needed
                 EnsureBuildFolderExists();
                 txtOutputFile.Text = defaultBuildOutput;
+            }
+        }
+        
+        #endregion
+        
+        #region Control Click Handler Management
+        
+        /// <summary>
+        /// Sets up click handlers for all clickable controls in the form.
+        /// This ensures every control that should respond to clicks has a proper handler.
+        /// </summary>
+        private void SetupAllControlClickHandlers()
+        {
+            // Setup handlers for all controls recursively
+            SetupControlClickHandlersRecursive(this);
+        }
+        
+        /// <summary>
+        /// Recursively sets up click handlers for all controls in a container.
+        /// </summary>
+        private void SetupControlClickHandlersRecursive(Control parent)
+        {
+            if (parent == null || parent.IsDisposed)
+                return;
+            
+            foreach (Control control in parent.Controls)
+            {
+                if (control == null || control.IsDisposed)
+                    continue;
+                
+                // Handle different control types
+                if (control is PoisonButton button && !HasClickHandler(button))
+                {
+                    // Only add generic handler if no specific handler exists
+                    button.Click += Control_GenericClick;
+                }
+                else if (control is PoisonDropDownButton dropDown && !HasClickHandler(dropDown))
+                {
+                    // DropDownButtons usually have context menus, but we can track clicks
+                    dropDown.Click += Control_GenericClick;
+                }
+                else if (control is PoisonToggle toggle && !HasCheckedChangedHandler(toggle))
+                {
+                    // Toggles use CheckedChanged, but we can also track clicks
+                    toggle.Click += Control_GenericClick;
+                }
+                else if (control is PoisonLabel label && label.Cursor == Cursors.Hand)
+                {
+                    // Labels with hand cursor should be clickable
+                    if (!HasClickHandler(label))
+                    {
+                        label.Click += Control_GenericClick;
+                    }
+                }
+                else if (control is PoisonTabPage tabPage && !HasClickHandler(tabPage))
+                {
+                    // Tab pages can be clicked (though usually handled by TabControl)
+                    tabPage.Click += Control_GenericClick;
+                }
+                else if (control is PoisonPanel panel && !HasClickHandler(panel))
+                {
+                    // Panels can be clickable if needed
+                    // Only add if panel has a specific purpose (like log panel)
+                    if (panel == panelLog || panel == panelLogControls)
+                    {
+                        panel.Click += Control_GenericClick;
+                    }
+                }
+                
+                // Recursively process child controls
+                if (control.HasChildren)
+                {
+                    SetupControlClickHandlersRecursive(control);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Checks if a control already has a click event handler attached.
+        /// </summary>
+        private bool HasClickHandler(Control control)
+        {
+            if (control == null)
+                return false;
+            
+            try
+            {
+                var eventField = control.GetType().GetField("EventClick", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | 
+                    System.Reflection.BindingFlags.Static);
+                
+                if (eventField != null)
+                {
+                    var eventHandler = eventField.GetValue(control) as EventHandler;
+                    return eventHandler != null && eventHandler.GetInvocationList().Length > 0;
+                }
+            }
+            catch
+            {
+                // If reflection fails, assume handler might exist
+            }
+            
+            // Check for known handlers by control name
+            string controlName = control.Name;
+            if (string.IsNullOrEmpty(controlName))
+                return false;
+            
+            // List of controls that already have specific handlers
+            string[] controlsWithHandlers = {
+                "btnSelectProjectFolder", "btnSelectOutputFile", "btnCompile",
+                "btnSelectInjectFile", "btnInject", "btnResetParseTree", "btnLaunchBO3",
+                "btnLogClear", "btnLogCopy", "btnLogSave", "btnSettingsColorStyle",
+                "btnSettingsBrowseOutputPath", "lblGame", "tabCompile"
+            };
+            
+            return Array.Exists(controlsWithHandlers, name => controlName == name);
+        }
+        
+        /// <summary>
+        /// Checks if a toggle control has a CheckedChanged handler.
+        /// </summary>
+        private bool HasCheckedChangedHandler(PoisonToggle toggle)
+        {
+            if (toggle == null)
+                return false;
+            
+            try
+            {
+                var eventField = toggle.GetType().GetField("EventCheckedChanged",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.Static);
+                
+                if (eventField != null)
+                {
+                    var eventHandler = eventField.GetValue(toggle) as EventHandler;
+                    return eventHandler != null && eventHandler.GetInvocationList().Length > 0;
+                }
+            }
+            catch
+            {
+                // If reflection fails, check by name
+            }
+            
+            // Known toggles with handlers
+            string[] togglesWithHandlers = { "toggleSettingsTheme" };
+            return Array.Exists(togglesWithHandlers, name => toggle.Name == name);
+        }
+        
+        /// <summary>
+        /// Generic click handler for controls that don't have specific handlers.
+        /// This can be used for debugging, logging, or default behavior.
+        /// </summary>
+        private void Control_GenericClick(object sender, EventArgs e)
+        {
+            // Reset button state for any button-like control
+            if (sender is PoisonButton || sender is PoisonDropDownButton)
+            {
+                ResetButtonState(sender);
+            }
+            if (sender is Control control)
+            {
+                string controlName = control.Name;
+                string controlType = control.GetType().Name;
+                
+                // Log the click for debugging (optional)
+                // System.Diagnostics.Debug.WriteLine($"Control clicked: {controlType} - {controlName}");
+                
+                // Handle specific controls that need default behavior
+                switch (controlName)
+                {
+                    case "lblProjectFolder":
+                    case "lblOutputFile":
+                    case "lblInjectFile":
+                    case "lblInjectPath":
+                        // Labels next to text boxes - could focus the text box
+                        FocusAssociatedTextBox(control);
+                        break;
+                    
+                    case "lblOpcodeMasking":
+                        // Toggle the associated checkbox
+                        if (chkOpcodeMasking != null)
+                            chkOpcodeMasking.Checked = !chkOpcodeMasking.Checked;
+                        break;
+                    
+                    case "lblSaveOpcodeMap":
+                        // Toggle the associated checkbox
+                        if (chkSaveOpcodeMap != null)
+                            chkSaveOpcodeMap.Checked = !chkSaveOpcodeMap.Checked;
+                        break;
+                    
+                    case "lblNoRuntime":
+                        // Toggle the associated checkbox
+                        if (chkNoRuntime != null)
+                            chkNoRuntime.Checked = !chkNoRuntime.Checked;
+                        break;
+                    
+                    case "lblSettingsTheme":
+                        // Toggle the theme toggle
+                        if (toggleSettingsTheme != null)
+                            toggleSettingsTheme.Checked = !toggleSettingsTheme.Checked;
+                        break;
+                    
+                    case "lblSettingsColorStyle":
+                        // Open color style dropdown
+                        if (btnSettingsColorStyle != null && btnSettingsColorStyle.Enabled)
+                            btnSettingsColorStyle.PerformClick();
+                        break;
+                    
+                    case "lblSettingsDefaultOutputPath":
+                        // Focus the output path text box
+                        if (txtSettingsDefaultOutputPath != null)
+                            txtSettingsDefaultOutputPath.Focus();
+                        break;
+                    
+                    case "lblLogSearch":
+                        // Focus the search text box
+                        if (txtLogSearch != null)
+                            txtLogSearch.Focus();
+                        break;
+                    
+                    case "panelLog":
+                        // Clicking log panel could focus the log text box
+                        if (txtLog != null)
+                            txtLog.Focus();
+                        break;
+                    
+                    default:
+                        // For unknown controls, just ensure they're properly handled
+                        // This is a fallback - most controls should have specific handlers
+                        break;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Focuses the text box associated with a label control.
+        /// </summary>
+        private void FocusAssociatedTextBox(Control label)
+        {
+            if (label == null || label.Parent == null)
+                return;
+            
+            // Find the next text box in the same parent
+            Control nextControl = label.Parent.GetNextControl(label, true);
+            while (nextControl != null && nextControl != label)
+            {
+                if (nextControl is PoisonTextBox || nextControl is System.Windows.Forms.TextBox)
+                {
+                    nextControl.Focus();
+                    return;
+                }
+                nextControl = label.Parent.GetNextControl(nextControl, true);
+            }
+        }
+        
+        /// <summary>
+        /// Gets all clickable controls in the form for debugging/inspection.
+        /// </summary>
+        public List<Control> GetAllClickableControls()
+        {
+            List<Control> clickableControls = new List<Control>();
+            CollectClickableControlsRecursive(this, clickableControls);
+            return clickableControls;
+        }
+        
+        /// <summary>
+        /// Recursively collects all clickable controls.
+        /// </summary>
+        private void CollectClickableControlsRecursive(Control parent, List<Control> clickableControls)
+        {
+            if (parent == null || parent.IsDisposed)
+                return;
+            
+            foreach (Control control in parent.Controls)
+            {
+                if (control == null || control.IsDisposed)
+                    continue;
+                
+                // Add controls that are typically clickable
+                if (control is PoisonButton ||
+                    control is PoisonDropDownButton ||
+                    control is PoisonToggle ||
+                    (control is PoisonLabel && control.Cursor == Cursors.Hand) ||
+                    control is PoisonTabPage ||
+                    (control is PoisonPanel && (control == panelLog || control == panelLogControls)))
+                {
+                    clickableControls.Add(control);
+                }
+                
+                // Recursively process child controls
+                if (control.HasChildren)
+                {
+                    CollectClickableControlsRecursive(control, clickableControls);
+                }
             }
         }
         
@@ -6321,7 +6748,7 @@ namespace T7CompilerGUI
             // Initialize with default keybinds if not loaded from settings
             if (keybinds == null || keybinds.Count == 0)
             {
-                keybinds = KeybindDialog.GetDefaultKeybinds();
+                keybinds = Dialogs.KeybindDialog.GetDefaultKeybinds();
                 // Save defaults if auto-save is enabled
                 if (autoSaveSettings)
                 {
@@ -6506,7 +6933,6 @@ namespace T7CompilerGUI
                     if (dialog.ShowDialog(this) == DialogResult.OK)
                     {
                         // Save the new paths if they were changed
-                        // Note: Config path is read-only (in Application.StartupPath)
                         // Temp path and DLL extract path could be saved to config if needed
                         // For now, we'll just show the dialog - actual path changes would require
                         // modifying how the application uses these paths
@@ -6562,7 +6988,7 @@ namespace T7CompilerGUI
                 if (!File.Exists(configPath))
                 {
                     // No config file - use defaults
-                    keybinds = KeybindDialog.GetDefaultKeybinds();
+                    keybinds = Dialogs.KeybindDialog.GetDefaultKeybinds();
                     return;
                 }
                 
@@ -6571,11 +6997,11 @@ namespace T7CompilerGUI
                 if (keybindsElem == null)
                 {
                     // No keybinds in config - use defaults
-                    keybinds = KeybindDialog.GetDefaultKeybinds();
+                    keybinds = Dialogs.KeybindDialog.GetDefaultKeybinds();
                     return;
                 }
                 
-                keybinds = new Dictionary<string, KeybindDialog.KeybindInfo>();
+                keybinds = new Dictionary<string, Dialogs.KeybindDialog.KeybindInfo>();
                 bool hasValidKeybinds = false;
                 
                 foreach (var keybindElem in keybindsElem.Elements("Keybind"))
@@ -6590,7 +7016,7 @@ namespace T7CompilerGUI
                     {
                         if (Enum.TryParse<System.Windows.Forms.Keys>(keyStr, out System.Windows.Forms.Keys key))
                         {
-                            keybinds[action] = new KeybindDialog.KeybindInfo(action, key, ctrl, shift, alt);
+                            keybinds[action] = new Dialogs.KeybindDialog.KeybindInfo(action, key, ctrl, shift, alt);
                             hasValidKeybinds = true;
                         }
                     }
@@ -6599,13 +7025,13 @@ namespace T7CompilerGUI
                 // If no valid keybinds were loaded, use defaults
                 if (!hasValidKeybinds || keybinds.Count == 0)
                 {
-                    keybinds = KeybindDialog.GetDefaultKeybinds();
+                    keybinds = Dialogs.KeybindDialog.GetDefaultKeybinds();
                 }
             }
             catch
             {
                 // If loading fails, use defaults
-                keybinds = KeybindDialog.GetDefaultKeybinds();
+                keybinds = Dialogs.KeybindDialog.GetDefaultKeybinds();
             }
         }
         
@@ -6614,6 +7040,7 @@ namespace T7CompilerGUI
         #region Recent Projects
         
         private List<string> recentProjects = new List<string>();
+        private List<string> recentFiles = new List<string>();
         
         private void AddToRecentProjects(string projectPath)
         {
@@ -6631,12 +7058,161 @@ namespace T7CompilerGUI
                 recentProjects.RemoveAt(recentProjects.Count - 1);
             
             SaveRecentProjects();
+            UpdateRecentProjectsMenu();
+        }
+        
+        private void AddToRecentFiles(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+                return;
+            
+            // Only add .gsc and .gscc files
+            string ext = Path.GetExtension(filePath).ToLower();
+            if (ext != ".gsc" && ext != ".gscc")
+                return;
+            
+            // Remove if already exists
+            recentFiles.Remove(filePath);
+            
+            // Add to front
+            recentFiles.Insert(0, filePath);
+            
+            // Limit to MAX_RECENT_FILES
+            if (recentFiles.Count > MAX_RECENT_FILES)
+                recentFiles.RemoveAt(recentFiles.Count - 1);
+            
+            SaveRecentProjects();
+            UpdateRecentFilesMenu();
         }
         
         private void SaveRecentProjects()
         {
             // Recent projects are now saved as part of SaveAllSettings()
             SaveAllSettings();
+        }
+        
+        private void UpdateRecentProjectsMenu()
+        {
+            if (btnRecentProjects == null || recentProjectsMenu == null) return;
+            
+            // Clear existing items
+            recentProjectsMenu.Items.Clear();
+            
+            // Filter to only existing directories
+            var validProjects = recentProjects.Where(p => Directory.Exists(p)).ToList();
+            recentProjects = validProjects; // Update the list
+            
+            if (validProjects.Count == 0)
+            {
+                ToolStripMenuItem noItems = new ToolStripMenuItem("(No recent projects)");
+                noItems.Enabled = false;
+                recentProjectsMenu.Items.Add(noItems);
+                btnRecentProjects.Enabled = false;
+            }
+            else
+            {
+                btnRecentProjects.Enabled = true;
+                foreach (string projectPath in validProjects)
+                {
+                    string displayName = Path.GetFileName(projectPath);
+                    if (string.IsNullOrEmpty(displayName))
+                        displayName = projectPath;
+                    
+                    ToolStripMenuItem item = new ToolStripMenuItem(displayName);
+                    item.ToolTipText = projectPath;
+                    item.Tag = projectPath;
+                    item.Click += (s, e) =>
+                    {
+                        // Reset dropdown button pressed state after menu item selection
+                        ResetButtonState(btnRecentProjects);
+                        
+                        string path = ((ToolStripMenuItem)s).Tag.ToString();
+                        if (Directory.Exists(path))
+                        {
+                            txtProjectFolder.Text = ShortenPath(path);
+                            AutoPopulateOutputFile();
+                            UpdateUI();
+                        }
+                        else
+                        {
+                            ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
+                                "The selected project folder no longer exists.", 
+                                "Folder Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            // Remove from list
+                            recentProjects.Remove(path);
+                            UpdateRecentProjectsMenu();
+                        }
+                    };
+                    recentProjectsMenu.Items.Add(item);
+                }
+                
+                // Enhance menu items with Poison styling
+                if (poisonStyleManager != null)
+                {
+                    EnhanceMenuItems(recentProjectsMenu);
+                }
+            }
+        }
+        
+        private void UpdateRecentFilesMenu()
+        {
+            if (btnRecentFiles == null || recentFilesMenu == null) return;
+            
+            // Clear existing items
+            recentFilesMenu.Items.Clear();
+            
+            // Filter to only existing files
+            var validFiles = recentFiles.Where(f => File.Exists(f)).ToList();
+            recentFiles = validFiles; // Update the list
+            
+            if (validFiles.Count == 0)
+            {
+                ToolStripMenuItem noItems = new ToolStripMenuItem("(No recent files)");
+                noItems.Enabled = false;
+                recentFilesMenu.Items.Add(noItems);
+                btnRecentFiles.Enabled = false;
+            }
+            else
+            {
+                btnRecentFiles.Enabled = true;
+                foreach (string filePath in validFiles)
+                {
+                    string displayName = Path.GetFileName(filePath);
+                    string directory = Path.GetDirectoryName(filePath);
+                    
+                    ToolStripMenuItem item = new ToolStripMenuItem(displayName);
+                    item.ToolTipText = filePath;
+                    item.Tag = filePath;
+                    item.Click += (s, e) =>
+                    {
+                        // Reset dropdown button pressed state after menu item selection
+                        ResetButtonState(btnRecentFiles);
+                        
+                        string path = ((ToolStripMenuItem)s).Tag.ToString();
+                        if (File.Exists(path))
+                        {
+                            txtInjectFile.Text = path;
+                            UpdateUI();
+                        }
+                        else
+                        {
+                            ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
+                                "The selected file no longer exists.", 
+                                "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            // Remove from list
+                            recentFiles.Remove(path);
+                            UpdateRecentFilesMenu();
+                        }
+                    };
+                    recentFilesMenu.Items.Add(item);
+                }
+                
+                // Enhance menu items with Poison styling
+                if (poisonStyleManager != null)
+                {
+                    EnhanceMenuItems(recentFilesMenu);
+                }
+            }
         }
         
         
@@ -6648,19 +7224,30 @@ namespace T7CompilerGUI
         
         private string GetConfigPath()
         {
-            return Path.Combine(Application.StartupPath, CONFIG_FILE_NAME);
-        }
-        
-        private void SaveAllSettings()
-        {
+            string startupPath = Application.StartupPath;
+            
+            // Check if startup path is writable, if not use AppData
             try
             {
-                // Don't save during initial load
-                if (isLoadingSettings) return;
-                
-                if (!autoSaveSettings) return;
-                
-                string configPath = GetConfigPath();
+                string testFile = Path.Combine(startupPath, ".writable_test");
+                File.WriteAllText(testFile, "test");
+                File.Delete(testFile);
+                return Path.Combine(startupPath, CONFIG_FILE_NAME);
+        }
+            catch
+            {
+                // Startup path is not writable, use AppData instead
+                string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "T7CompilerGUI");
+                if (!Directory.Exists(appDataPath))
+                {
+                    Directory.CreateDirectory(appDataPath);
+                }
+                return Path.Combine(appDataPath, CONFIG_FILE_NAME);
+            }
+        }
+        
+        private XDocument BuildConfigDocument()
+        {
                 XDocument config = new XDocument(
                     new XComment("T7CompilerGUI Configuration File"),
                     new XComment("This file stores all application settings. You can edit it manually if needed."),
@@ -6680,12 +7267,10 @@ namespace T7CompilerGUI
                         new XComment("=== Selection State ==="),
                         new XComment("PlatformIndex: 0 = PC, 1 = PS4"),
                         new XComment("GameIndex: 0 = T7 (BO3), 1 = T8 (BO4)"),
-                        new XComment("GscConfModeIndex: 0 = MP, 1 = ZM, 2 = Both"),
                         new XComment("InjectGameIndex: 0 = T7 (BO3), 1 = T8 (BO4)"),
                         new XElement("Selections",
                             new XElement("PlatformIndex", currentPlatformIndex.ToString()),
                             new XElement("GameIndex", currentGameIndex.ToString()),
-                            new XElement("GscConfModeIndex", currentGscConfModeIndex.ToString()),
                             new XElement("InjectGameIndex", currentInjectGameIndex.ToString())
                         ),
                         new XComment("=== Window State ==="),
@@ -6720,6 +7305,14 @@ namespace T7CompilerGUI
                     ));
                 }
                 
+                // Conditionally add RecentFiles element if needed
+                if (recentFiles != null && recentFiles.Count > 0 && config.Root != null)
+                {
+                    config.Root.Add(new XElement("RecentFiles",
+                        recentFiles.Select(f => new XElement("File", f))
+                    ));
+                }
+                
                 // Conditionally add Keybinds element if needed
                 if (keybinds != null && keybinds.Count > 0 && config.Root != null)
                 {
@@ -6750,6 +7343,20 @@ namespace T7CompilerGUI
                     ));
                 }
                 
+            return config;
+        }
+        
+        private bool SaveConfigToPath(XDocument config, string configPath)
+        {
+            try
+            {
+                // Ensure the directory exists
+                string configDir = Path.GetDirectoryName(configPath);
+                if (!string.IsNullOrEmpty(configDir) && !Directory.Exists(configDir))
+                {
+                    Directory.CreateDirectory(configDir);
+                }
+                
                 // Save with proper formatting (indented, human-readable)
                 XmlWriterSettings settings = new XmlWriterSettings
                 {
@@ -6765,13 +7372,80 @@ namespace T7CompilerGUI
                 {
                     config.Save(writer);
                 }
+                
+                // Verify the file was actually created
+                if (File.Exists(configPath))
+                {
+                    return true;
+                }
+                else
+                {
+                    if (txtLog != null)
+                    {
+                        AppendLog($"Warning: Config file was not created at: {configPath}\r\n", LogLevel.Warning);
+                    }
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (txtLog != null)
+                {
+                    AppendLog($"Error saving config to {configPath}: {ex.Message}\r\n", LogLevel.Warning);
+                }
+                return false;
+            }
+        }
+        
+        private void SaveAllSettings()
+        {
+            try
+            {
+                // Don't save during initial load
+                if (isLoadingSettings) return;
+                
+                if (!autoSaveSettings) return;
+                
+                // Build the config document
+                XDocument config = BuildConfigDocument();
+                
+                // Try to save to the primary location
+                string configPath = GetConfigPath();
+                if (SaveConfigToPath(config, configPath))
+                {
+                    return; // Success!
+                }
+                
+                // If primary location failed, try AppData fallback
+                if (txtLog != null)
+                {
+                    AppendLog($"Failed to save to startup path. Trying AppData location...\r\n", LogLevel.Warning);
+                }
+                
+                string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "T7CompilerGUI");
+                string fallbackConfigPath = Path.Combine(appDataPath, CONFIG_FILE_NAME);
+                
+                if (SaveConfigToPath(config, fallbackConfigPath))
+                {
+                    if (txtLog != null)
+                    {
+                        AppendLog($"Config saved to AppData location: {fallbackConfigPath}\r\n", LogLevel.Info);
+                    }
+                }
+                else
+                {
+                    if (txtLog != null)
+                    {
+                        AppendLog($"Error: Failed to save config to both primary and fallback locations.\r\n", LogLevel.Error);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 // Log error but don't crash
                 if (txtLog != null)
                 {
-                    AppendLog($"Error saving config: {ex.Message}\r\n", LogLevel.Warning);
+                    AppendLog($"Error saving config: {ex.Message}\r\nStack: {ex.StackTrace}\r\n", LogLevel.Warning);
                 }
             }
         }
@@ -6781,21 +7455,91 @@ namespace T7CompilerGUI
             isLoadingSettings = true;
             try
             {
+                // Ensure StyleManager is initialized before loading settings
+                if (poisonStyleManager == null)
+                {
+                    if (txtLog != null)
+                    {
+                        AppendLog("Warning: StyleManager not initialized. Settings may not load correctly.\r\n", LogLevel.Warning);
+                    }
+                }
+                
                 string configPath = GetConfigPath();
+                
+                // If config doesn't exist at primary location, check AppData fallback
                 if (!File.Exists(configPath))
+                {
+                    string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "T7CompilerGUI");
+                    string fallbackConfigPath = Path.Combine(appDataPath, CONFIG_FILE_NAME);
+                    
+                    if (File.Exists(fallbackConfigPath))
+                    {
+                        configPath = fallbackConfigPath;
+                        if (txtLog != null)
+                        {
+                            AppendLog($"Loading config from AppData location: {configPath}\r\n", LogLevel.Info);
+                        }
+                    }
+                    else
                 {
                     // Try to migrate from old files
                     MigrateOldConfigFiles();
                     if (!File.Exists(configPath))
                     {
+                            // Check fallback again after migration
+                            if (File.Exists(fallbackConfigPath))
+                            {
+                                configPath = fallbackConfigPath;
+                            }
+                            else
+                            {
+                                // No config file exists - apply defaults and create one
+                                if (txtLog != null)
+                                {
+                                    AppendLog("No config file found. Using default settings and creating new config file.\r\n", LogLevel.Info);
+                                }
+                                
+                                // Apply default settings
+                                ApplyDefaultSettings();
+                                
+                                // Create initial config file with defaults
+                                SaveAllSettings();
+                                
                         isLoadingSettings = false;
                         return;
                     }
                 }
+                    }
+                }
                 
-                XDocument config = XDocument.Load(configPath);
+                // Load the config file
+                XDocument config;
+                try
+                {
+                    config = XDocument.Load(configPath);
+                }
+                catch (Exception ex)
+                {
+                    if (txtLog != null)
+                    {
+                        AppendLog($"Error loading config file: {ex.Message}. Using default settings.\r\n", LogLevel.Warning);
+                    }
+                    ApplyDefaultSettings();
+                    isLoadingSettings = false;
+                    return;
+                }
+                
                 XElement root = config.Element("T7CompilerConfig");
-                if (root == null) return;
+                if (root == null)
+                {
+                    if (txtLog != null)
+                    {
+                        AppendLog("Config file has invalid structure. Using default settings.\r\n", LogLevel.Warning);
+                    }
+                    ApplyDefaultSettings();
+                    isLoadingSettings = false;
+                    return;
+                }
                 
                 // Load Application Settings
                 XElement appSettings = root.Element("Application");
@@ -6803,7 +7547,11 @@ namespace T7CompilerGUI
                 {
                     // Theme
                     XElement themeElem = appSettings.Element("Theme");
-                    if (themeElem != null && Enum.TryParse<ThemeStyle>(themeElem.Value, out ThemeStyle theme) && poisonStyleManager != null)
+                    if (themeElem != null)
+                    {
+                        if (Enum.TryParse<ThemeStyle>(themeElem.Value, out ThemeStyle theme))
+                        {
+                            if (poisonStyleManager != null)
                     {
                         poisonStyleManager.Theme = theme;
                         this.Theme = theme;
@@ -6812,22 +7560,48 @@ namespace T7CompilerGUI
                             poisonStyleExtender.Theme = theme;
                             poisonStyleExtender.StyleManager = poisonStyleManager;
                         }
-                        // StyleManager.Update() handles all control updates automatically (matching demo pattern)
                         poisonStyleManager.Update();
                         if (toggleSettingsTheme != null)
                         {
                             toggleSettingsTheme.Checked = (theme == ThemeStyle.Light);
                             toggleSettingsTheme.Text = toggleSettingsTheme.Checked ? "Light" : "Dark";
+                                }
+                                
+                                if (txtLog != null)
+                                {
+                                    AppendLog($"Loaded theme: {theme}\r\n", LogLevel.Info);
+                                }
+                            }
+                            else
+                            {
+                                if (txtLog != null)
+                                {
+                                    AppendLog($"Warning: Theme '{theme}' found in config but StyleManager is not initialized.\r\n", LogLevel.Warning);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (txtLog != null)
+                            {
+                                AppendLog($"Warning: Invalid theme value '{themeElem.Value}' in config. Using default.\r\n", LogLevel.Warning);
+                            }
                         }
                     }
                     
                     // Color Style
                     XElement styleElem = appSettings.Element("ColorStyle");
-                    if (styleElem != null && poisonStyleManager != null)
+                    if (styleElem != null)
+                    {
+                        if (poisonStyleManager != null)
                     {
                         if (styleElem.Value == "Rainbow")
                         {
                             ChangeColorStyleToRainbow();
+                                if (txtLog != null)
+                                {
+                                    AppendLog("Loaded color style: Rainbow\r\n", LogLevel.Info);
+                                }
                         }
                         else if (Enum.TryParse<ColorStyle>(styleElem.Value, out ColorStyle style))
                         {
@@ -6837,19 +7611,41 @@ namespace T7CompilerGUI
                             {
                                 poisonStyleExtender.StyleManager = poisonStyleManager;
                             }
-                            // StyleManager.Update() handles all control updates automatically (matching demo pattern)
                             poisonStyleManager.Update();
                             UpdateSettingsColorStyleButton();
+                                
+                                if (txtLog != null)
+                                {
+                                    AppendLog($"Loaded color style: {style}\r\n", LogLevel.Info);
+                                }
+                            }
+                            else
+                            {
+                                if (txtLog != null)
+                                {
+                                    AppendLog($"Warning: Invalid color style value '{styleElem.Value}' in config. Using default.\r\n", LogLevel.Warning);
+                                }
                         }
                         
                         // Update all menu renderers with the loaded style
                         UpdateAllMenuRenderers();
+                        }
+                        else
+                        {
+                            if (txtLog != null)
+                            {
+                                AppendLog($"Warning: Color style '{styleElem.Value}' found in config but StyleManager is not initialized.\r\n", LogLevel.Warning);
+                            }
+                        }
                     }
                     else
                     {
                         // Even if no style was loaded from config, ensure renderers are set up with current style
                         // This handles the case where config doesn't have a style element yet
+                        if (poisonStyleManager != null)
+                        {
                         UpdateAllMenuRenderers();
+                        }
                     }
                     
                     // Default Output Path
@@ -6875,7 +7671,11 @@ namespace T7CompilerGUI
                     if (autoSaveElem != null)
                     {
                         autoSaveSettings = (autoSaveElem.Value == "1");
-                        // Auto save is always enabled
+                    }
+                    else
+                    {
+                        // If not found in config, default to true (auto-save is always enabled)
+                        autoSaveSettings = true;
                     }
                     
                     // Restore Window State
@@ -6910,12 +7710,6 @@ namespace T7CompilerGUI
                     if (gameIdx != null && int.TryParse(gameIdx.Value, out int gIdx) && gIdx >= 0 && gIdx <= 1)
                     {
                         currentGameIndex = gIdx;
-                    }
-                    
-                    XElement gscConfIdx = selections.Element("GscConfModeIndex");
-                    if (gscConfIdx != null && int.TryParse(gscConfIdx.Value, out int gcIdx) && gcIdx >= 0 && gcIdx <= 2)
-                    {
-                        currentGscConfModeIndex = gcIdx;
                     }
                     
                     XElement injectGameIdx = selections.Element("InjectGameIndex");
@@ -6953,14 +7747,26 @@ namespace T7CompilerGUI
                                 }
                                 this.WindowState = state;
                                 
+                                // Restore selected tab AFTER window state is set
+                                // This ensures the Designer's default (SelectedIndex = 0) is overridden
                                 XElement tabIdx = windowState.Element("SelectedTab");
                                 if (tabIdx != null && int.TryParse(tabIdx.Value, out int tabIndex) && tabControl != null && tabIndex >= 0 && tabIndex < tabControl.TabCount)
                                 {
                                     tabControl.SelectedIndex = tabIndex;
+                                    if (txtLog != null)
+                                    {
+                                        AppendLog($"Restored selected tab: {tabIndex}\r\n", LogLevel.Info);
+                                    }
+                                }
                                 }
                             }
                         }
                     }
+                else if (restoreWindowState && tabControl != null)
+                {
+                    // Even if window state wasn't saved, ensure we don't override with Designer default
+                    // The Designer sets SelectedIndex = 0, but we want to respect any programmatic setting
+                    // This is a fallback to ensure tab selection isn't lost
                 }
                 
                 // Load Recent Projects
@@ -6973,6 +7779,21 @@ namespace T7CompilerGUI
                         .Take(MAX_RECENT_PROJECTS)
                         .ToList();
                 }
+                
+                // Load Recent Files
+                XElement recentFilesElem = root.Element("RecentFiles");
+                if (recentFilesElem != null)
+                {
+                    recentFiles = recentFilesElem.Elements("File")
+                        .Select(e => e.Value)
+                        .Where(f => File.Exists(f))
+                        .Take(MAX_RECENT_FILES)
+                        .ToList();
+                }
+                
+                // Update menus after loading
+                UpdateRecentProjectsMenu();
+                UpdateRecentFilesMenu();
                 
                 // Load Keyboard Shortcuts
                 LoadKeybinds();
@@ -7008,7 +7829,7 @@ namespace T7CompilerGUI
                         if (ulong.TryParse(scriptBufElem?.Value, out ulong scriptBuf))
                             InjectedScript.lpBuffer = scriptBuf;
                         
-                        if (Enum.TryParse<Games>(gameElem.Value, out Games game))
+                        if (Enum.TryParse<TreyarchCompiler.Enums.Games>(gameElem.Value, out TreyarchCompiler.Enums.Games game))
                             LastGameInjected = game;
                         if (replacePathElem != null && txtInjectPath != null)
                             txtInjectPath.Text = replacePathElem.Value;
@@ -7024,11 +7845,66 @@ namespace T7CompilerGUI
                 if (txtLog != null)
                 {
                     AppendLog($"Error loading config: {ex.Message}\r\n", LogLevel.Warning);
+                    AppendLog($"Stack trace: {ex.StackTrace}\r\n", LogLevel.Warning);
                 }
+                
+                // Apply default settings if loading failed
+                ApplyDefaultSettings();
             }
             finally
             {
                 isLoadingSettings = false;
+            }
+        }
+        
+        private void ApplyDefaultSettings()
+        {
+            try
+            {
+                // Apply default theme and style if StyleManager is available
+                if (poisonStyleManager != null)
+                {
+                    poisonStyleManager.Theme = ThemeStyle.Dark;
+                    this.Theme = ThemeStyle.Dark;
+                    poisonStyleManager.Style = ColorStyle.Red;
+                    this.Style = ColorStyle.Red;
+                    
+                    if (poisonStyleExtender != null)
+                    {
+                        poisonStyleExtender.Theme = ThemeStyle.Dark;
+                        poisonStyleExtender.StyleManager = poisonStyleManager;
+                    }
+                    
+                    poisonStyleManager.Update();
+                    
+                    if (toggleSettingsTheme != null)
+                    {
+                        toggleSettingsTheme.Checked = false;
+                        toggleSettingsTheme.Text = "Dark";
+                    }
+                    
+                    UpdateSettingsColorStyleButton();
+                    UpdateAllMenuRenderers();
+                }
+                
+                // Set default auto-save
+                autoSaveSettings = true;
+                restoreWindowState = true;
+                
+                // Set default output path
+                if (txtSettingsDefaultOutputPath != null && string.IsNullOrWhiteSpace(txtSettingsDefaultOutputPath.Text))
+                {
+                    string defaultOutput = Path.Combine(buildFolder, "compiled.gscc");
+                    txtSettingsDefaultOutputPath.Text = defaultOutput;
+                    defaultOutputPath = defaultOutput;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (txtLog != null)
+                {
+                    AppendLog($"Error applying default settings: {ex.Message}\r\n", LogLevel.Warning);
+                }
             }
         }
         
@@ -7205,12 +8081,10 @@ namespace T7CompilerGUI
             // Reset selection state
             currentPlatformIndex = 0;
             currentGameIndex = 0;
-            currentGscConfModeIndex = 0;
             currentInjectGameIndex = 0;
             SetupPlatformMenu();
             SetupGameMenu();
             SetupInjectGameMenu();
-            SetupGscConfModeMenu();
             
             // Reset other settings
             defaultOutputPath = Path.Combine(buildFolder, "compiled.gscc");
@@ -7236,12 +8110,17 @@ namespace T7CompilerGUI
                 gameStatusTimer.Dispose();
             }
             
-            // Stop rainbow color timer
-            if (rainbowColorTimer != null && rainbowColorTimer.Enabled)
+            // Stop and dispose rainbow color timer
+            if (rainbowColorTimer != null)
             {
+                if (rainbowColorTimer.Enabled)
                 rainbowColorTimer.Stop();
                 rainbowColorTimer.Dispose();
+                rainbowColorTimer = null;
             }
+            
+            // Remove rainbow event handlers
+            RemoveRainbowEventHandlersRecursive(this);
             
             // Save all settings to unified config file
             SaveAllSettings();
@@ -7251,5 +8130,6 @@ namespace T7CompilerGUI
         #endregion
     }
 }
+
 
 
