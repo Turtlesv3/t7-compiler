@@ -621,7 +621,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         {
             return new Dictionary<string, KeybindInfo>
             {
-                { "Compile", new KeybindInfo("Compile", Keys.C, ctrl: true) },
+                { "Compile", new KeybindInfo("Compile", Keys.F3) },
                 { "Inject", new KeybindInfo("Inject", Keys.I, ctrl: true) },
                 { "Open Project", new KeybindInfo("Open Project", Keys.O, ctrl: true) },
                 { "Save Log", new KeybindInfo("Save Log", Keys.S, ctrl: true, shift: true) },

@@ -71,7 +71,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.mainPanel.Location = new System.Drawing.Point(20, 60);
             this.mainPanel.Name = "mainPanel";
             this.mainPanel.Padding = new System.Windows.Forms.Padding(20, 15, 20, 20);
-            this.mainPanel.Size = new System.Drawing.Size(299, 304);
+            this.mainPanel.Size = new System.Drawing.Size(293, 304);
             this.mainPanel.TabIndex = 0;
             this.mainPanel.VerticalScrollbar = true;
             this.mainPanel.VerticalScrollbarBarColor = true;
@@ -137,9 +137,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.lblOtherSymbols.FontWeight = ReaLTaiizor.Extension.Poison.PoisonLabelWeight.Bold;
             this.lblOtherSymbols.Location = new System.Drawing.Point(3, 110);
             this.lblOtherSymbols.Name = "lblOtherSymbols";
-            this.lblOtherSymbols.Size = new System.Drawing.Size(243, 19);
+            this.lblOtherSymbols.Size = new System.Drawing.Size(144, 19);
             this.lblOtherSymbols.TabIndex = 7;
-            this.lblOtherSymbols.Text = "Additional Symbols (from project):";
+            this.lblOtherSymbols.Text = "Additional Symbols:";
             this.lblOtherSymbols.UseStyleColors = true;
             // 
             // lstOtherSymbols
@@ -148,19 +148,20 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.lstOtherSymbols.CheckOnClick = true;
             this.lstOtherSymbols.Location = new System.Drawing.Point(23, 132);
             this.lstOtherSymbols.Name = "lstOtherSymbols";
-            this.lstOtherSymbols.Size = new System.Drawing.Size(253, 137);
+            this.lstOtherSymbols.Size = new System.Drawing.Size(247, 137);
             this.lstOtherSymbols.TabIndex = 8;
             // 
             // lblInfo
             // 
             this.lblInfo.FontSize = ReaLTaiizor.Extension.Poison.PoisonLabelSize.Small;
             this.lblInfo.FontWeight = ReaLTaiizor.Extension.Poison.PoisonLabelWeight.Regular;
-            this.lblInfo.Location = new System.Drawing.Point(20, 272);
+            this.lblInfo.Location = new System.Drawing.Point(4, 272);
             this.lblInfo.Name = "lblInfo";
-            this.lblInfo.Size = new System.Drawing.Size(246, 30);
+            this.lblInfo.Size = new System.Drawing.Size(272, 32);
             this.lblInfo.TabIndex = 9;
             this.lblInfo.Text = "Select a game mode and any additional symbols to include in your build.";
             this.lblInfo.UseStyleColors = true;
+            this.lblInfo.WrapToLine = true;
             // 
             // buttonPanel
             // 
@@ -173,7 +174,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.buttonPanel.Location = new System.Drawing.Point(20, 364);
             this.buttonPanel.Name = "buttonPanel";
             this.buttonPanel.Padding = new System.Windows.Forms.Padding(10);
-            this.buttonPanel.Size = new System.Drawing.Size(299, 47);
+            this.buttonPanel.Size = new System.Drawing.Size(293, 47);
             this.buttonPanel.TabIndex = 1;
             this.buttonPanel.VerticalScrollbarBarColor = true;
             this.buttonPanel.VerticalScrollbarHighlightOnWheel = false;
@@ -194,7 +195,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // btnOK
             // 
             this.btnOK.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOK.Location = new System.Drawing.Point(172, 6);
+            this.btnOK.Location = new System.Drawing.Point(170, 6);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(100, 30);
             this.btnOK.TabIndex = 3;
@@ -205,7 +206,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // GscConfEditorDialog
             // 
-            this.ClientSize = new System.Drawing.Size(339, 431);
+            this.ClientSize = new System.Drawing.Size(333, 431);
             this.Controls.Add(this.mainPanel);
             this.Controls.Add(this.buttonPanel);
             this.MaximizeBox = false;

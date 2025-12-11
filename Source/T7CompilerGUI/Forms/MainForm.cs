@@ -73,7 +73,8 @@ namespace T7CompilerGUI.Forms
         private List<string> compileSymbolsFromEditor = null; // Symbols from CodeEditorForm
         private bool isLoadingSettings = false;
         
-        private string buildFolder = Path.Combine(Application.StartupPath, "build");
+        // Initialize buildFolder to a safe default location (will be properly initialized in InitializeBuildFolder)
+        private string buildFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
         
         private const int MAX_RECENT_PROJECTS = 10;
         private const int MAX_RECENT_FILES = 10;
@@ -193,11 +194,8 @@ namespace T7CompilerGUI.Forms
                 PoisonControlHelper.SetupDropDownButtonEffects(btnRecentFiles);
             }
             
-            if (string.IsNullOrWhiteSpace(txtOutputFile.Text))
-            {
-                string defaultOutput = Path.Combine(buildFolder, "compiled.gscc");
-                txtOutputFile.Text = defaultOutput;
-            }
+            // Keep output file field blank until user explicitly sets a path
+            // txtOutputFile.Text will remain empty until user types or browses for a file
             
             SetupKeyboardShortcuts();
             SetupToolTips();
@@ -1431,16 +1429,67 @@ namespace T7CompilerGUI.Forms
         
         private void InitializeBuildFolder()
         {
+            // Try to use a writable location
+            // First, try MyDocuments (most reliable)
+            string preferredPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
             try
             {
-                if (!Directory.Exists(Path.GetDirectoryName(buildFolder)))
+                // Ensure the directory exists and is writable
+                if (!Directory.Exists(preferredPath))
                 {
-                    buildFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
+                    Directory.CreateDirectory(preferredPath);
+                }
+                // Test write access by creating a test file
+                string testFile = Path.Combine(preferredPath, ".writetest");
+                try
+                {
+                    File.WriteAllText(testFile, "test");
+                    File.Delete(testFile);
+                    buildFolder = preferredPath;
+                    return;
+                }
+                catch
+                {
+                    // Not writable, try next option
                 }
             }
             catch
             {
-                buildFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
+                // Failed to create, try next option
+            }
+            
+            // Fallback to temp folder if MyDocuments doesn't work
+            try
+            {
+                string tempPath = Path.Combine(Path.GetTempPath(), "T7Compiler", "build");
+                if (!Directory.Exists(tempPath))
+                {
+                    Directory.CreateDirectory(tempPath);
+                }
+                buildFolder = tempPath;
+            }
+            catch
+            {
+                // Last resort: use application startup directory (more reliable than CurrentDirectory)
+                try
+                {
+                    string startupPath = Application.StartupPath;
+                    if (!string.IsNullOrEmpty(startupPath))
+                    {
+                        string startupBuildPath = Path.Combine(startupPath, "build");
+                        buildFolder = startupBuildPath;
+                    }
+                    else
+                    {
+                        // Absolute last resort: use temp folder with a unique name
+                        buildFolder = Path.Combine(Path.GetTempPath(), "T7Compiler", "build");
+                    }
+                }
+                catch
+                {
+                    // Absolute last resort: use temp folder
+                    buildFolder = Path.Combine(Path.GetTempPath(), "T7Compiler", "build");
+                }
             }
         }
         
@@ -3104,9 +3153,9 @@ namespace T7CompilerGUI.Forms
             string folder = ShowModernFolderDialog("Select GSC Project Folder", initialPath);
             if (!string.IsNullOrEmpty(folder))
             {
-                txtProjectFolder.Text = ShortenPath(folder);
+                txtProjectFolder.Text = folder;
                 AddToRecentProjects(folder); // Add to recent projects (use full path)
-                AutoPopulateOutputFile();
+                // Don't auto-populate output file - keep it blank until user explicitly sets a path
                 UpdateUI();
             }
             // Explicitly reset button state after dialog closes
@@ -3153,7 +3202,7 @@ namespace T7CompilerGUI.Forms
                 
                 if (saveDialog.ShowDialog(this) == DialogResult.OK)
                 {
-                    txtOutputFile.Text = ShortenPath(saveDialog.FileName);
+                    txtOutputFile.Text = saveDialog.FileName;
                     UpdateUI();
                 }
             }
@@ -3315,11 +3364,13 @@ namespace T7CompilerGUI.Forms
                     this.BringToFront();
                 };
                 editorForm.Show();
+                editorForm.BringToFront();
+                editorForm.Activate();
             }
             catch (Exception ex)
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
-                    $"Error opening code editor: {ex.Message}", 
+                    $"Error opening code editor: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}", 
                     "Error", 
                     MessageBoxButtons.OK, 
                     MessageBoxIcon.Error);
@@ -3481,9 +3532,8 @@ namespace T7CompilerGUI.Forms
                 
                 if (File.Exists(gscConfPath))
                 {
-                    // Shorten path to show just 1-2 directories before filename
-                    string shortPath = GetShortPath(gscConfPath);
-                    txtLog.AppendText($"Found gsc.conf at: {shortPath}\r\n");
+                    // Show full path
+                    txtLog.AppendText($"Found gsc.conf at: {gscConfPath}\r\n");
                     Application.DoEvents();
                     
                     foreach (string line in File.ReadAllLines(gscConfPath))
@@ -3543,7 +3593,7 @@ namespace T7CompilerGUI.Forms
                                     {
                                         // Relative path - combine with project folder or buildFolder
                                         string baseDir = !string.IsNullOrWhiteSpace(txtProjectFolder.Text) ? expandedProjectFolder : buildFolder;
-                                        txtOutputFile.Text = ShortenPath(Path.Combine(baseDir, confOutputFile));
+                                        txtOutputFile.Text = Path.Combine(baseDir, confOutputFile);
                                     }
                                     else
                                     {
@@ -4009,9 +4059,62 @@ namespace T7CompilerGUI.Forms
                     }
                 }
                 
-                // Ensure output directory exists
-                if (!Directory.Exists(outputDirectory))
-                    Directory.CreateDirectory(outputDirectory);
+                // Ensure output directory exists with error handling
+                try
+                {
+                    if (!Directory.Exists(outputDirectory))
+                    {
+                        Directory.CreateDirectory(outputDirectory);
+                    }
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // If we can't write to the selected directory, fall back to a safe location
+                    txtLog.AppendText($"Warning: Cannot write to '{outputDirectory}'. Using fallback location.\r\n");
+                    outputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
+                    try
+                    {
+                        if (!Directory.Exists(outputDirectory))
+                        {
+                            Directory.CreateDirectory(outputDirectory);
+                        }
+                    }
+                    catch
+                    {
+                        // Last resort: use temp folder
+                        outputDirectory = Path.Combine(Path.GetTempPath(), "T7Compiler", "build");
+                        if (!Directory.Exists(outputDirectory))
+                        {
+                            Directory.CreateDirectory(outputDirectory);
+                        }
+                    }
+                    // Update buildFolder for future use
+                    buildFolder = outputDirectory;
+                }
+                catch (Exception ex)
+                {
+                    // For any other exception, try fallback locations
+                    txtLog.AppendText($"Warning: Error creating directory '{outputDirectory}': {ex.Message}. Using fallback location.\r\n");
+                    outputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
+                    try
+                    {
+                        if (!Directory.Exists(outputDirectory))
+                        {
+                            Directory.CreateDirectory(outputDirectory);
+                        }
+                    }
+                    catch
+                    {
+                        // Last resort: use temp folder
+                        outputDirectory = Path.Combine(Path.GetTempPath(), "T7Compiler", "build");
+                        if (!Directory.Exists(outputDirectory))
+                        {
+                            Directory.CreateDirectory(outputDirectory);
+                        }
+                    }
+                    // Update buildFolder for future use
+                    buildFolder = outputDirectory;
+                }
 
                 // Get output filename - use .gscc extension (or .gsc if RequiresGSI)
                 if (string.IsNullOrWhiteSpace(outputFileName))
@@ -4179,12 +4282,7 @@ namespace T7CompilerGUI.Forms
 
         private void txtProjectFolder_TextChanged(object sender, EventArgs e)
         {
-            // Auto-populate output file if project folder is set and output file is empty or using default
-            if (!string.IsNullOrWhiteSpace(txtProjectFolder.Text) && 
-                (string.IsNullOrWhiteSpace(txtOutputFile.Text) || txtOutputFile.Text == Path.Combine(buildFolder, "compiled.gscc")))
-            {
-                AutoPopulateOutputFile();
-            }
+            // Don't auto-populate output file - keep it blank until user explicitly sets a path
             UpdateUI();
             // Auto-scan for GSC files and populate combobox when project folder changes
         }
@@ -4196,12 +4294,8 @@ namespace T7CompilerGUI.Forms
         
         private void txtDefaultOutputPath_TextChanged(object sender, EventArgs e)
         {
-            // Auto-populate output file if project folder is set and output file is empty or using default
-            if (!string.IsNullOrWhiteSpace(txtProjectFolder.Text) && 
-                (string.IsNullOrWhiteSpace(txtOutputFile.Text) || txtOutputFile.Text == Path.Combine(buildFolder, "compiled.gscc")))
-            {
-                AutoPopulateOutputFile();
-            }
+            // Don't auto-populate output file - keep it blank until user explicitly sets a path
+            // The default output path setting is just a preference, not an auto-population trigger
         }
 
         private void btnSelectInjectFile_Click(object sender, EventArgs e)
@@ -5151,7 +5245,7 @@ namespace T7CompilerGUI.Forms
                         string folderPath = path;
                         
                         // Set the project folder
-                        txtProjectFolder.Text = ShortenPath(folderPath);
+                        txtProjectFolder.Text = folderPath;
                         AddToRecentProjects(folderPath); // Add to recent projects (use full path)
                         
                         // Save the folder for next time (saved via SaveAllSettings)
@@ -6399,20 +6493,20 @@ namespace T7CompilerGUI.Forms
                         string expandedProjectFolder = ExpandPath(txtProjectFolder.Text);
                         if (Directory.Exists(expandedProjectFolder))
                         {
-                            txtOutputFile.Text = ShortenPath(Path.Combine(expandedProjectFolder, defaultPath));
+                            txtOutputFile.Text = Path.Combine(expandedProjectFolder, defaultPath);
                     }
                     else
                     {
                         // Fallback to build folder (only create if needed)
                         EnsureBuildFolderExists();
-                            txtOutputFile.Text = ShortenPath(Path.Combine(buildFolder, defaultPath));
+                            txtOutputFile.Text = Path.Combine(buildFolder, defaultPath);
                         }
                     }
                     else
                     {
                         // Fallback to build folder (only create if needed)
                         EnsureBuildFolderExists();
-                        txtOutputFile.Text = ShortenPath(Path.Combine(buildFolder, defaultPath));
+                        txtOutputFile.Text = Path.Combine(buildFolder, defaultPath);
                     }
                 }
             }
@@ -6753,6 +6847,21 @@ namespace T7CompilerGUI.Forms
                 }
             }
             
+            // Migrate old Compile keybind from Ctrl+C to F3 if present
+            if (keybinds != null && keybinds.ContainsKey("Compile"))
+            {
+                var compileKeybind = keybinds["Compile"];
+                if (compileKeybind.Key == System.Windows.Forms.Keys.C && compileKeybind.Ctrl && !compileKeybind.Shift && !compileKeybind.Alt)
+                {
+                    // Update old Ctrl+C to F3 and save
+                    keybinds["Compile"] = new Dialogs.KeybindDialog.KeybindInfo("Compile", System.Windows.Forms.Keys.F3);
+                    if (autoSaveSettings)
+                    {
+                        SaveAllSettings();
+                    }
+                }
+            }
+            
             this.KeyPreview = true;
             this.KeyDown += MainForm_KeyDown;
         }
@@ -7024,6 +7133,19 @@ namespace T7CompilerGUI.Forms
                 {
                     keybinds = Dialogs.KeybindDialog.GetDefaultKeybinds();
                 }
+                
+                // Migrate old Compile keybind from Ctrl+C to F3
+                if (keybinds.ContainsKey("Compile"))
+                {
+                    var compileKeybind = keybinds["Compile"];
+                    if (compileKeybind.Key == System.Windows.Forms.Keys.C && compileKeybind.Ctrl && !compileKeybind.Shift && !compileKeybind.Alt)
+                    {
+                        // Update old Ctrl+C to F3 and save
+                        keybinds["Compile"] = new Dialogs.KeybindDialog.KeybindInfo("Compile", System.Windows.Forms.Keys.F3);
+                        // Save the migrated keybind
+                        SaveAllSettings();
+                    }
+                }
             }
             catch
             {
@@ -7126,8 +7248,8 @@ namespace T7CompilerGUI.Forms
                         string path = ((ToolStripMenuItem)s).Tag.ToString();
                         if (Directory.Exists(path))
                         {
-                            txtProjectFolder.Text = ShortenPath(path);
-                            AutoPopulateOutputFile();
+                            txtProjectFolder.Text = path;
+                            // Don't auto-populate output file - keep it blank until user explicitly sets a path
                             UpdateUI();
                         }
                         else
@@ -7688,8 +7810,7 @@ namespace T7CompilerGUI.Forms
                     if (lastProjectElem != null && txtProjectFolder != null && Directory.Exists(lastProjectElem.Value))
                     {
                         txtProjectFolder.Text = lastProjectElem.Value;
-                        // Auto-populate output file after project folder is loaded
-                        AutoPopulateOutputFile();
+                        // Don't auto-populate output file - keep it blank until user explicitly sets a path
                     }
                 }
                 

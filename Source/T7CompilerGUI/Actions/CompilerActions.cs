@@ -26,31 +26,68 @@ namespace T7CompilerGUI.Actions
         private static bool haveWeInjected = false;
         
         /// <summary>
-        /// Gets the compiler installation path. Checks T7COMPILER_PATH environment variable first, then defaults to C:\t7compiler
+        /// Gets the compiler installation path. Checks T7COMPILER_PATH environment variable first, 
+        /// then checks for compiler in executable directory, then defaults to Documents\T7Compiler
         /// </summary>
-        private static string GetCompilerPath()
+        public static string GetCompilerPath()
         {
             string envPath = Environment.GetEnvironmentVariable("T7COMPILER_PATH");
             if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
             {
                 return envPath;
             }
-            // Default installation path (can be overridden via environment variable)
-            return @"C:\t7compiler";
+            
+            // Check if compiler exists in the same directory as the executable
+            string executingDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            if (!string.IsNullOrEmpty(executingDir))
+            {
+                string localCompilerPath = Path.Combine(executingDir, "t7compiler");
+                if (Directory.Exists(localCompilerPath))
+                {
+                    return localCompilerPath;
+                }
+            }
+            
+            // Fallback: Use Documents folder instead of hardcoded C:\ drive
+            // This is more portable and doesn't require admin privileges
+            string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (!string.IsNullOrEmpty(documentsPath))
+            {
+                return Path.Combine(documentsPath, "T7Compiler");
+            }
+            
+            // Last resort fallback (should rarely be needed)
+            return Path.Combine(Path.GetTempPath(), "T7Compiler");
         }
 
         /// <summary>
-        /// Gets the GUI installation path. Checks T7GUI_PATH environment variable first, then defaults to C:\t7gui
+        /// Gets the GUI installation path. Checks T7GUI_PATH environment variable first, 
+        /// then uses the executable directory
         /// </summary>
-        private static string GetGuiPath()
+        public static string GetGuiPath()
         {
             string envPath = Environment.GetEnvironmentVariable("T7GUI_PATH");
             if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
             {
                 return envPath;
             }
-            // Default installation path (can be overridden via environment variable)
-            return @"C:\t7gui";
+            
+            // Default to executable directory (same as CodeEditorForm.GetGuiPath())
+            string executingDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            if (!string.IsNullOrEmpty(executingDir))
+            {
+                return executingDir;
+            }
+            
+            // Fallback: Use ApplicationData if executable directory is unavailable
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (!string.IsNullOrEmpty(appDataPath))
+            {
+                return Path.Combine(appDataPath, "T7CompilerGUI");
+            }
+            
+            // Last resort fallback (should rarely be needed)
+            return Path.Combine(Path.GetTempPath(), "T7CompilerGUI");
         }
         /// <summary>
         /// Installs or updates the T7 compiler from the specified URL
@@ -240,10 +277,8 @@ namespace T7CompilerGUI.Actions
             }
 
             string compilerExe = Path.Combine(compilerPath, "debugcompiler.exe");
-            // Use relative path if compiler is in standard location, otherwise use full path
-            string compilerCommand = compilerPath.Equals(@"C:\t7compiler", StringComparison.OrdinalIgnoreCase) 
-                ? @"C:\t7compiler\debugcompiler" 
-                : $"\"{compilerExe}\"";
+            // Use full path with quotes to handle paths with spaces
+            string compilerCommand = $"\"{compilerExe}\"";
             File.WriteAllText(Path.Combine(path, "compile.bat"), $"cd /d {path.Replace("/", "\\")}\n{compilerCommand} --build");
             
             ProcessStartInfo startInfo = new ProcessStartInfo

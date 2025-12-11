@@ -45,14 +45,29 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Scan project for symbols before setting up controls
             ScanProjectForSymbols();
             SetupControls();
-            LoadGscConf();
+            
+            // Load config after controls are set up (but before form is shown for immediate display)
+            // Use BeginInvoke to ensure controls are fully initialized
+            this.Load += (s, e) => 
+            {
+                // Load config when form loads (ensures controls are ready)
+                LoadGscConf();
+            };
+            
             PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
             
             // Subscribe to StyleManager updates to keep in sync
             if (styleManager != null)
             {
-                // Sync on form shown
-                this.Shown += (s, e) => SyncAllControlsWithStyleManager();
+                // Sync on form shown and force layout update
+                this.Shown += (s, e) => 
+                {
+                    SyncAllControlsWithStyleManager();
+                    // Force layout update to ensure proper display
+                    this.PerformLayout();
+                    this.Invalidate();
+                    this.Update();
+                };
                 
                 // Setup timer to periodically sync with StyleManager (for rainbow theme updates)
                 syncTimer = new System.Windows.Forms.Timer
@@ -61,6 +76,16 @@ namespace T7CompilerGUI.Forms.Dialogs
                 };
                 syncTimer.Tick += (s, e) => SyncAllControlsWithStyleManager();
                 syncTimer.Start();
+            }
+            else
+            {
+                // Even without style manager, ensure proper layout on show
+                this.Shown += (s, e) => 
+                {
+                    this.PerformLayout();
+                    this.Invalidate();
+                    this.Update();
+                };
             }
         }
         
@@ -120,11 +145,21 @@ namespace T7CompilerGUI.Forms.Dialogs
                 lstOtherSymbols.ForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
             }
             
+            // Clear listbox before adding items to prevent duplicates
+            lstOtherSymbols.Items.Clear();
             lstOtherSymbols.Items.AddRange(allSymbols.ToArray());
-            lstOtherSymbols.ItemCheck += (s, e) => { HasChanges = true; };
+            
+            // Only attach event handler once (check if already attached)
+            lstOtherSymbols.ItemCheck -= LstOtherSymbols_ItemCheck;
+            lstOtherSymbols.ItemCheck += LstOtherSymbols_ItemCheck;
             
             // Button event handlers are now wired up in Designer
             // Position buttons using Anchor property set in Designer
+        }
+        
+        private void LstOtherSymbols_ItemCheck(object sender, ItemCheckEventArgs e)
+        {
+            HasChanges = true;
         }
         
         private void ScanProjectForSymbols()
@@ -285,12 +320,16 @@ namespace T7CompilerGUI.Forms.Dialogs
                 
                 // Check the symbols in the listbox - check if they're in gsc.conf
                 // This works like the code editor: symbols in gsc.conf are checked/enabled
-                for (int i = 0; i < lstOtherSymbols.Items.Count; i++)
+                // Ensure listbox is ready before trying to check items
+                if (lstOtherSymbols != null && lstOtherSymbols.Items.Count > 0)
                 {
-                    string item = lstOtherSymbols.Items[i].ToString();
-                    // Check if this symbol is in gsc.conf (case-insensitive comparison)
-                    bool isChecked = symbolsFromConf.Contains(item);
-                    lstOtherSymbols.SetItemChecked(i, isChecked);
+                    for (int i = 0; i < lstOtherSymbols.Items.Count; i++)
+                    {
+                        string item = lstOtherSymbols.Items[i].ToString();
+                        // Check if this symbol is in gsc.conf (case-insensitive comparison)
+                        bool isChecked = symbolsFromConf.Contains(item);
+                        lstOtherSymbols.SetItemChecked(i, isChecked);
+                    }
                 }
                 
                 HasChanges = false; // Reset after loading

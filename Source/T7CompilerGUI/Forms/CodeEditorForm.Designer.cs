@@ -11,6 +11,7 @@ namespace T7CompilerGUI.Forms
     partial class CodeEditorForm
     {
         private System.ComponentModel.IContainer components = null;
+        private ReaLTaiizor.Manager.PoisonStyleManager poisonStyleManager;
 
         // UI Controls
         private PoisonPanel mainPanel;
@@ -81,14 +82,16 @@ namespace T7CompilerGUI.Forms
 
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
+            this.poisonStyleManager = new ReaLTaiizor.Manager.PoisonStyleManager(this.components);
             this.mainPanel = new ReaLTaiizor.Controls.PoisonPanel();
             this.editorPanel = new ReaLTaiizor.Controls.PoisonPanel();
             this.tabControl = new ReaLTaiizor.Controls.PoisonTabControl();
             this.fileListPanel = new ReaLTaiizor.Controls.PoisonPanel();
+            this.fileButtonsPanel = new System.Windows.Forms.FlowLayoutPanel();
             this.lblProjectPath = new ReaLTaiizor.Controls.PoisonLabel();
             this.btnOpenFolder = new ReaLTaiizor.Controls.PoisonButton();
             this.btnRecentProjects = new ReaLTaiizor.Controls.PoisonButton();
-            this.fileButtonsPanel = new System.Windows.Forms.FlowLayoutPanel();
             this.buttonPanel = new ReaLTaiizor.Controls.PoisonPanel();
             this.btnHashCheck = new ReaLTaiizor.Controls.PoisonButton();
             this.txtHashInput = new ReaLTaiizor.Controls.PoisonTextBox();
@@ -133,6 +136,7 @@ namespace T7CompilerGUI.Forms
             this.killBO4Item = new System.Windows.Forms.ToolStripMenuItem();
             this.statusPanel = new ReaLTaiizor.Controls.PoisonPanel();
             this.statusLabel = new ReaLTaiizor.Controls.PoisonLabel();
+            ((System.ComponentModel.ISupportInitialize)(this.poisonStyleManager)).BeginInit();
             this.mainPanel.SuspendLayout();
             this.editorPanel.SuspendLayout();
             this.fileListPanel.SuspendLayout();
@@ -140,6 +144,10 @@ namespace T7CompilerGUI.Forms
             this.mainMenuStrip.SuspendLayout();
             this.statusPanel.SuspendLayout();
             this.SuspendLayout();
+            // 
+            // poisonStyleManager
+            // 
+            this.poisonStyleManager.Owner = this;
             // 
             // mainPanel
             // 
@@ -150,10 +158,10 @@ namespace T7CompilerGUI.Forms
             this.mainPanel.HorizontalScrollbarBarColor = true;
             this.mainPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.mainPanel.HorizontalScrollbarSize = 10;
-            this.mainPanel.Location = new System.Drawing.Point(20, 84);
+            this.mainPanel.Location = new System.Drawing.Point(20, 54);
             this.mainPanel.Name = "mainPanel";
             this.mainPanel.Padding = new System.Windows.Forms.Padding(10);
-            this.mainPanel.Size = new System.Drawing.Size(1168, 775);
+            this.mainPanel.Size = new System.Drawing.Size(1217, 753);
             this.mainPanel.TabIndex = 0;
             this.mainPanel.UseStyleColors = true;
             this.mainPanel.VerticalScrollbarBarColor = true;
@@ -164,17 +172,15 @@ namespace T7CompilerGUI.Forms
             // 
             this.editorPanel.Controls.Add(this.tabControl);
             this.editorPanel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.editorPanel.HorizontalScrollbar = false;
             this.editorPanel.HorizontalScrollbarBarColor = true;
             this.editorPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.editorPanel.HorizontalScrollbarSize = 10;
-            this.editorPanel.Location = new System.Drawing.Point(190, 10);
+            this.editorPanel.Location = new System.Drawing.Point(293, 10);
             this.editorPanel.Name = "editorPanel";
             this.editorPanel.Padding = new System.Windows.Forms.Padding(5);
-            this.editorPanel.Size = new System.Drawing.Size(968, 705);
+            this.editorPanel.Size = new System.Drawing.Size(914, 683);
             this.editorPanel.TabIndex = 2;
             this.editorPanel.UseStyleColors = true;
-            this.editorPanel.VerticalScrollbar = false;
             this.editorPanel.VerticalScrollbarBarColor = true;
             this.editorPanel.VerticalScrollbarHighlightOnWheel = false;
             this.editorPanel.VerticalScrollbarSize = 10;
@@ -184,13 +190,12 @@ namespace T7CompilerGUI.Forms
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl.Location = new System.Drawing.Point(5, 5);
             this.tabControl.Name = "tabControl";
-            this.tabControl.Size = new System.Drawing.Size(958, 695);
+            this.tabControl.Size = new System.Drawing.Size(904, 673);
             this.tabControl.TabIndex = 2;
             this.tabControl.UseSelectable = true;
             this.tabControl.UseStyleColors = true;
             this.tabControl.SelectedIndexChanged += new System.EventHandler(this.TabControl_SelectedIndexChanged);
             this.tabControl.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.TabControl_MouseWheel);
-            // Note: PoisonTabControl hides scrollbars via WndProc, so no need to set scrollbar properties
             // 
             // fileListPanel
             // 
@@ -199,17 +204,15 @@ namespace T7CompilerGUI.Forms
             this.fileListPanel.Controls.Add(this.btnOpenFolder);
             this.fileListPanel.Controls.Add(this.btnRecentProjects);
             this.fileListPanel.Dock = System.Windows.Forms.DockStyle.Left;
-            this.fileListPanel.HorizontalScrollbar = false;
             this.fileListPanel.HorizontalScrollbarBarColor = true;
             this.fileListPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.fileListPanel.HorizontalScrollbarSize = 10;
             this.fileListPanel.Location = new System.Drawing.Point(10, 10);
             this.fileListPanel.Name = "fileListPanel";
             this.fileListPanel.Padding = new System.Windows.Forms.Padding(5);
-            this.fileListPanel.Size = new System.Drawing.Size(180, 705);
+            this.fileListPanel.Size = new System.Drawing.Size(283, 683);
             this.fileListPanel.TabIndex = 3;
             this.fileListPanel.UseStyleColors = true;
-            this.fileListPanel.VerticalScrollbar = false;
             this.fileListPanel.VerticalScrollbarBarColor = true;
             this.fileListPanel.VerticalScrollbarHighlightOnWheel = false;
             this.fileListPanel.VerticalScrollbarSize = 10;
@@ -223,7 +226,7 @@ namespace T7CompilerGUI.Forms
             this.fileButtonsPanel.Location = new System.Drawing.Point(5, 90);
             this.fileButtonsPanel.Margin = new System.Windows.Forms.Padding(0);
             this.fileButtonsPanel.Name = "fileButtonsPanel";
-            this.fileButtonsPanel.Size = new System.Drawing.Size(170, 610);
+            this.fileButtonsPanel.Size = new System.Drawing.Size(273, 588);
             this.fileButtonsPanel.TabIndex = 2;
             this.fileButtonsPanel.WrapContents = false;
             // 
@@ -232,7 +235,7 @@ namespace T7CompilerGUI.Forms
             this.lblProjectPath.Dock = System.Windows.Forms.DockStyle.Top;
             this.lblProjectPath.Location = new System.Drawing.Point(5, 65);
             this.lblProjectPath.Name = "lblProjectPath";
-            this.lblProjectPath.Size = new System.Drawing.Size(170, 25);
+            this.lblProjectPath.Size = new System.Drawing.Size(273, 25);
             this.lblProjectPath.TabIndex = 3;
             this.lblProjectPath.Text = "No project opened";
             this.lblProjectPath.UseStyleColors = true;
@@ -242,7 +245,7 @@ namespace T7CompilerGUI.Forms
             this.btnOpenFolder.Dock = System.Windows.Forms.DockStyle.Top;
             this.btnOpenFolder.Location = new System.Drawing.Point(5, 35);
             this.btnOpenFolder.Name = "btnOpenFolder";
-            this.btnOpenFolder.Size = new System.Drawing.Size(170, 30);
+            this.btnOpenFolder.Size = new System.Drawing.Size(273, 30);
             this.btnOpenFolder.TabIndex = 4;
             this.btnOpenFolder.Text = "Open Folder";
             this.btnOpenFolder.UseSelectable = true;
@@ -254,7 +257,7 @@ namespace T7CompilerGUI.Forms
             this.btnRecentProjects.Dock = System.Windows.Forms.DockStyle.Top;
             this.btnRecentProjects.Location = new System.Drawing.Point(5, 5);
             this.btnRecentProjects.Name = "btnRecentProjects";
-            this.btnRecentProjects.Size = new System.Drawing.Size(170, 30);
+            this.btnRecentProjects.Size = new System.Drawing.Size(273, 30);
             this.btnRecentProjects.TabIndex = 5;
             this.btnRecentProjects.Text = "Recent Projects";
             this.btnRecentProjects.UseSelectable = true;
@@ -271,10 +274,10 @@ namespace T7CompilerGUI.Forms
             this.buttonPanel.HorizontalScrollbarBarColor = true;
             this.buttonPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.buttonPanel.HorizontalScrollbarSize = 10;
-            this.buttonPanel.Location = new System.Drawing.Point(10, 715);
+            this.buttonPanel.Location = new System.Drawing.Point(10, 693);
             this.buttonPanel.Name = "buttonPanel";
             this.buttonPanel.Padding = new System.Windows.Forms.Padding(10, 0, 0, 10);
-            this.buttonPanel.Size = new System.Drawing.Size(1148, 50);
+            this.buttonPanel.Size = new System.Drawing.Size(1197, 50);
             this.buttonPanel.TabIndex = 4;
             this.buttonPanel.UseStyleColors = true;
             this.buttonPanel.VerticalScrollbarBarColor = true;
@@ -353,10 +356,10 @@ namespace T7CompilerGUI.Forms
             this.modeMenu,
             this.injectPrecompiledMenu,
             this.processesMenu});
-            this.mainMenuStrip.Location = new System.Drawing.Point(20, 60);
+            this.mainMenuStrip.Location = new System.Drawing.Point(20, 30);
             this.mainMenuStrip.Name = "mainMenuStrip";
             this.mainMenuStrip.RenderMode = System.Windows.Forms.ToolStripRenderMode.Professional;
-            this.mainMenuStrip.Size = new System.Drawing.Size(1168, 24);
+            this.mainMenuStrip.Size = new System.Drawing.Size(1217, 24);
             this.mainMenuStrip.TabIndex = 1;
             // 
             // fileMenu
@@ -394,29 +397,32 @@ namespace T7CompilerGUI.Forms
             this.newProjectItem.ShortcutKeys = ((System.Windows.Forms.Keys)(((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.Shift) 
             | System.Windows.Forms.Keys.N)));
             this.newProjectItem.ShowShortcutKeys = false;
-            this.newProjectItem.Size = new System.Drawing.Size(180, 22);
+            this.newProjectItem.Size = new System.Drawing.Size(173, 22);
             this.newProjectItem.Text = "New Project";
+            this.newProjectItem.Click += new System.EventHandler(this.NewProjectItem_Click);
             // 
             // newFileItem
             // 
             this.newFileItem.Name = "newFileItem";
             this.newFileItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.N)));
             this.newFileItem.ShowShortcutKeys = false;
-            this.newFileItem.Size = new System.Drawing.Size(180, 22);
+            this.newFileItem.Size = new System.Drawing.Size(173, 22);
             this.newFileItem.Text = "New File";
+            this.newFileItem.Click += new System.EventHandler(this.NewFileItem_Click);
             // 
             // separator1
             // 
             this.separator1.Name = "separator1";
-            this.separator1.Size = new System.Drawing.Size(177, 6);
+            this.separator1.Size = new System.Drawing.Size(170, 6);
             // 
             // saveItem
             // 
             this.saveItem.Name = "saveItem";
             this.saveItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
             this.saveItem.ShowShortcutKeys = false;
-            this.saveItem.Size = new System.Drawing.Size(180, 22);
+            this.saveItem.Size = new System.Drawing.Size(173, 22);
             this.saveItem.Text = "Save";
+            this.saveItem.Click += new System.EventHandler(this.SaveItem_Click);
             // 
             // saveAllItem
             // 
@@ -424,26 +430,28 @@ namespace T7CompilerGUI.Forms
             this.saveAllItem.ShortcutKeys = ((System.Windows.Forms.Keys)(((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.Shift) 
             | System.Windows.Forms.Keys.S)));
             this.saveAllItem.ShowShortcutKeys = false;
-            this.saveAllItem.Size = new System.Drawing.Size(180, 22);
+            this.saveAllItem.Size = new System.Drawing.Size(173, 22);
             this.saveAllItem.Text = "Save All";
+            this.saveAllItem.Click += new System.EventHandler(this.SaveAllItem_Click);
             // 
             // separator2
             // 
             this.separator2.Name = "separator2";
-            this.separator2.Size = new System.Drawing.Size(177, 6);
+            this.separator2.Size = new System.Drawing.Size(170, 6);
             // 
             // refreshItem
             // 
             this.refreshItem.Name = "refreshItem";
             this.refreshItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.R)));
             this.refreshItem.ShowShortcutKeys = false;
-            this.refreshItem.Size = new System.Drawing.Size(180, 22);
+            this.refreshItem.Size = new System.Drawing.Size(173, 22);
             this.refreshItem.Text = "Refresh Files";
+            this.refreshItem.Click += new System.EventHandler(this.RefreshItem_Click);
             // 
             // separator3
             // 
             this.separator3.Name = "separator3";
-            this.separator3.Size = new System.Drawing.Size(177, 6);
+            this.separator3.Size = new System.Drawing.Size(170, 6);
             // 
             // portILItem
             // 
@@ -452,86 +460,94 @@ namespace T7CompilerGUI.Forms
             | System.Windows.Forms.Keys.Shift) 
             | System.Windows.Forms.Keys.O)));
             this.portILItem.ShowShortcutKeys = false;
-            this.portILItem.Size = new System.Drawing.Size(180, 22);
+            this.portILItem.Size = new System.Drawing.Size(173, 22);
             this.portILItem.Text = "Port IL Project";
+            this.portILItem.Click += new System.EventHandler(this.PortILItem_Click);
             // 
             // separator4
             // 
             this.separator4.Name = "separator4";
-            this.separator4.Size = new System.Drawing.Size(177, 6);
+            this.separator4.Size = new System.Drawing.Size(170, 6);
             // 
             // shortcutsItem
             // 
             this.shortcutsItem.Name = "shortcutsItem";
-            this.shortcutsItem.Size = new System.Drawing.Size(180, 22);
+            this.shortcutsItem.Size = new System.Drawing.Size(173, 22);
             this.shortcutsItem.Text = "Shortcuts...";
+            this.shortcutsItem.Click += new System.EventHandler(this.ShortcutsItem_Click);
             // 
             // separator5
             // 
             this.separator5.Name = "separator5";
-            this.separator5.Size = new System.Drawing.Size(177, 6);
+            this.separator5.Size = new System.Drawing.Size(170, 6);
             // 
             // goToLineItem
             // 
             this.goToLineItem.Name = "goToLineItem";
             this.goToLineItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.G)));
             this.goToLineItem.ShowShortcutKeys = false;
-            this.goToLineItem.Size = new System.Drawing.Size(180, 22);
+            this.goToLineItem.Size = new System.Drawing.Size(173, 22);
             this.goToLineItem.Text = "Go to Line...";
+            this.goToLineItem.Click += new System.EventHandler(this.GoToLineItem_Click);
             // 
             // separator6
             // 
             this.separator6.Name = "separator6";
-            this.separator6.Size = new System.Drawing.Size(177, 6);
+            this.separator6.Size = new System.Drawing.Size(170, 6);
             // 
             // forceHostItem
             // 
             this.forceHostItem.Name = "forceHostItem";
-            this.forceHostItem.Size = new System.Drawing.Size(180, 22);
+            this.forceHostItem.Size = new System.Drawing.Size(173, 22);
             this.forceHostItem.Text = "Force Host";
             this.forceHostItem.ToolTipText = "Force Host - Great for setting peoples stats | Click Me Before Finding a public m" +
     "atch";
+            this.forceHostItem.Click += new System.EventHandler(this.ForceHostItem_Click);
             // 
             // resetHostItem
             // 
             this.resetHostItem.Name = "resetHostItem";
-            this.resetHostItem.Size = new System.Drawing.Size(180, 22);
+            this.resetHostItem.Size = new System.Drawing.Size(173, 22);
             this.resetHostItem.Text = "Reset Host Dvars";
             this.resetHostItem.ToolTipText = "Reset Dvars";
+            this.resetHostItem.Click += new System.EventHandler(this.ResetHostItem_Click);
             // 
             // separator7
             // 
             this.separator7.Name = "separator7";
-            this.separator7.Size = new System.Drawing.Size(177, 6);
+            this.separator7.Size = new System.Drawing.Size(170, 6);
             // 
             // updateItem
             // 
             this.updateItem.Name = "updateItem";
-            this.updateItem.Size = new System.Drawing.Size(180, 22);
+            this.updateItem.Size = new System.Drawing.Size(173, 22);
             this.updateItem.Text = "Check For Updates";
             this.updateItem.ToolTipText = "Check For Updates";
+            this.updateItem.Click += new System.EventHandler(this.UpdateItem_Click);
             // 
             // separator8
             // 
             this.separator8.Name = "separator8";
-            this.separator8.Size = new System.Drawing.Size(177, 6);
+            this.separator8.Size = new System.Drawing.Size(170, 6);
             // 
             // aboutItem
             // 
             this.aboutItem.Name = "aboutItem";
-            this.aboutItem.Size = new System.Drawing.Size(180, 22);
+            this.aboutItem.Size = new System.Drawing.Size(173, 22);
             this.aboutItem.Text = "About";
+            this.aboutItem.Click += new System.EventHandler(this.AboutItem_Click);
             // 
             // separator9
             // 
             this.separator9.Name = "separator9";
-            this.separator9.Size = new System.Drawing.Size(177, 6);
+            this.separator9.Size = new System.Drawing.Size(170, 6);
             // 
             // exitItem
             // 
             this.exitItem.Name = "exitItem";
-            this.exitItem.Size = new System.Drawing.Size(180, 22);
+            this.exitItem.Size = new System.Drawing.Size(173, 22);
             this.exitItem.Text = "Exit";
+            this.exitItem.Click += new System.EventHandler(this.ExitItem_Click);
             // 
             // gameMenu
             // 
@@ -546,17 +562,18 @@ namespace T7CompilerGUI.Forms
             // 
             this.t7GameItem.Checked = true;
             this.t7GameItem.CheckOnClick = true;
-            this.t7GameItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.t7GameItem.Name = "t7GameItem";
-            this.t7GameItem.Size = new System.Drawing.Size(180, 22);
+            this.t7GameItem.Size = new System.Drawing.Size(135, 22);
             this.t7GameItem.Text = "Black Ops 3";
+            this.t7GameItem.Click += new System.EventHandler(this.T7GameItem_Click);
             // 
             // t8GameItem
             // 
             this.t8GameItem.CheckOnClick = true;
             this.t8GameItem.Name = "t8GameItem";
-            this.t8GameItem.Size = new System.Drawing.Size(180, 22);
+            this.t8GameItem.Size = new System.Drawing.Size(135, 22);
             this.t8GameItem.Text = "Black Ops 4";
+            this.t8GameItem.Click += new System.EventHandler(this.T8GameItem_Click);
             // 
             // modeMenu
             // 
@@ -572,24 +589,26 @@ namespace T7CompilerGUI.Forms
             // 
             this.campaignModeItem.CheckOnClick = true;
             this.campaignModeItem.Name = "campaignModeItem";
-            this.campaignModeItem.Size = new System.Drawing.Size(180, 22);
+            this.campaignModeItem.Size = new System.Drawing.Size(134, 22);
             this.campaignModeItem.Text = "Campaign";
+            this.campaignModeItem.Click += new System.EventHandler(this.CampaignModeItem_Click);
             // 
             // multiplayerModeItem
             // 
             this.multiplayerModeItem.CheckOnClick = true;
             this.multiplayerModeItem.Name = "multiplayerModeItem";
-            this.multiplayerModeItem.Size = new System.Drawing.Size(180, 22);
+            this.multiplayerModeItem.Size = new System.Drawing.Size(134, 22);
             this.multiplayerModeItem.Text = "Multiplayer";
+            this.multiplayerModeItem.Click += new System.EventHandler(this.MultiplayerModeItem_Click);
             // 
             // zombiesModeItem
             // 
             this.zombiesModeItem.Checked = true;
             this.zombiesModeItem.CheckOnClick = true;
-            this.zombiesModeItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.zombiesModeItem.Name = "zombiesModeItem";
-            this.zombiesModeItem.Size = new System.Drawing.Size(180, 22);
+            this.zombiesModeItem.Size = new System.Drawing.Size(134, 22);
             this.zombiesModeItem.Text = "Zombies";
+            this.zombiesModeItem.Click += new System.EventHandler(this.ZombiesModeItem_Click);
             // 
             // injectPrecompiledMenu
             // 
@@ -603,14 +622,16 @@ namespace T7CompilerGUI.Forms
             // injectBO3Item
             // 
             this.injectBO3Item.Name = "injectBO3Item";
-            this.injectBO3Item.Size = new System.Drawing.Size(180, 22);
+            this.injectBO3Item.Size = new System.Drawing.Size(135, 22);
             this.injectBO3Item.Text = "Black Ops 3";
+            this.injectBO3Item.Click += new System.EventHandler(this.InjectBO3Item_Click);
             // 
             // injectBO4Item
             // 
             this.injectBO4Item.Name = "injectBO4Item";
-            this.injectBO4Item.Size = new System.Drawing.Size(180, 22);
+            this.injectBO4Item.Size = new System.Drawing.Size(135, 22);
             this.injectBO4Item.Text = "Black Ops 4";
+            this.injectBO4Item.Click += new System.EventHandler(this.InjectBO4Item_Click);
             // 
             // processesMenu
             // 
@@ -627,6 +648,7 @@ namespace T7CompilerGUI.Forms
             this.killBO3Item.Size = new System.Drawing.Size(154, 22);
             this.killBO3Item.Text = "Kill Black Ops 3";
             this.killBO3Item.ToolTipText = "Kills Game Process";
+            this.killBO3Item.Click += new System.EventHandler(this.KillBO3Item_Click);
             // 
             // killBO4Item
             // 
@@ -634,6 +656,7 @@ namespace T7CompilerGUI.Forms
             this.killBO4Item.Size = new System.Drawing.Size(154, 22);
             this.killBO4Item.Text = "Kill Black Ops 4";
             this.killBO4Item.ToolTipText = "Kills Game Process";
+            this.killBO4Item.Click += new System.EventHandler(this.KillBO4Item_Click);
             // 
             // statusPanel
             // 
@@ -642,10 +665,10 @@ namespace T7CompilerGUI.Forms
             this.statusPanel.HorizontalScrollbarBarColor = true;
             this.statusPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.statusPanel.HorizontalScrollbarSize = 10;
-            this.statusPanel.Location = new System.Drawing.Point(20, 859);
+            this.statusPanel.Location = new System.Drawing.Point(20, 807);
             this.statusPanel.Name = "statusPanel";
             this.statusPanel.Padding = new System.Windows.Forms.Padding(10, 5, 10, 5);
-            this.statusPanel.Size = new System.Drawing.Size(1168, 22);
+            this.statusPanel.Size = new System.Drawing.Size(1217, 22);
             this.statusPanel.TabIndex = 2;
             this.statusPanel.UseStyleColors = true;
             this.statusPanel.VerticalScrollbarBarColor = true;
@@ -665,19 +688,22 @@ namespace T7CompilerGUI.Forms
             // 
             // CodeEditorForm
             // 
-            this.ClientSize = new System.Drawing.Size(1208, 901);
+            this.ClientSize = new System.Drawing.Size(1257, 849);
             this.Controls.Add(this.mainPanel);
             this.Controls.Add(this.mainMenuStrip);
             this.Controls.Add(this.statusPanel);
+            this.DisplayHeader = false;
             this.KeyPreview = true;
             this.MainMenuStrip = this.mainMenuStrip;
             this.MinimumSize = new System.Drawing.Size(800, 600);
             this.Name = "CodeEditorForm";
+            this.Padding = new System.Windows.Forms.Padding(20, 30, 20, 20);
             this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.AeroShadow;
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Show;
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.StyleManager = this.poisonStyleManager;
             this.Text = "Code Editor";
+            ((System.ComponentModel.ISupportInitialize)(this.poisonStyleManager)).EndInit();
             this.mainPanel.ResumeLayout(false);
             this.editorPanel.ResumeLayout(false);
             this.fileListPanel.ResumeLayout(false);
