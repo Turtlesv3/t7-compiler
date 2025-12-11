@@ -1,0 +1,343 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{1DC7CE8B-F111-4E49-B915-B88E7D64358B}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>t7mpforcehost</RootNamespace>
+    <AssemblyName>t7c_installer</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+    <AppConfig>Properties\Config\App.config</AppConfig>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <Optimize>false</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\t7cinstaller\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\t7cinstaller\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\t7cinstaller\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\t7cinstaller\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>none</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>Properties\Config\app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Design" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="UI\Application\ImportDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Application\ImportDialog.Designer.cs">
+      <DependentUpon>ImportDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Application\MainForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Application\MainForm.Designer.cs">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UI\Core\Controls\CBorderedForm.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CBorderedForm.Designer.cs" />
+    <Compile Include="UI\Core\Controls\CComboBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CComboDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CComboDialog.Designer.cs">
+      <DependentUpon>CComboDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CErrorDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CErrorDialog.Designer.cs">
+      <DependentUpon>CErrorDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CThemedTextbox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CThemedTextbox.Designer.cs">
+      <DependentUpon>CThemedTextbox.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CTitleBar.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\Core\Controls\CTitleBar.Designer.cs" />
+    <Compile Include="UI\Core\Interfaces\IResizableForm.cs" />
+    <Compile Include="UI\Core\Interfaces\IThemeableControl.cs" />
+    <Compile Include="UI\Core\Singletons\UIThemeManager.cs" />
+    <EmbeddedResource Include="UI\Application\ImportDialog.resx">
+      <DependentUpon>ImportDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Application\MainForm.resx">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <EmbeddedResource Include="UI\Core\Controls\CBorderedForm.resx" />
+    <EmbeddedResource Include="UI\Core\Controls\CComboDialog.resx">
+      <DependentUpon>CComboDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Core\Controls\CErrorDialog.resx">
+      <DependentUpon>CErrorDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\Core\Controls\CTitleBar.resx" />
+    <None Include="Properties\Config\app.manifest" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Properties\Config\App.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- Create clean __depot/build folders for distribution -->
+  <!-- Run on all configurations, but can be disabled by setting SkipDepotCreation=true -->
+  <Target Name="CreateDepotFolders" AfterTargets="AfterBuild" Condition="'$(SkipDepotCreation)' != 'true'">
+    <Message Text="Creating __depot folders for distribution..." Importance="high" />
+    <PropertyGroup>
+      <!-- SolutionDir is the directory containing the .sln file, which is Source\ -->
+      <!-- Builds is at the root level (My T7\Builds), Resources is in Source (My T7\Source\Resources) -->
+      <DepotPath>$(SolutionDir)__depot\build</DepotPath>
+      <DepotCompilerPath>$(DepotPath)\t7compiler</DepotCompilerPath>
+      <DepotGuiPath>$(DepotPath)\t7gui</DepotGuiPath>
+      <!-- Builds folder is at root level (same as SolutionDir) -->
+      <BuildsPath>$(SolutionDir)Builds</BuildsPath>
+      <!-- Resources folder is at root level (same as SolutionDir) -->
+      <ResourcesPath>$(SolutionDir)Resources</ResourcesPath>
+    </PropertyGroup>
+    <Message Text="SolutionDir: $(SolutionDir)" Importance="normal" />
+    <Message Text="SolutionDirFullPath: $(_SolutionDirFullPath)" Importance="normal" />
+    <Message Text="BuildsPath: $(BuildsPath)" Importance="normal" />
+    <!-- Create directories first (they may already exist from T7CompilerGUI's CopyToDepot) -->
+    <MakeDir Directories="$(DepotPath)" />
+    <MakeDir Directories="$(DepotCompilerPath)" />
+    <MakeDir Directories="$(DepotGuiPath)" />
+    <!-- Only clean specific subfolders, not the entire depot (T7CompilerGUI may have already copied files) -->
+    <!-- Clean compiler folder only (GUI folder should be preserved if T7CompilerGUI already copied to it) -->
+    <Message Text="Cleaning up depot compiler folder (skipping if files are locked)..." Importance="normal" />
+    <ItemGroup Condition="Exists('$(DepotCompilerPath)')">
+      <CompilerFilesToDelete Include="$(DepotCompilerPath)\**\*" />
+    </ItemGroup>
+    <Delete Files="@(CompilerFilesToDelete)" ContinueOnError="true" Condition="Exists('$(DepotCompilerPath)')" />
+    <RemoveDir Directories="$(DepotCompilerPath)" ContinueOnError="true" Condition="Exists('$(DepotCompilerPath)')" />
+    <MakeDir Directories="$(DepotCompilerPath)" />
+    <!-- Create clean GUI folder - respect build configuration -->
+    <!-- First check if GUI was already copied to __depot by T7CompilerGUI's CopyToDepot target -->
+    <PropertyGroup>
+      <DepotGuiCheckPath>$(DepotGuiPath)</DepotGuiCheckPath>
+    </PropertyGroup>
+    <Message Text="Checking for GUI in __depot first: $(DepotGuiCheckPath)" Importance="normal" />
+    <PropertyGroup Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe')">
+      <!-- Not in depot, check Builds folder - try current configuration first (without x64) -->
+      <GuiSourcePath>$([System.IO.Path]::Combine($(BuildsPath), 'T7CompilerGUI', '$(Configuration)'))</GuiSourcePath>
+    </PropertyGroup>
+    <Message Text="Trying GUI path (current config): $(GuiSourcePath)" Importance="normal" Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe')" />
+    <PropertyGroup Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe') AND !Exists('$(GuiSourcePath)')">
+      <!-- Try x64 subfolder for current config -->
+      <GuiSourcePath>$([System.IO.Path]::Combine($(BuildsPath), 'T7CompilerGUI', 'x64', '$(Configuration)'))</GuiSourcePath>
+    </PropertyGroup>
+    <Message Text="Trying GUI path (x64 current config): $(GuiSourcePath)" Importance="normal" Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe') AND !Exists('$(GuiSourcePath)')" />
+    <PropertyGroup Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe') AND !Exists('$(GuiSourcePath)')">
+      <!-- Fallback: try Release if current config doesn't exist -->
+      <GuiSourcePath Condition="'$(Configuration)' != 'Release'">$([System.IO.Path]::Combine($(BuildsPath), 'T7CompilerGUI', 'Release'))</GuiSourcePath>
+    </PropertyGroup>
+    <Message Text="Trying GUI path (Release fallback): $(GuiSourcePath)" Importance="normal" Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe') AND !Exists('$(GuiSourcePath)') AND '$(Configuration)' != 'Release'" />
+    <PropertyGroup Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe') AND !Exists('$(GuiSourcePath)')">
+      <!-- Last resort: try x64 Release -->
+      <GuiSourcePath Condition="'$(Configuration)' != 'Release'">$([System.IO.Path]::Combine($(BuildsPath), 'T7CompilerGUI', 'x64', 'Release'))</GuiSourcePath>
+    </PropertyGroup>
+    <Message Text="Trying GUI path (x64 Release fallback): $(GuiSourcePath)" Importance="normal" Condition="!Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe') AND !Exists('$(GuiSourcePath)') AND '$(Configuration)' != 'Release'" />
+    <!-- Use depot if GUI is already there, otherwise use Builds folder -->
+    <PropertyGroup Condition="Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe')">
+      <GuiSourcePath>$(DepotGuiCheckPath)</GuiSourcePath>
+    </PropertyGroup>
+    <Message Text="GUI already in depot, using: $(GuiSourcePath)" Importance="normal" Condition="Exists('$(DepotGuiCheckPath)\T7CompilerGUI.exe')" />
+    <Message Text="Final GUI source path: $(GuiSourcePath)" Importance="high" />
+    <Message Text="ERROR: GUI source path does not exist: $(GuiSourcePath). GUI files will not be copied!" Importance="high" Condition="!Exists('$(GuiSourcePath)')" />
+    <ItemGroup Condition="Exists('$(GuiSourcePath)')">
+      <GuiFilesToCopy Include="$(GuiSourcePath)\*.exe" />
+      <!-- DLLs are embedded with Costura, so we don't copy them -->
+      <!-- Copy database files - required for compilation -->
+      <GuiFilesToCopy Include="$(GuiSourcePath)\*.db" />
+      <GuiFilesToCopy Include="$(GuiSourcePath)\*.db2" />
+      <GuiFilesToCopy Remove="$(GuiSourcePath)\*.xml" />
+      <GuiFilesToCopy Remove="$(GuiSourcePath)\*.pdb" />
+      <GuiFilesToCopy Remove="$(GuiSourcePath)\*.dll.config" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GuiFilesToCopy)" DestinationFolder="$(DepotGuiPath)" SkipUnchangedFiles="true" Condition="Exists('$(GuiSourcePath)')" />
+    <!-- GSC.xshd is now embedded in the executable, no need to copy it separately -->
+    <!-- Always copy database files from Resources to GUI output -->
+    <Message Text="ResourcesPath: $(ResourcesPath)" Importance="normal" />
+    <Message Text="Checking for database files in $(ResourcesPath)..." Importance="normal" />
+    <ItemGroup>
+      <GuiDatabaseFilesToCopy Include="$(ResourcesPath)\T7PCV2.db" Condition="Exists('$(ResourcesPath)\T7PCV2.db')" />
+      <GuiDatabaseFilesToCopy Include="$(ResourcesPath)\T7PS4V2.db" Condition="Exists('$(ResourcesPath)\T7PS4V2.db')" />
+      <GuiDatabaseFilesToCopy Include="$(ResourcesPath)\vm_codes.db2" Condition="Exists('$(ResourcesPath)\vm_codes.db2')" />
+    </ItemGroup>
+    <Message Text="Found @(GuiDatabaseFilesToCopy->Count()) database files to copy to GUI" Importance="normal" />
+    <Message Text="Database files: @(GuiDatabaseFilesToCopy)" Importance="normal" Condition="'@(GuiDatabaseFilesToCopy)' != ''" />
+    <Message Text="WARNING: No database files found in $(ResourcesPath)" Importance="high" Condition="'@(GuiDatabaseFilesToCopy)' == ''" />
+    <Copy SourceFiles="@(GuiDatabaseFilesToCopy)" DestinationFolder="$(DepotGuiPath)" SkipUnchangedFiles="true" Condition="'@(GuiDatabaseFilesToCopy)' != ''" />
+    <!-- Create clean compiler folder - respect build configuration -->
+    <PropertyGroup>
+      <CompilerSourcePath>$([System.IO.Path]::Combine($(BuildsPath), 'DebugCompiler', '$(Configuration)'))</CompilerSourcePath>
+    </PropertyGroup>
+    <PropertyGroup Condition="!Exists('$(CompilerSourcePath)')">
+      <!-- Fallback: try Release if current config doesn't exist -->
+      <CompilerSourcePath Condition="'$(Configuration)' != 'Release'">$([System.IO.Path]::Combine($(BuildsPath), 'DebugCompiler', 'Release'))</CompilerSourcePath>
+    </PropertyGroup>
+    <PropertyGroup Condition="!Exists('$(CompilerSourcePath)')">
+      <!-- Last resort: try Debug -->
+      <CompilerSourcePath Condition="'$(Configuration)' != 'Debug'">$([System.IO.Path]::Combine($(BuildsPath), 'DebugCompiler', 'Debug'))</CompilerSourcePath>
+    </PropertyGroup>
+    <!-- Copy compiler files if source exists -->
+    <Message Text="Checking for compiler source path: $(CompilerSourcePath)" Importance="normal" />
+    <ItemGroup Condition="Exists('$(CompilerSourcePath)')">
+      <CompilerFilesToCopy Include="$(CompilerSourcePath)\*.exe" />
+      <!-- DLLs are embedded with Costura, so we don't copy them -->
+      <!-- Copy database files - required for compilation -->
+      <CompilerFilesToCopy Include="$(CompilerSourcePath)\*.db" />
+      <CompilerFilesToCopy Include="$(CompilerSourcePath)\*.db2" />
+      <CompilerFilesToCopy Remove="$(CompilerSourcePath)\*.xml" />
+      <CompilerFilesToCopy Remove="$(CompilerSourcePath)\*.pdb" />
+      <CompilerFilesToCopy Remove="$(CompilerSourcePath)\*.dll.config" />
+    </ItemGroup>
+    <Message Text="Copying compiler files from $(CompilerSourcePath) to $(DepotCompilerPath) - Found @(CompilerFilesToCopy->Count()) files" Condition="Exists('$(CompilerSourcePath)')" Importance="normal" />
+    <Message Text="ERROR: Compiler source path does not exist: $(CompilerSourcePath). t7compiler folder will be empty!" Condition="!Exists('$(CompilerSourcePath)')" Importance="high" />
+    <Copy SourceFiles="@(CompilerFilesToCopy)" DestinationFolder="$(DepotCompilerPath)" SkipUnchangedFiles="true" Condition="Exists('$(CompilerSourcePath)') and '@(CompilerFilesToCopy)' != ''" />
+    <!-- Always copy database files from Resources to compiler output -->
+    <Message Text="Checking for database files in $(ResourcesPath)..." Importance="normal" />
+    <ItemGroup>
+      <DatabaseFilesToCopy Include="$(ResourcesPath)\T7PCV2.db" Condition="Exists('$(ResourcesPath)\T7PCV2.db')" />
+      <DatabaseFilesToCopy Include="$(ResourcesPath)\T7PS4V2.db" Condition="Exists('$(ResourcesPath)\T7PS4V2.db')" />
+    </ItemGroup>
+    <Message Text="Found @(DatabaseFilesToCopy->Count()) database files to copy to compiler" Importance="normal" />
+    <Message Text="Database files: @(DatabaseFilesToCopy)" Importance="normal" Condition="'@(DatabaseFilesToCopy)' != ''" />
+    <Message Text="WARNING: No database files found in $(ResourcesPath)" Importance="high" Condition="'@(DatabaseFilesToCopy)' == ''" />
+    <Copy SourceFiles="@(DatabaseFilesToCopy)" DestinationFolder="$(DepotCompilerPath)" SkipUnchangedFiles="true" Condition="'@(DatabaseFilesToCopy)' != ''" />
+    <!-- Verify files were copied -->
+    <ItemGroup>
+      <CompilerCopiedFiles Include="$(DepotCompilerPath)\*" />
+    </ItemGroup>
+    <Message Text="Compiler installation complete: @(CompilerCopiedFiles->Count()) files in $(DepotCompilerPath)" Importance="normal" />
+    <!-- Internal DLLs are now embedded with Costura, so we don't copy them separately -->
+    <!-- Create update.zip package using MSBuild ZipDirectory task (available in .NET SDK) -->
+    <PropertyGroup>
+      <UpdateZipPath>$(DepotPath)\..\update.zip</UpdateZipPath>
+    </PropertyGroup>
+    <!-- Delete existing zip if it exists (with error handling) -->
+    <Delete Files="$(UpdateZipPath)" Condition="Exists('$(UpdateZipPath)')" ContinueOnError="true" />
+    <!-- Note: defaultproject is created by the code editor at runtime in the exe directory, so it doesn't need to be copied here -->
+    <PropertyGroup>
+      <DefaultMenuPath>$([System.IO.Path]::Combine($(ResourcesPath), 'Default Menu'))</DefaultMenuPath>
+    </PropertyGroup>
+    <!-- Copy Default Menu folder into __depot/build/Default Menu -->
+    <Message Text="Checking for Default Menu at: $(DefaultMenuPath)" Importance="normal" />
+    <ItemGroup Condition="Exists('$(DefaultMenuPath)')">
+      <DefaultMenuFiles Include="$(DefaultMenuPath)\**\*" />
+    </ItemGroup>
+    <Message Text="Found @(DefaultMenuFiles->Count()) files in Default Menu" Importance="normal" Condition="Exists('$(DefaultMenuPath)')" />
+    <Message Text="WARNING: Default Menu folder not found at $(DefaultMenuPath)" Importance="high" Condition="!Exists('$(DefaultMenuPath)')" />
+    <Message Text="Copying Default Menu files to $(DepotPath)\Default Menu" Importance="normal" Condition="Exists('$(DefaultMenuPath)') and '@(DefaultMenuFiles)' != ''" />
+    <Copy SourceFiles="@(DefaultMenuFiles)" DestinationFolder="$(DepotPath)\Default Menu\%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(DefaultMenuPath)') and '@(DefaultMenuFiles)' != ''" />
+    <!-- Copy Default Menu.rar into __depot/build/ -->
+    <PropertyGroup>
+      <_DefaultMenuRarPath>$([System.IO.Path]::Combine($(ResourcesPath), 'Default Menu.rar'))</_DefaultMenuRarPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <DefaultMenuRar Include="$(_DefaultMenuRarPath)" Condition="Exists('$(_DefaultMenuRarPath)')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DefaultMenuRar)" DestinationFolder="$(DepotPath)" SkipUnchangedFiles="true" />
+    <!-- Copy VSIX files into __depot/build/ -->
+    <ItemGroup>
+      <VsixFiles Include="$(ResourcesPath)\*.vsix" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VsixFiles)" DestinationFolder="$(DepotPath)" SkipUnchangedFiles="true" />
+    <!-- Copy installer to __depot/ -->
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DepotPath)\.." SkipUnchangedFiles="true" />
+    <!-- Verify folders exist and have files before creating zip -->
+    <Message Text="Verifying folders before creating zip..." Importance="normal" />
+    <ItemGroup>
+      <T7CompilerFiles Include="$(DepotCompilerPath)\*" />
+      <T7GuiFiles Include="$(DepotGuiPath)\*" />
+      <DefaultMenuFiles Include="$(DepotPath)\Default Menu\**\*" />
+    </ItemGroup>
+    <Message Text="t7compiler has @(T7CompilerFiles->Count()) files" Importance="normal" />
+    <Message Text="t7gui has @(T7GuiFiles->Count()) files" Importance="normal" />
+    <Message Text="Default Menu has @(DefaultMenuFiles->Count()) files" Importance="normal" />
+    <!-- Create ZIP file from __depot/build folder using PowerShell -->
+    <!-- Include all files and folders, including Default Menu -->
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$depotPath = '$(DepotPath)'; $zipPath = '$(UpdateZipPath)'; if (-not (Test-Path $depotPath)) { Write-Error 'Depot path does not exist: ' + $depotPath; exit 1 }; Start-Sleep -Milliseconds 500; $ErrorActionPreference = 'Stop'; try { if (Test-Path $zipPath) { Remove-Item $zipPath -Force -ErrorAction SilentlyContinue }; $parentDir = Split-Path $zipPath -Parent; if (-not (Test-Path $parentDir)) { New-Item -ItemType Directory -Path $parentDir -Force | Out-Null }; Compress-Archive -Path (Join-Path $depotPath '*') -DestinationPath $zipPath -Force -CompressionLevel Optimal; Write-Host 'Created update.zip at ' + $zipPath } catch { $errorMsg = $_.ToString(); Write-Error ('Failed to create update.zip: ' + $errorMsg); exit 1 }&quot;" Condition="Exists('$(DepotPath)')" IgnoreExitCode="false" />
+  </Target>
+</Project>

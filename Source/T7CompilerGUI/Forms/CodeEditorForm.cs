@@ -1,0 +1,5427 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
+using System.Xml.Linq;
+using ReaLTaiizor.Forms;
+using ReaLTaiizor.Controls;
+using ReaLTaiizor.Enum.Poison;
+using ReaLTaiizor.Manager;
+using T7CompilerGUI.Helpers;
+using T7CompilerGUI.Games;
+using T7CompilerGUI.Controls;
+using T7CompilerGUI.Actions;
+using T7CompilerGUI.Forms.Dialogs;
+using static T7CompilerGUI.Helpers.ModernFolderDialog;
+using TreyarchCompiler;
+using TreyarchCompiler.Enums;
+using System.Diagnostics;
+using System.Threading;
+
+namespace T7CompilerGUI.Forms
+{
+    public partial class CodeEditorForm : PoisonForm
+    {
+        #region Fields and Properties
+        
+        private PoisonStyleManager styleManager;
+        private string projectPath = string.Empty;
+        private bool folderOpened = false;
+        private bool hasChanges = false;
+        private bool isLoadingFiles = false; // Flag to prevent hasChanges during file loading
+        private string selectedTabItem = string.Empty;
+        private string currentFileName = string.Empty;
+        private TreyarchCompiler.Enums.Games currentGame = TreyarchCompiler.Enums.Games.T7;
+        private string currentGameModeStr = "ZM"; // Default to ZM like original
+            private string executingDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+        
+        // Tab scrolling debounce
+        private DateTime lastTabScrollTime = DateTime.MinValue;
+        private const int TabScrollThrottleMs = 50; // Minimum milliseconds between tab changes
+        
+        /// <summary>
+        /// Gets the GUI installation path. Checks T7GUI_PATH environment variable first, then uses the executable directory
+        /// </summary>
+        private string GetGuiPath()
+        {
+            string envPath = Environment.GetEnvironmentVariable("T7GUI_PATH");
+            if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
+            {
+                return envPath;
+            }
+            // Default to executable directory
+            return executingDir;
+        }
+        
+        private string GetResourcesPath()
+        {
+            // First, check in the executable directory (for installed/built versions)
+            // Resources folder is copied to t7gui\Resources during build
+            string resourcesPath = Path.Combine(executingDir, "Resources");
+            if (Directory.Exists(resourcesPath))
+            {
+                return resourcesPath;
+            }
+            
+            // Try to find Resources folder relative to solution directory (for development)
+            // Solution is typically at: My T7\TreyarchCompiler.sln
+            // Resources is at: My T7\Resources
+            string currentDir = executingDir;
+            for (int i = 0; i < 5; i++) // Limit search depth
+            {
+                resourcesPath = Path.Combine(currentDir, "Resources");
+                if (Directory.Exists(resourcesPath))
+                {
+                    return resourcesPath;
+                }
+                
+                // Check parent directory
+                string parentDir = Path.GetDirectoryName(currentDir);
+                if (string.IsNullOrEmpty(parentDir) || parentDir == currentDir)
+                    break;
+                currentDir = parentDir;
+            }
+            
+            // Fallback: return executable directory (will create Resources there if needed)
+            return Path.Combine(executingDir, "Resources");
+        }
+
+        /// <summary>
+        /// Gets the path to the Defaults folder containing template files
+        /// </summary>
+        private string GetDefaultsPath()
+        {
+            // First, try in the executable directory (for installed/built versions)
+            string defaultsPath = Path.Combine(executingDir, "Defaults");
+            if (Directory.Exists(defaultsPath))
+            {
+                return defaultsPath;
+            }
+            
+            // Try to find Defaults folder relative to solution directory
+            // Defaults is at: Source\T7CompilerGUI\Defaults
+            string currentDir = executingDir;
+            for (int i = 0; i < 5; i++) // Limit search depth
+            {
+                // Check if we're in a build folder (bin\Debug, bin\Release, etc.)
+                if (currentDir.Contains("bin") || currentDir.Contains("Builds"))
+                {
+                    // Go up to find Source folder
+                    string sourcePath = Path.Combine(currentDir, "..", "..", "Source", "T7CompilerGUI", "Defaults");
+                    sourcePath = Path.GetFullPath(sourcePath);
+                    if (Directory.Exists(sourcePath))
+                    {
+                        return sourcePath;
+                    }
+                }
+                
+                // Check current directory
+                defaultsPath = Path.Combine(currentDir, "Defaults");
+                if (Directory.Exists(defaultsPath))
+                {
+                    return defaultsPath;
+                }
+                
+                // Check Source\T7CompilerGUI\Defaults
+                defaultsPath = Path.Combine(currentDir, "Source", "T7CompilerGUI", "Defaults");
+                if (Directory.Exists(defaultsPath))
+                {
+                    return defaultsPath;
+                }
+                
+                // Check parent directory
+                string parentDir = Path.GetDirectoryName(currentDir);
+                if (string.IsNullOrEmpty(parentDir) || parentDir == currentDir)
+                    break;
+                currentDir = parentDir;
+            }
+            
+            // Fallback: try relative to executable
+            return Path.Combine(executingDir, "Defaults");
+        }
+        
+        // Timers
+        private System.Windows.Forms.Timer themeCheckTimer;
+        private System.Windows.Forms.Timer tabUpdateTimer;
+        
+        // File Watcher
+        private FileSystemWatcher fileWatcher;
+        
+        // Editor Management
+        private Dictionary<string, AvalonEditWrapper> openEditors = new Dictionary<string, AvalonEditWrapper>();
+        private Dictionary<string, ReaLTaiizor.Controls.PoisonTabPage> editorTabs = new Dictionary<string, ReaLTaiizor.Controls.PoisonTabPage>();
+        private Dictionary<string, string> fileContents = new Dictionary<string, string>();
+        
+        // Hash Checker
+        private Dictionary<string, string> hashToFunctionMap = new Dictionary<string, string>(); // Hash -> Function name
+        
+        // Keyboard Shortcuts
+        private Dictionary<string, Dialogs.KeybindDialog.KeybindInfo> codeEditorKeybinds = null;
+        
+        // UI Controls and menu items (declared in Designer.cs)
+        
+        #endregion
+
+        #region Constructor and Initialization
+        
+        public CodeEditorForm(PoisonStyleManager styleManager)
+        {
+            this.styleManager = styleManager;
+            InitializeComponent();
+            
+            // Load GSC syntax data from GSC.xshd early (before SetupControls)
+            LoadGscSyntaxData();
+            
+            SetupControls();
+            SetupKeyboardShortcuts();
+            SetupTimers();
+            SetupDiscordRichPresence();
+            SetupFileWatcher();
+            SetupThemeChangeHandling();
+            // Initialize code editor keybinds
+            codeEditorKeybinds = GetDefaultCodeEditorKeybinds();
+            
+            // Check if compiler is installed, if not install it
+            if (!CompilerActions.IsCompilerInstalled())
+            {
+                CompilerActions.InstallCompiler(@"https://gsc.dev/t7c_package");
+            }
+            
+            // Create and open default project on startup
+            CreateDefaultProjectOnStartup();
+        }
+
+        private void SetupThemeChangeHandling()
+        {
+            if (styleManager == null) return;
+            
+            // Create a timer to periodically check for theme/style changes
+            themeCheckTimer = new System.Windows.Forms.Timer
+            {
+                Interval = 100 // Check every 100ms
+            };
+            
+            ThemeStyle lastTheme = styleManager.Theme;
+            ColorStyle lastStyle = styleManager.Style;
+            
+            themeCheckTimer.Tick += (s, e) => {
+                // Check if form is disposed or disposing
+                if (this.IsDisposed || this.Disposing || styleManager == null)
+                {
+                    if (themeCheckTimer != null)
+                    {
+                        themeCheckTimer.Stop();
+                        themeCheckTimer.Dispose();
+                        themeCheckTimer = null;
+                    }
+                    return;
+                }
+                
+                // Check if theme or style has changed
+                if (styleManager.Theme != lastTheme || styleManager.Style != lastStyle)
+                {
+                    lastTheme = styleManager.Theme;
+                    lastStyle = styleManager.Style;
+                    
+                    // Update theme and style on UI thread
+                    if (this.InvokeRequired)
+                    {
+                        try
+                        {
+                            // Check if form handle is valid before invoking
+                            if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                            {
+                                this.BeginInvoke(new Action(() => {
+                                    if (!this.IsDisposed && !this.Disposing)
+                                    {
+                                        UpdateThemeAndStyle();
+                                    }
+                                }));
+                            }
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // Form is disposed, stop timer
+                            if (themeCheckTimer != null)
+                            {
+                                themeCheckTimer.Stop();
+                                themeCheckTimer.Dispose();
+                                themeCheckTimer = null;
+                            }
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Handle is invalid or form is being disposed
+                            if (themeCheckTimer != null)
+                            {
+                                themeCheckTimer.Stop();
+                                themeCheckTimer.Dispose();
+                                themeCheckTimer = null;
+                            }
+                        }
+                        catch (ArgumentException)
+                        {
+                            // Handle is invalid
+                            if (themeCheckTimer != null)
+                            {
+                                themeCheckTimer.Stop();
+                                themeCheckTimer.Dispose();
+                                themeCheckTimer = null;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (!this.IsDisposed && !this.Disposing)
+                        {
+                            UpdateThemeAndStyle();
+                        }
+                    }
+                }
+            };
+            
+            themeCheckTimer.Start();
+            
+            // Also update on form activation
+            this.Activated += (s, e) => {
+            if (styleManager != null)
+            {
+                    UpdateThemeAndStyle();
+                }
+            };
+        }
+        
+        /// <summary>
+        /// Public method to update theme and style - can be called from outside when theme/style changes
+        /// </summary>
+        public void UpdateThemeAndStyle()
+        {
+            // Check if form is disposed or disposing
+            if (this.IsDisposed || this.Disposing || styleManager == null) return;
+            
+            try
+            {
+                // Update form background
+                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+            
+            // Update menu strip
+            if (mainMenuStrip != null)
+            {
+                mainMenuStrip.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                mainMenuStrip.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                mainMenuStrip.Renderer = new PoisonMenuStripRenderer(styleManager);
+                mainMenuStrip.Invalidate();
+            }
+            
+            // Update all panels
+            ApplyPoisonThemeToControls();
+            
+            // Update panel scrollbars to match theme
+            UpdatePanelScrollbars();
+            
+            // Update project label
+            if (lblProjectPath != null)
+            {
+                lblProjectPath.StyleManager = styleManager;
+                lblProjectPath.UseStyleColors = true;
+                lblProjectPath.Invalidate();
+            }
+            
+            // Update compile button
+            if (btnCompile != null)
+            {
+                btnCompile.StyleManager = styleManager;
+                btnCompile.UseStyleColors = true;
+                btnCompile.Invalidate();
+            }
+            
+            // Update hash checker controls
+            if (lblHashChecker != null)
+            {
+                lblHashChecker.StyleManager = styleManager;
+                lblHashChecker.UseStyleColors = true;
+                lblHashChecker.Invalidate();
+            }
+            
+            // Update status panel
+            if (statusPanel != null)
+            {
+                statusPanel.StyleManager = styleManager;
+                statusPanel.UseStyleColors = true;
+                statusPanel.Invalidate();
+            }
+            
+            if (statusLabel != null)
+            {
+                statusLabel.StyleManager = styleManager;
+                statusLabel.UseStyleColors = true;
+                statusLabel.Invalidate();
+            }
+            
+            if (txtHashInput != null)
+            {
+                txtHashInput.StyleManager = styleManager;
+                txtHashInput.UseStyleColors = true;
+                txtHashInput.Invalidate();
+            }
+            
+            if (btnHashCheck != null)
+            {
+                btnHashCheck.StyleManager = styleManager;
+                btnHashCheck.UseStyleColors = true;
+                btnHashCheck.Invalidate();
+            }
+            
+            // Update tab control and all tab pages
+            if (tabControl != null)
+            {
+                tabControl.StyleManager = styleManager;
+                tabControl.UseStyleColors = true;
+                
+                // Update all tab pages
+                foreach (ReaLTaiizor.Controls.PoisonTabPage tabPage in tabControl.TabPages)
+                {
+                    if (tabPage != null)
+                    {
+                        tabPage.StyleManager = styleManager;
+                        tabPage.UseStyleColors = true;
+                        tabPage.Invalidate();
+                    }
+                }
+                
+                tabControl.Invalidate();
+            }
+            
+            // Update file buttons panel background
+            if (fileButtonsPanel != null)
+            {
+                fileButtonsPanel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+            }
+            
+            // Update all open code editors
+            UpdateAllEditorsTheme();
+            
+            // Update all file buttons
+            UpdateAllFileButtonsTheme();
+            
+            // Force StyleManager to update all connected controls
+            styleManager.Update();
+            
+                // Force refresh of entire form
+                this.Invalidate(true);
+                this.Update();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Form is disposed, ignore
+            }
+            catch (InvalidOperationException)
+            {
+                // Form is being disposed, ignore
+            }
+        }
+        
+        private void UpdateAllEditorsTheme()
+        {
+            if (styleManager == null) return;
+            
+            // Update StyleManager on all open editors - this will trigger ApplyPoisonTheme() in each editor
+            foreach (var editor in openEditors.Values)
+            {
+                if (editor != null)
+                {
+                    // Setting StyleManager will automatically apply Poison theme colors
+                    editor.StyleManager = styleManager;
+                    
+                    // Force full editor refresh to ensure theme is applied
+                    editor.Invalidate();
+                    editor.Update();
+                    editor.Refresh();
+                }
+            }
+        }
+        
+        private void UpdateAllFileButtonsTheme()
+        {
+            if (styleManager == null) return;
+            
+            // Update all file buttons in the file list panel
+            foreach (Control control in fileButtonsPanel.Controls)
+            {
+                if (control is PoisonPanel buttonContainer)
+                {
+                    // Update container panel
+                    buttonContainer.StyleManager = styleManager;
+                    buttonContainer.UseStyleColors = true;
+                    
+                    // Update file button and close button
+                    foreach (Control child in buttonContainer.Controls)
+                    {
+                        if (child is PoisonButton btn)
+                        {
+                            btn.StyleManager = styleManager;
+                            btn.UseStyleColors = true;
+                            btn.Invalidate();
+                        }
+                    }
+                    
+                    buttonContainer.Invalidate();
+                }
+            }
+        }
+        
+        private void UpdatePanelScrollbars()
+        {
+            if (styleManager == null) return;
+            
+            // Update all PoisonPanel scrollbars to match theme
+            UpdatePanelScrollbarTheme(mainPanel);
+            UpdatePanelScrollbarTheme(editorPanel);
+            UpdatePanelScrollbarTheme(fileListPanel);
+            UpdatePanelScrollbarTheme(buttonPanel);
+        }
+        
+        private void UpdatePanelScrollbarTheme(ReaLTaiizor.Controls.PoisonPanel panel)
+        {
+            if (panel == null) return;
+            
+            // Ensure panel has StyleManager
+            panel.StyleManager = styleManager;
+            panel.UseStyleColors = true;
+            
+            // Force scrollbar refresh by invalidating
+            panel.Invalidate();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            // Theme is already applied in SetupControls() called from constructor
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            
+            // Refresh form to ensure proper rendering
+            this.Refresh();
+            
+            // Update theme on show to catch any changes
+            if (styleManager != null)
+            {
+                UpdateThemeAndStyle();
+            }
+        }
+        
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            
+            // Update theme when form is activated to catch changes made in other forms
+            // This is handled by SetupThemeChangeHandling() timer, but we also update here for immediate feedback
+            if (styleManager != null)
+            {
+                UpdateThemeAndStyle();
+            }
+        }
+
+        // InitializeComponent is now in CodeEditorForm.Designer.cs
+
+        private void SetupControls()
+        {
+            // Set Poison form properties (StyleManager and theme-dependent properties set at runtime)
+            // Form properties (PoisonBorderStyle, ShadowType) are now set in Designer
+            if (styleManager != null)
+            {
+                this.StyleManager = styleManager;
+                
+                // Ensure form uses Poison styling properly
+                // PoisonForm already sets FormBorderStyle.None in constructor, but ensure it's set
+                this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+                
+                // Ensure DisplayHeader is false since we have our own menu strip
+                // This affects the top padding (30px instead of 60px)
+                this.DisplayHeader = false;
+                
+                // Apply theme to form
+                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                
+                // Apply theme to menu strip with custom renderer
+                if (mainMenuStrip != null)
+                {
+                    mainMenuStrip.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    mainMenuStrip.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                    mainMenuStrip.Renderer = new PoisonMenuStripRenderer(styleManager);
+                }
+            }
+            
+            // Setup main menu (menu items created at runtime due to dynamic behavior)
+            SetupMainMenu();
+
+            SetupGameMenu();
+            SetupGameModeMenu();
+            
+            // Apply Poison theme to all controls
+            ApplyPoisonThemeToControls();
+            
+            PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
+        }
+        
+        private void ApplyPoisonThemeToControls()
+        {
+            if (styleManager == null) return;
+            
+            // Apply theme to panels
+            if (mainPanel != null)
+            {
+                mainPanel.StyleManager = styleManager;
+                mainPanel.UseStyleColors = true;
+            }
+            
+            if (fileListPanel != null)
+            {
+                fileListPanel.StyleManager = styleManager;
+                fileListPanel.UseStyleColors = true;
+            }
+            
+            if (editorPanel != null)
+            {
+                editorPanel.StyleManager = styleManager;
+                editorPanel.UseStyleColors = true;
+            }
+            
+            if (buttonPanel != null)
+            {
+                buttonPanel.StyleManager = styleManager;
+                buttonPanel.UseStyleColors = true;
+            }
+            
+            // Apply theme to buttons
+            if (btnCompile != null)
+            {
+                btnCompile.StyleManager = styleManager;
+                btnCompile.UseStyleColors = true;
+            }
+            
+            if (btnHashCheck != null)
+            {
+                btnHashCheck.StyleManager = styleManager;
+                btnHashCheck.UseStyleColors = true;
+            }
+            
+            if (btnOpenFolder != null)
+            {
+                btnOpenFolder.StyleManager = styleManager;
+                btnOpenFolder.UseStyleColors = true;
+            }
+            
+            if (btnRecentProjects != null)
+            {
+                btnRecentProjects.StyleManager = styleManager;
+                btnRecentProjects.UseStyleColors = true;
+            }
+            
+            // Apply theme to labels
+            if (lblProjectPath != null)
+            {
+                lblProjectPath.StyleManager = styleManager;
+                lblProjectPath.UseStyleColors = true;
+            }
+            
+            if (lblHashChecker != null)
+            {
+                lblHashChecker.StyleManager = styleManager;
+                lblHashChecker.UseStyleColors = true;
+            }
+            
+            // Apply theme to textboxes
+            if (txtHashInput != null)
+            {
+                txtHashInput.StyleManager = styleManager;
+                txtHashInput.UseStyleColors = true;
+            }
+            
+            // Apply theme to tab control
+            if (tabControl != null)
+            {
+                tabControl.StyleManager = styleManager;
+                tabControl.UseStyleColors = true;
+            }
+            
+            // Apply theme to file buttons panel
+            if (fileButtonsPanel != null)
+            {
+                // FlowLayoutPanel doesn't have StyleManager, so set background color directly
+                fileButtonsPanel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+            }
+            
+            // Apply theme to status panel (Poison control)
+            if (statusPanel != null)
+            {
+                statusPanel.StyleManager = styleManager;
+                statusPanel.UseStyleColors = true;
+            }
+            
+            if (statusLabel != null)
+            {
+                statusLabel.StyleManager = styleManager;
+                statusLabel.UseStyleColors = true;
+            }
+        }
+
+        private void SetupTimers()
+        {
+            // Auto-save timer DISABLED - files should only save when user explicitly saves
+            // The original had auto-save, but we want manual save only
+            // autoSaveTimer = new System.Windows.Forms.Timer();
+            // autoSaveTimer.Interval = 200;
+            // autoSaveTimer.Tick += (s, e) => ForceSave();
+            // autoSaveTimer.Start();
+
+            // Tab update timer (100ms like original)
+            tabUpdateTimer = new System.Windows.Forms.Timer();
+            tabUpdateTimer.Interval = 100;
+            tabUpdateTimer.Tick += (s, e) => UpdateSelectedTabItem();
+            tabUpdateTimer.Start();
+
+            // Discord presence update timer DISABLED - not needed for this project
+            // discordUpdateTimer = new System.Windows.Forms.Timer();
+            // discordUpdateTimer.Interval = 200;
+            // discordUpdateTimer.Tick += (s, e) => UpdateDiscordPresence();
+            // discordUpdateTimer.Start();
+        }
+
+        private void SetupDiscordRichPresence()
+        {
+            // Discord Rich Presence disabled - not needed for this project
+            // If you want to enable it, uncomment the code below
+            /*
+            try
+            {
+                discordClient = new DiscordRpcClient(DISCORD_CLIENT_ID);
+                discordClient.Initialize();
+            }
+            catch
+            {
+                // Discord not available, continue without it
+            }
+            */
+        }
+
+        private void SetupFileWatcher()
+        {
+            fileWatcher = new FileSystemWatcher();
+            fileWatcher.Changed += FileWatcher_Changed;
+            fileWatcher.Created += FileWatcher_Created;
+            fileWatcher.Deleted += FileWatcher_Deleted;
+            fileWatcher.Renamed += FileWatcher_Renamed;
+            fileWatcher.EnableRaisingEvents = false;
+        }
+
+        #endregion
+
+        #region Menu Setup
+
+        private void SetupMainMenu()
+        {
+            // Menu items are now created in Designer - just wire up event handlers
+            
+            // File menu event handlers
+            newProjectItem.Click += (s, e) => BtnNewProject_Click(sender: null, e: EventArgs.Empty);
+            newFileItem.Click += (s, e) => BtnNewFile_Click(sender: null, e: EventArgs.Empty);
+            saveItem.Click += (s, e) => BtnSave_Click(sender: null, e: EventArgs.Empty);
+            saveAllItem.Click += (s, e) => BtnSaveAll_Click(sender: null, e: EventArgs.Empty);
+            refreshItem.Click += (s, e) => BtnRefresh_Click(sender: null, e: EventArgs.Empty);
+            portILItem.Click += (s, e) => BtnPortIL_Click(sender: null, e: EventArgs.Empty);
+            shortcutsItem.Click += ShortcutsMenu_Click;
+            goToLineItem.Click += (s, e) => GoToLine();
+            forceHostItem.Click += ForceHostMenu_Click;
+            resetHostItem.Click += ClearHostDvarsMenu_Click;
+            updateItem.Click += UpdateCompilerMenu_Click;
+            aboutItem.Click += AboutMenu_Click;
+            exitItem.Click += (s, e) => this.Close();
+            
+            // Game menu event handlers
+            t7GameItem.Click += (s, e) => {
+                currentGame = TreyarchCompiler.Enums.Games.T7;
+                t7GameItem.Checked = true;
+                t8GameItem.Checked = false;
+            };
+            t8GameItem.Click += (s, e) => {
+                currentGame = TreyarchCompiler.Enums.Games.T8;
+                t8GameItem.Checked = true;
+                t7GameItem.Checked = false;
+            };
+            
+            // Mode menu event handlers
+            campaignModeItem.Click += (s, e) => {
+                currentGameModeStr = "SP";
+                campaignModeItem.Checked = true;
+                multiplayerModeItem.Checked = false;
+                zombiesModeItem.Checked = false;
+                UpdateConditionalCompilationIndicators();
+            };
+            multiplayerModeItem.Click += (s, e) => {
+                currentGameModeStr = "MP";
+                multiplayerModeItem.Checked = true;
+                campaignModeItem.Checked = false;
+                zombiesModeItem.Checked = false;
+                UpdateConditionalCompilationIndicators();
+            };
+            zombiesModeItem.Click += (s, e) => {
+                currentGameModeStr = "ZM";
+                zombiesModeItem.Checked = true;
+                campaignModeItem.Checked = false;
+                multiplayerModeItem.Checked = false;
+                UpdateConditionalCompilationIndicators();
+            };
+            
+            // Inject Precompiled Script menu event handlers
+            injectBO3Item.Click += (s, e) => InjectPrecompiledScript(TreyarchCompiler.Enums.Games.T7);
+            injectBO4Item.Click += (s, e) => InjectPrecompiledScript(TreyarchCompiler.Enums.Games.T8);
+            
+            // Processes menu event handlers
+            killBO3Item.Click += (s, e) => KillGame("blackops3");
+            killBO4Item.Click += (s, e) => KillGame("blackops4");
+        }
+        
+        private void AboutMenu_Click(object sender, EventArgs e)
+        {
+            ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                this,
+                "T7 Compiler GUI\n\nA powerful GSC compiler for Call of Duty: Black Ops 3/4",
+                "About",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void SetupGameMenu()
+        {
+            // Context menu no longer needed since we have Game menu in menu bar
+            // This method is kept for potential future use but currently does nothing
+        }
+
+        private void SetupGameModeMenu()
+        {
+            // Context menu no longer needed since we have Mode menu in menu bar
+            // This method is kept for potential future use but currently does nothing
+        }
+
+        private void ResetButtonState(object sender)
+        {
+            PoisonControlHelper.ResetButtonState(sender);
+        }
+
+        #endregion
+
+        #region Keyboard Shortcuts
+
+        private void SetupKeyboardShortcuts()
+        {
+            // Remove existing handler if any
+            this.KeyDown -= CodeEditorForm_KeyDown;
+            this.KeyDown += CodeEditorForm_KeyDown;
+        }
+        
+        private void CodeEditorForm_KeyDown(object sender, KeyEventArgs e)
+        {
+            // Initialize keybinds if not already loaded
+            if (codeEditorKeybinds == null)
+            {
+                codeEditorKeybinds = GetDefaultCodeEditorKeybinds();
+            }
+            
+            // Check each keybind
+            foreach (var kvp in codeEditorKeybinds)
+            {
+                var keybind = kvp.Value;
+                bool ctrlMatch = keybind.Ctrl == e.Control;
+                bool shiftMatch = keybind.Shift == e.Shift;
+                bool altMatch = keybind.Alt == e.Alt;
+                bool keyMatch = keybind.Key == e.KeyCode;
+                
+                if (ctrlMatch && shiftMatch && altMatch && keyMatch)
+                {
+                    e.Handled = true;
+                    
+                    // Execute the corresponding action
+                    switch (kvp.Key)
+                    {
+                        case "New Project":
+                            BtnNewProject_Click(null, EventArgs.Empty);
+                            break;
+                        case "New File":
+                            BtnNewFile_Click(null, EventArgs.Empty);
+                            break;
+                        case "Save":
+                            SaveCurrentFile();
+                            break;
+                        case "Save All":
+                    SaveAllFiles();
+                            break;
+                        case "Refresh Files":
+                            RefreshFileList(false);
+                            break;
+                        case "Port IL Project":
+                            BtnPortIL_Click(null, EventArgs.Empty);
+                            break;
+                        case "Compile":
+                            BtnCompile_Click(null, EventArgs.Empty);
+                            break;
+                        case "Find":
+                            BtnSearch_Click(null, EventArgs.Empty);
+                            break;
+                        case "Find Next":
+                            FindNext();
+                            break;
+                        case "Replace":
+                            BtnReplace_Click(null, EventArgs.Empty);
+                            break;
+                        case "Go to Line":
+                            GoToLine();
+                            break;
+                    }
+                    return;
+                }
+            }
+            
+            // Zoom shortcuts (Ctrl+Plus, Ctrl+Minus, Ctrl+0)
+            if (e.Control)
+            {
+                if (e.KeyCode == Keys.Add || e.KeyCode == Keys.Oemplus)
+                {
+                    e.Handled = true;
+                    ZoomIn();
+                    return;
+                }
+                else if (e.KeyCode == Keys.Subtract || e.KeyCode == Keys.OemMinus)
+                {
+                    e.Handled = true;
+                    ZoomOut();
+                    return;
+                }
+                else if (e.KeyCode == Keys.D0 || e.KeyCode == Keys.NumPad0)
+                {
+                    e.Handled = true;
+                    ZoomReset();
+                    return;
+                }
+            }
+            
+            // Go to Line (Ctrl+G)
+            if (e.Control && e.KeyCode == Keys.G)
+            {
+                e.Handled = true;
+                GoToLine();
+                return;
+            }
+            
+            // Undo/Redo - let AvalonEdit handle these natively
+            // Ctrl+Z for undo, Ctrl+Y or Ctrl+Shift+Z for redo
+            if (e.Control && e.KeyCode == Keys.Z && !e.Shift)
+            {
+                // Let AvalonEdit handle undo natively - don't mark as handled
+                // AvalonEdit will process this automatically
+            }
+            else if ((e.Control && e.KeyCode == Keys.Y) || (e.Control && e.Shift && e.KeyCode == Keys.Z))
+            {
+                // Let AvalonEdit handle redo natively - don't mark as handled
+                // AvalonEdit will process this automatically
+            }
+        }
+        
+        private void ShortcutsMenu_Click(object sender, EventArgs e)
+        {
+            // Get default keybinds for code editor
+            if (codeEditorKeybinds == null)
+            {
+                codeEditorKeybinds = GetDefaultCodeEditorKeybinds();
+            }
+            
+            // Open keybind dialog
+            using (var dialog = new Dialogs.KeybindDialog(styleManager, codeEditorKeybinds))
+            {
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    codeEditorKeybinds = dialog.Keybinds;
+                    // Apply the new keybinds (they're already stored, just need to update menu items)
+                    ApplyKeybindsToMenu();
+                }
+            }
+        }
+        
+        private Dictionary<string, Dialogs.KeybindDialog.KeybindInfo> GetDefaultCodeEditorKeybinds()
+        {
+            return new Dictionary<string, Dialogs.KeybindDialog.KeybindInfo>
+            {
+                { "New Project", new Dialogs.KeybindDialog.KeybindInfo("New Project", Keys.N, ctrl: true, shift: true) },
+                { "New File", new Dialogs.KeybindDialog.KeybindInfo("New File", Keys.N, ctrl: true) },
+                { "Save", new Dialogs.KeybindDialog.KeybindInfo("Save", Keys.S, ctrl: true) },
+                { "Save All", new Dialogs.KeybindDialog.KeybindInfo("Save All", Keys.S, ctrl: true, shift: true) },
+                { "Refresh Files", new Dialogs.KeybindDialog.KeybindInfo("Refresh Files", Keys.R, ctrl: true) },
+                { "Port IL Project", new Dialogs.KeybindDialog.KeybindInfo("Port IL Project", Keys.O, ctrl: true, shift: true, alt: true) },
+                { "Compile", new Dialogs.KeybindDialog.KeybindInfo("Compile", Keys.F9) },
+                { "Find", new Dialogs.KeybindDialog.KeybindInfo("Find", Keys.F, ctrl: true) },
+                { "Find Next", new Dialogs.KeybindDialog.KeybindInfo("Find Next", Keys.F3) },
+                { "Replace", new Dialogs.KeybindDialog.KeybindInfo("Replace", Keys.H, ctrl: true) },
+                { "Go to Line", new Dialogs.KeybindDialog.KeybindInfo("Go to Line", Keys.G, ctrl: true) }
+            };
+        }
+        
+        private void ApplyKeybindsToMenu()
+        {
+            if (codeEditorKeybinds == null || fileMenu == null)
+                return;
+            
+            // Update menu items with new keybinds
+            foreach (ToolStripItem item in fileMenu.DropDownItems)
+            {
+                if (item is ToolStripMenuItem menuItem && codeEditorKeybinds.ContainsKey(menuItem.Text))
+                {
+                    var keybind = codeEditorKeybinds[menuItem.Text];
+                    Keys shortcut = keybind.Key;
+                    if (keybind.Ctrl) shortcut |= Keys.Control;
+                    if (keybind.Shift) shortcut |= Keys.Shift;
+                    if (keybind.Alt) shortcut |= Keys.Alt;
+                    menuItem.ShortcutKeys = shortcut;
+                    menuItem.ShowShortcutKeys = false; // Keep shortcuts hidden in menu
+                }
+            }
+            
+            // Update keyboard shortcut handlers
+            SetupKeyboardShortcuts();
+        }
+
+        #endregion
+
+        #region File Operations
+
+        private void BtnNewProject_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            string selectedPath = ModernFolderDialog.Show(this, "Select Folder for New Project");
+            if (string.IsNullOrEmpty(selectedPath))
+                return;
+
+            if (Directory.Exists(selectedPath) && Directory.GetFileSystemEntries(selectedPath).Length > 0)
+            {
+                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    "The selected folder is not empty. Continue anyway?",
+                    "Folder Not Empty",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                
+                if (result != DialogResult.Yes)
+                    return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(selectedPath);
+                string scriptsPath = Path.Combine(selectedPath, "scripts");
+                string functionsPath = Path.Combine(scriptsPath, "functions");
+                Directory.CreateDirectory(scriptsPath);
+                Directory.CreateDirectory(functionsPath);
+
+                // Get default template files path
+                string defaultsPath = GetDefaultsPath();
+
+                if (currentGame == TreyarchCompiler.Enums.Games.T7)
+                {
+                    // For T7, use multiple template files
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.main", Path.Combine(scriptsPath, "main.gsc"), GetDefaultMainContent());
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.options", Path.Combine(scriptsPath, "options.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.util", Path.Combine(scriptsPath, "util.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project._util", Path.Combine(functionsPath, "_util.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.misc", Path.Combine(functionsPath, "misc.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.stats", Path.Combine(functionsPath, "stats.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.zombies_only", Path.Combine(functionsPath, "zombies_only.gsc"), "");
+                }
+                else
+                {
+                    // For T8, use main and headers files
+                    CreateFileFromTemplate(defaultsPath, "defaultt8project.main", Path.Combine(scriptsPath, "main.gsc"), GetDefaultMainContent());
+                    CreateFileFromTemplate(defaultsPath, "defaultt8project.headers", Path.Combine(scriptsPath, "headers.gsc"), GetDefaultHeadersContent());
+                }
+
+                string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "bo3" : "bo4";
+                string gameModeLower = currentGameModeStr.ToLower();
+                File.WriteAllText(Path.Combine(selectedPath, "gsc.conf"), 
+                    $"symbols={gameSymbol},serious,{gameModeLower}");
+
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Project created successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                
+                OpenFolder(selectedPath);
+            }
+            catch (Exception ex)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Error creating project: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnOpenFolder_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            string selectedPath = ModernFolderDialog.Show(this, "Select Project Folder");
+            if (!string.IsNullOrEmpty(selectedPath))
+            {
+                OpenFolder(selectedPath);
+                AddToRecentProjects(selectedPath);
+            }
+        }
+
+        private void BtnRecentProjects_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            ShowRecentProjectsMenu();
+        }
+
+        private void AddToRecentProjects(string projectPath)
+        {
+            if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
+                return;
+
+            try
+            {
+                List<string> recentProjects = GetRecentProjects();
+                
+                // Remove if already exists (to move to top)
+                recentProjects.Remove(projectPath);
+                
+                // Add to beginning
+                recentProjects.Insert(0, projectPath);
+                
+                // Keep only last 10 projects
+                if (recentProjects.Count > 10)
+                {
+                    recentProjects = recentProjects.Take(10).ToList();
+                }
+                
+                // Save to file
+                SaveRecentProjects(recentProjects);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to add to recent projects: {ex.Message}");
+            }
+        }
+
+        private const string CONFIG_FILE_NAME = "T7CompilerGUI.config";
+        private const int MAX_RECENT_PROJECTS = 10;
+
+        private string GetConfigPath()
+        {
+            string startupPath = Application.StartupPath;
+            
+            // Check if startup path is writable, if not use AppData
+            try
+            {
+                string testFile = Path.Combine(startupPath, ".writable_test");
+                File.WriteAllText(testFile, "test");
+                File.Delete(testFile);
+                return Path.Combine(startupPath, CONFIG_FILE_NAME);
+            }
+            catch
+            {
+                // Startup path is not writable, use AppData instead
+                string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "T7CompilerGUI");
+                if (!Directory.Exists(appDataPath))
+                {
+                    Directory.CreateDirectory(appDataPath);
+                }
+                return Path.Combine(appDataPath, CONFIG_FILE_NAME);
+            }
+        }
+
+        private List<string> GetRecentProjects()
+        {
+            try
+            {
+                string configPath = GetConfigPath();
+                if (File.Exists(configPath))
+                {
+                    XDocument config = XDocument.Load(configPath);
+                    XElement root = config.Root;
+                    if (root != null)
+                    {
+                        XElement recentProjectsElem = root.Element("RecentProjects");
+                        if (recentProjectsElem != null)
+                        {
+                            return recentProjectsElem.Elements("Project")
+                                .Select(e => e.Value)
+                                .Where(p => !string.IsNullOrEmpty(p) && Directory.Exists(p))
+                                .Take(MAX_RECENT_PROJECTS)
+                                .ToList();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load recent projects: {ex.Message}");
+            }
+            
+            return new List<string>();
+        }
+
+        private void SaveRecentProjects(List<string> projects)
+        {
+            try
+            {
+                string configPath = GetConfigPath();
+                XDocument config;
+                
+                // Load existing config or create new one
+                if (File.Exists(configPath))
+                {
+                    config = XDocument.Load(configPath);
+                }
+                else
+                {
+                    config = new XDocument(
+                        new XElement("T7CompilerConfig")
+                    );
+                }
+                
+                XElement root = config.Root;
+                if (root == null)
+                {
+                    root = new XElement("T7CompilerConfig");
+                    config.Add(root);
+                }
+                
+                // Remove existing RecentProjects element if it exists
+                XElement existingRecentProjects = root.Element("RecentProjects");
+                if (existingRecentProjects != null)
+                {
+                    existingRecentProjects.Remove();
+                }
+                
+                // Add new RecentProjects element
+                if (projects != null && projects.Count > 0)
+                {
+                    root.Add(new XElement("RecentProjects",
+                        projects.Take(MAX_RECENT_PROJECTS).Select(p => new XElement("Project", p))
+                    ));
+                }
+                
+                // Save the config file
+                config.Save(configPath);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save recent projects: {ex.Message}");
+            }
+        }
+
+        private void ShowRecentProjectsMenu()
+        {
+            List<string> recentProjects = GetRecentProjects();
+            
+            if (recentProjects.Count == 0)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    "No recent projects found.",
+                    "Recent Projects",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+            
+            // Create context menu
+            ContextMenuStrip recentMenu = new ContextMenuStrip();
+            recentMenu.Renderer = new ToolStripProfessionalRenderer();
+            
+            foreach (string projectPath in recentProjects)
+            {
+                string displayName = Path.GetFileName(projectPath);
+                if (string.IsNullOrEmpty(displayName))
+                    displayName = projectPath;
+                
+                // Truncate if too long
+                if (displayName.Length > 50)
+                {
+                    displayName = displayName.Substring(0, 47) + "...";
+                }
+                
+                ToolStripMenuItem item = new ToolStripMenuItem(displayName)
+                {
+                    ToolTipText = projectPath
+                };
+                
+                string path = projectPath; // Capture for closure
+                item.Click += (s, e) => {
+                    if (Directory.Exists(path))
+                    {
+                        OpenFolder(path);
+                        AddToRecentProjects(path);
+                    }
+                    else
+                    {
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                            this,
+                            $"Project path no longer exists:\n{path}",
+                            "Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                        
+                        // Remove from recent projects
+                        List<string> updated = GetRecentProjects();
+                        updated.Remove(path);
+                        SaveRecentProjects(updated);
+                    }
+                };
+                
+                recentMenu.Items.Add(item);
+            }
+            
+            // Add separator and clear option
+            recentMenu.Items.Add(new ToolStripSeparator());
+            ToolStripMenuItem clearItem = new ToolStripMenuItem("Clear Recent Projects");
+            clearItem.Click += (s, e) => {
+                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    "Clear all recent projects?",
+                    "Clear Recent Projects",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                
+                if (result == DialogResult.Yes)
+                {
+                    SaveRecentProjects(new List<string>());
+                }
+            };
+            recentMenu.Items.Add(clearItem);
+            
+            // Show menu at button location
+            Point location = btnRecentProjects.PointToScreen(new Point(0, btnRecentProjects.Height));
+            recentMenu.Show(location);
+        }
+
+        private void BtnNewFile_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            if (!folderOpened)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Please open a project folder first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            
+            // Use NewFileDialog with proper validation (matches original T7-Compiler-UI)
+            if (NewFileDialog.ShowNewFileDialog(this, projectPath, out string fileName, out string fileExtension))
+            {
+                    RefreshFileList(false);
+                    
+                    // Open the new file
+                OpenFileInEditor($"{fileName}.{fileExtension}");
+            }
+        }
+
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            SaveCurrentFile();
+        }
+
+        private void BtnSaveAll_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            SaveAllFiles();
+        }
+
+        private void BtnRefresh_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            RefreshFileList(false);
+        }
+
+        private void BtnPortIL_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            string ilProjectPath = ModernFolderDialog.Show(this, "Select IL (Infinity Loader) Project Folder");
+            if (string.IsNullOrEmpty(ilProjectPath) || !Directory.Exists(ilProjectPath))
+                return;
+
+            var ilFiles = Directory.GetFiles(ilProjectPath, "*.il", SearchOption.AllDirectories);
+            if (ilFiles.Length == 0)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "No .il files found. This doesn't appear to be an IL project.", 
+                    "Invalid Project", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string outputPath = ModernFolderDialog.Show(this, "Select Output Folder (must be empty)");
+            if (string.IsNullOrEmpty(outputPath))
+                return;
+
+            if (Directory.Exists(outputPath) && Directory.GetFileSystemEntries(outputPath).Length > 0)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Output folder must be empty.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(outputPath);
+                string scriptsPath = Path.Combine(outputPath, "scripts");
+                Directory.CreateDirectory(scriptsPath);
+
+                FileHelper.CopyDirectory(ilProjectPath, scriptsPath, true);
+
+                foreach (var ilFile in Directory.GetFiles(scriptsPath, "*.il", SearchOption.AllDirectories))
+                {
+                    File.Delete(ilFile);
+                }
+
+                foreach (var gscFile in Directory.GetFiles(scriptsPath, "*.gsc", SearchOption.AllDirectories))
+                {
+                    string content = File.ReadAllText(gscFile);
+                    string lower = content.ToLower();
+                    
+                    while (lower.Contains("enableonlinematch"))
+                    {
+                        int index = lower.IndexOf("enableonlinematch");
+                        content = content.Substring(0, index) + "getplayers" + content.Substring(index + "enableonlinematch".Length);
+                        lower = content.ToLower();
+                    }
+                    
+                    File.WriteAllText(gscFile, content);
+                }
+
+                string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "bo3" : "bo4";
+                string gameModeLower = currentGameModeStr.ToLower();
+                File.WriteAllText(Path.Combine(outputPath, "gsc.conf"), 
+                    $"symbols={gameSymbol},serious,{gameModeLower}");
+
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "IL project ported successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                
+                OpenFolder(outputPath);
+            }
+            catch (Exception ex)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Error porting IL project: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // Store last search parameters for Find Next
+        private string lastSearchText = string.Empty;
+        private AvalonEditWrapper.SearchFlagsEnum lastSearchFlags = AvalonEditWrapper.SearchFlagsEnum.None;
+
+        private void BtnSearch_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            if (tabControl.SelectedTab == null)
+                return;
+                
+            using (var searchDialog = new Dialogs.SearchDialog(styleManager))
+            {
+                if (searchDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    lastSearchText = searchDialog.SearchText;
+                    lastSearchFlags = AvalonEditWrapper.SearchFlagsEnum.None;
+                    if (searchDialog.MatchCase)
+                        lastSearchFlags |= AvalonEditWrapper.SearchFlagsEnum.MatchCase;
+                    if (searchDialog.WholeWord)
+                        lastSearchFlags |= AvalonEditWrapper.SearchFlagsEnum.WholeWord;
+                    
+                    // Reset search state to start fresh
+                    currentSearchFileIndex = -1;
+                    currentSearchPosition = -1;
+                    searchableFiles.Clear();
+                    
+                    FindNext();
+                }
+            }
+        }
+        
+        private void GoToLine()
+        {
+            AvalonEditWrapper currentEditor = GetCurrentEditor();
+            if (currentEditor == null)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "No file is currently open.", "Go to Line", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            int maxLine = currentEditor.LineCount;
+            
+            // Build list of navigation items (functions, labels, ifdefs)
+            var navigationItems = BuildNavigationItems(currentEditor);
+            
+            // Use the proper GoToLineDialog
+            using (var dialog = new Dialogs.GoToLineDialog(navigationItems, maxLine, currentEditor.CurrentLine, styleManager))
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    int targetLine = dialog.SelectedLineNumber;
+                    
+                    // If an ifdef/endif was selected and it has a matching line, navigate to the match
+                    if (dialog.SelectedNavigationItem != null && 
+                        dialog.SelectedNavigationItem.MatchingLineNumber > 0 &&
+                        (dialog.SelectedNavigationItem.Type == "ifdef" || dialog.SelectedNavigationItem.Type == "endif"))
+                    {
+                        targetLine = dialog.SelectedNavigationItem.MatchingLineNumber;
+                    }
+                    
+                    if (targetLine >= 1 && targetLine <= maxLine)
+                    {
+                        currentEditor.CurrentLine = targetLine;
+                        currentEditor.Focus();
+                    }
+                    else
+                    {
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Invalid line number. Please enter a number between 1 and {maxLine}.", "Go to Line", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+        }
+
+        // NavigationItem is now defined in GoToLineDialog - use that type instead
+        private List<Dialogs.GoToLineDialog.NavigationItem> BuildNavigationItems(AvalonEditWrapper editor)
+        {
+            var items = new List<Dialogs.GoToLineDialog.NavigationItem>();
+            
+            if (editor == null || string.IsNullOrEmpty(editor.Text))
+                return items;
+            
+            string[] lines = editor.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            
+            // Dictionary to track ifdef/endif pairs: ifdef line -> endif line
+            var ifdefToEndif = new Dictionary<int, int>();
+            var endifToIfdef = new Dictionary<int, int>();
+            
+            // Stack to track ifdef nesting for matching endif
+            var ifdefStack = new Stack<(int line, string symbol, string type)>();
+            
+            // First pass: build the ifdef/endif mapping
+            for (int i = 0; i < lines.Length; i++)
+            {
+                int lineNumber = i + 1;
+                string line = lines[i].Trim();
+                
+                // Match #ifdef, #ifndef
+                var ifdefMatch = Regex.Match(line, @"#ifdef\s+(\w+)", RegexOptions.IgnoreCase);
+                var ifndefMatch = Regex.Match(line, @"#ifndef\s+(\w+)", RegexOptions.IgnoreCase);
+                if (ifdefMatch.Success || ifndefMatch.Success)
+                {
+                    string symbol = ifdefMatch.Success ? ifdefMatch.Groups[1].Value : ifndefMatch.Groups[1].Value;
+                    ifdefStack.Push((lineNumber, symbol, ifdefMatch.Success ? "ifdef" : "ifndef"));
+                }
+                
+                // Match #endif
+                if (Regex.IsMatch(line, @"#endif", RegexOptions.IgnoreCase))
+                {
+                    if (ifdefStack.Count > 0)
+                    {
+                        var matchingIfdef = ifdefStack.Pop();
+                        ifdefToEndif[matchingIfdef.line] = lineNumber;
+                        endifToIfdef[lineNumber] = matchingIfdef.line;
+                    }
+                }
+            }
+            
+            // Second pass: build navigation items with matching line numbers
+            for (int i = 0; i < lines.Length; i++)
+            {
+                int lineNumber = i + 1;
+                string line = lines[i].Trim();
+                
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+                
+                // Match functions: functionName( or functionName {
+                var functionMatch = Regex.Match(line, @"^\s*(\w+)\s*[({]", RegexOptions.IgnoreCase);
+                if (functionMatch.Success)
+                {
+                    string functionName = functionMatch.Groups[1].Value;
+                    // Skip common keywords that aren't functions
+                    if (!IsKeyword(functionName))
+                    {
+                        items.Add(new Dialogs.GoToLineDialog.NavigationItem
+                        {
+                            DisplayText = $"function {functionName}()",
+                            LineNumber = lineNumber,
+                            Type = "function"
+                        });
+                    }
+                }
+                
+                // Match labels: labelName:
+                var labelMatch = Regex.Match(line, @"^\s*(\w+)\s*:", RegexOptions.IgnoreCase);
+                if (labelMatch.Success)
+                {
+                    string labelName = labelMatch.Groups[1].Value;
+                    items.Add(new Dialogs.GoToLineDialog.NavigationItem
+                    {
+                        DisplayText = $"label {labelName}:",
+                        LineNumber = lineNumber,
+                        Type = "label"
+                    });
+                }
+                
+                // Match #ifdef, #ifndef
+                var ifdefMatch = Regex.Match(line, @"#ifdef\s+(\w+)", RegexOptions.IgnoreCase);
+                var ifndefMatch = Regex.Match(line, @"#ifndef\s+(\w+)", RegexOptions.IgnoreCase);
+                if (ifdefMatch.Success)
+                {
+                    string symbol = ifdefMatch.Groups[1].Value;
+                    int matchingEndif = ifdefToEndif.ContainsKey(lineNumber) ? ifdefToEndif[lineNumber] : -1;
+                    items.Add(new Dialogs.GoToLineDialog.NavigationItem
+                    {
+                        DisplayText = matchingEndif > 0 ? $"#ifdef {symbol} → line {matchingEndif}" : $"#ifdef {symbol}",
+                        LineNumber = lineNumber,
+                        Type = "ifdef",
+                        MatchingLineNumber = matchingEndif
+                    });
+                }
+                else if (ifndefMatch.Success)
+                {
+                    string symbol = ifndefMatch.Groups[1].Value;
+                    int matchingEndif = ifdefToEndif.ContainsKey(lineNumber) ? ifdefToEndif[lineNumber] : -1;
+                    items.Add(new Dialogs.GoToLineDialog.NavigationItem
+                    {
+                        DisplayText = matchingEndif > 0 ? $"#ifndef {symbol} → line {matchingEndif}" : $"#ifndef {symbol}",
+                        LineNumber = lineNumber,
+                        Type = "ifdef",
+                        MatchingLineNumber = matchingEndif
+                    });
+                }
+                
+                // Match #endif
+                if (Regex.IsMatch(line, @"#endif", RegexOptions.IgnoreCase))
+                {
+                    int matchingIfdef = endifToIfdef.ContainsKey(lineNumber) ? endifToIfdef[lineNumber] : -1;
+                    if (matchingIfdef > 0)
+                    {
+                        items.Add(new Dialogs.GoToLineDialog.NavigationItem
+                        {
+                            DisplayText = $"#endif → line {matchingIfdef}",
+                            LineNumber = lineNumber,
+                            Type = "endif",
+                            MatchingLineNumber = matchingIfdef
+                        });
+                    }
+                    else
+                    {
+                        items.Add(new Dialogs.GoToLineDialog.NavigationItem
+                        {
+                            DisplayText = "#endif",
+                            LineNumber = lineNumber,
+                            Type = "endif"
+                        });
+                    }
+                }
+            }
+            
+            return items;
+        }
+
+        private bool IsKeyword(string word)
+        {
+            // Common GSC keywords that shouldn't be treated as functions
+            string[] keywords = { "if", "else", "while", "for", "foreach", "switch", "case", "default", 
+                                 "return", "wait", "waitframe", "waittill", "thread", "self", "level", 
+                                 "game", "undefined", "true", "false", "var", "const", "private", "new" };
+            return Array.IndexOf(keywords, word.ToLower()) >= 0;
+        }
+
+        private void ZoomIn()
+        {
+            AvalonEditWrapper currentEditor = GetCurrentEditor();
+            if (currentEditor != null)
+            {
+                currentEditor.ZoomIn();
+            }
+        }
+
+        private void ZoomOut()
+        {
+            AvalonEditWrapper currentEditor = GetCurrentEditor();
+            if (currentEditor != null)
+            {
+                currentEditor.ZoomOut();
+            }
+        }
+
+        private void ZoomReset()
+        {
+            AvalonEditWrapper currentEditor = GetCurrentEditor();
+            if (currentEditor != null)
+            {
+                currentEditor.ZoomReset();
+            }
+        }
+
+        // Track search state across all files
+        private int currentSearchFileIndex = -1;
+        private int currentSearchPosition = -1;
+        private List<string> searchableFiles = new List<string>();
+
+        private void FindNext()
+        {
+            if (string.IsNullOrEmpty(lastSearchText))
+            {
+                BtnSearch_Click(null, EventArgs.Empty);
+                return;
+            }
+            
+            // Initialize search across all open files
+            if (currentSearchFileIndex < 0 || searchableFiles.Count == 0)
+            {
+                InitializeSearchAcrossFiles();
+            }
+            
+            if (searchableFiles.Count == 0)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "No files to search.", "Search", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            // Search in current file from current position
+            AvalonEditWrapper currentEditor = GetCurrentEditor();
+            if (currentEditor != null && currentSearchFileIndex >= 0 && currentSearchFileIndex < searchableFiles.Count)
+            {
+                string currentFileName = searchableFiles[currentSearchFileIndex];
+                if (openEditors.ContainsKey(currentFileName) && openEditors[currentFileName] == currentEditor)
+                {
+                    // Continue searching in current file
+                    int startPos = currentSearchPosition >= 0 ? currentSearchPosition : currentEditor.CurrentPosition;
+                        int endPos = currentEditor.TextLength;
+                        
+            currentEditor.SearchFlags = lastSearchFlags;
+                        currentEditor.TargetStart = startPos;
+                        currentEditor.TargetEnd = endPos;
+                        
+            int foundPos = currentEditor.SearchInTarget(lastSearchText);
+            
+            if (foundPos >= 0)
+            {
+                currentEditor.SetSelection(currentEditor.TargetStart, currentEditor.TargetEnd);
+                currentEditor.ScrollCaret();
+                        currentEditor.Focus();
+                        currentSearchPosition = currentEditor.TargetEnd;
+                        return;
+                    }
+                }
+            }
+            
+            // Not found in current file, search in next files
+            bool found = SearchInNextFile();
+            
+            if (!found)
+            {
+                // Not found anywhere - wrap around and search from beginning
+                // Reset search state and try again from the start
+                currentSearchFileIndex = -1;
+                currentSearchPosition = -1;
+                InitializeSearchAcrossFiles();
+                
+                // Try one more time from the beginning
+                found = SearchInNextFile();
+                
+                if (!found)
+                {
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Text not found in any open file.", "Search", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    currentSearchFileIndex = -1;
+                    currentSearchPosition = -1;
+                }
+            }
+        }
+
+        private void InitializeSearchAcrossFiles()
+        {
+            searchableFiles.Clear();
+            
+            // Get all open GSC files
+            foreach (var kvp in openEditors)
+            {
+                if (kvp.Key.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) || 
+                    kvp.Key.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                {
+                    searchableFiles.Add(kvp.Key);
+                }
+            }
+            
+            // Start from current file
+            AvalonEditWrapper currentEditor = GetCurrentEditor();
+            if (currentEditor != null)
+            {
+                foreach (var kvp in openEditors)
+                {
+                    if (kvp.Value == currentEditor)
+                    {
+                        currentSearchFileIndex = searchableFiles.IndexOf(kvp.Key);
+                        if (currentSearchFileIndex < 0)
+                            currentSearchFileIndex = 0;
+                        currentSearchPosition = currentEditor.CurrentPosition;
+                        return;
+                    }
+                }
+            }
+            
+            currentSearchFileIndex = 0;
+            currentSearchPosition = 0;
+        }
+
+        private bool SearchInNextFile()
+        {
+            if (searchableFiles.Count == 0)
+                return false;
+            
+            // Start from next file (or current file if we haven't started searching yet)
+            int startFileIndex = currentSearchFileIndex >= 0 ? currentSearchFileIndex + 1 : 0;
+            
+            // If we've wrapped around, start from beginning
+            if (startFileIndex >= searchableFiles.Count)
+                startFileIndex = 0;
+            
+            // Search through all files (wrap around once)
+            for (int fileOffset = 0; fileOffset < searchableFiles.Count; fileOffset++)
+                        {
+                int fileIndex = (startFileIndex + fileOffset) % searchableFiles.Count;
+                string fileName = searchableFiles[fileIndex];
+                
+                if (!openEditors.ContainsKey(fileName))
+                    continue;
+                
+                AvalonEditWrapper editor = openEditors[fileName];
+                if (editor == null)
+                    continue;
+                
+                // Switch to this file's tab BEFORE searching
+                if (editorTabs.ContainsKey(fileName))
+                {
+                    tabControl.SelectedTab = editorTabs[fileName];
+                    // Give the tab time to switch
+                    Application.DoEvents();
+                }
+                
+                // Search in this file - start from beginning if it's a new file, or from current position if it's the first file we're checking
+                editor.SearchFlags = lastSearchFlags;
+                
+                // If this is the first file we're checking and we have a saved position, use it
+                // Otherwise start from beginning (or current cursor position if it's the current file)
+                if (fileOffset == 0 && fileIndex == currentSearchFileIndex && currentSearchPosition >= 0)
+                {
+                    // Continue from where we left off in the current file
+                    editor.TargetStart = currentSearchPosition;
+                        }
+                        else
+                        {
+                    // Start from beginning of file (or current cursor if it's the active tab)
+                    if (tabControl.SelectedTab != null && editorTabs.ContainsKey(fileName) && editorTabs[fileName] == tabControl.SelectedTab)
+                    {
+                        editor.TargetStart = editor.CurrentPosition;
+                    }
+                    else
+                    {
+                        editor.TargetStart = 0;
+                    }
+                }
+                
+                editor.TargetEnd = editor.TextLength;
+                
+                int foundPos = editor.SearchInTarget(lastSearchText);
+                
+                if (foundPos >= 0)
+                {
+                    // Found it! Select and scroll to it
+                    editor.SetSelection(editor.TargetStart, editor.TargetEnd);
+                    editor.ScrollCaret();
+                    editor.Focus();
+                    
+                    // Update search state
+                    currentSearchFileIndex = fileIndex;
+                    currentSearchPosition = editor.TargetEnd;
+                    return true;
+                }
+                
+                // Not found in this file, reset position for next file
+                currentSearchPosition = 0;
+                        }
+            
+            return false;
+                }
+        
+        private void BtnReplace_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            if (tabControl.SelectedTab == null)
+                return;
+                
+            using (var replaceDialog = new Dialogs.ReplaceDialog(styleManager))
+            {
+                if (replaceDialog.ShowDialog() == DialogResult.OK)
+                {
+                    string searchText = replaceDialog.SearchText;
+                    string replaceText = replaceDialog.ReplaceText;
+                    bool matchCase = replaceDialog.MatchCase;
+                    bool wholeWord = replaceDialog.WholeWord;
+                    bool replaceAll = replaceDialog.ReplaceAll;
+                    
+                    AvalonEditWrapper currentEditor = GetCurrentEditor();
+                    if (currentEditor == null)
+                return;
+
+                    // Set search flags
+                    AvalonEditWrapper.SearchFlagsEnum searchFlags = AvalonEditWrapper.SearchFlagsEnum.None;
+                    if (matchCase)
+                        searchFlags |= AvalonEditWrapper.SearchFlagsEnum.MatchCase;
+                    if (wholeWord)
+                        searchFlags |= AvalonEditWrapper.SearchFlagsEnum.WholeWord;
+                    
+                    currentEditor.SearchFlags = searchFlags;
+                    
+                    if (replaceAll)
+                    {
+                        // Replace all occurrences
+                        int replaceCount = 0;
+                        currentEditor.TargetStart = 0;
+                        currentEditor.TargetEnd = currentEditor.TextLength;
+                        
+                        while (currentEditor.SearchInTarget(searchText) >= 0)
+                        {
+                            currentEditor.ReplaceTarget(replaceText);
+                            replaceCount++;
+                            currentEditor.TargetStart = currentEditor.TargetEnd;
+                            currentEditor.TargetEnd = currentEditor.TextLength;
+                        }
+                        
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
+                            $"Replaced {replaceCount} occurrence(s).", 
+                            "Replace", 
+                            MessageBoxButtons.OK, 
+                            MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        // Replace current selection or find next
+                        if (currentEditor.SelectedText == searchText)
+                        {
+                            currentEditor.ReplaceSelection(replaceText);
+                        }
+                        else
+                        {
+                            // Find next and replace
+                            int startPos = currentEditor.CurrentPosition;
+                            int endPos = currentEditor.TextLength;
+                            
+                            currentEditor.TargetStart = startPos;
+                            currentEditor.TargetEnd = endPos;
+                            
+                            if (currentEditor.SearchInTarget(searchText) >= 0)
+                            {
+                                currentEditor.ReplaceTarget(replaceText);
+                                currentEditor.SetSelection(currentEditor.TargetStart, currentEditor.TargetEnd);
+                                currentEditor.ScrollCaret();
+                            }
+                            else
+                            {
+                                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Text not found.", "Replace", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #endregion
+
+        #region Hash Checker
+
+        // Store the last used hashes.txt path
+        private string lastHashesFilePath = null;
+        
+        /// <summary>
+        /// Loads and parses the hashes.txt file from the project's compiled folder
+        /// </summary>
+        private bool LoadHashesFile(bool promptIfNotFound = false)
+        {
+            hashToFunctionMap.Clear();
+            
+            if (string.IsNullOrEmpty(projectPath) || !folderOpened)
+            {
+                if (promptIfNotFound)
+                {
+                    PromptForHashesFile();
+                }
+                return false;
+            }
+            
+            // Look for hashes.txt in common locations
+            string[] possiblePaths = new[]
+            {
+                Path.Combine(projectPath, "compiled", "hashes.txt"),
+                Path.Combine(projectPath, "build", "hashes.txt"),
+                Path.Combine(projectPath, "hashes.txt"),
+                Path.Combine(Directory.GetParent(projectPath)?.FullName ?? "", "compiled", "hashes.txt"),
+                Path.Combine(Directory.GetParent(projectPath)?.FullName ?? "", "build", "hashes.txt")
+            };
+            
+            // If we have a last used path, check it first
+            if (!string.IsNullOrEmpty(lastHashesFilePath) && File.Exists(lastHashesFilePath))
+            {
+                possiblePaths = new[] { lastHashesFilePath }.Concat(possiblePaths).ToArray();
+            }
+            
+            string hashesPath = null;
+            foreach (string path in possiblePaths)
+            {
+                if (File.Exists(path))
+                {
+                    hashesPath = path;
+                    break;
+                }
+            }
+            
+            if (string.IsNullOrEmpty(hashesPath))
+            {
+                // Try to find hashes.txt recursively
+                try
+                {
+                    string[] foundFiles = Directory.GetFiles(projectPath, "hashes.txt", SearchOption.AllDirectories);
+                    if (foundFiles.Length > 0)
+                    {
+                        hashesPath = foundFiles[0];
+                    }
+                }
+                catch
+                {
+                    // Ignore errors
+                }
+            }
+            
+            if (string.IsNullOrEmpty(hashesPath) || !File.Exists(hashesPath))
+            {
+                if (promptIfNotFound)
+                {
+                    PromptForHashesFile();
+                    return !string.IsNullOrEmpty(lastHashesFilePath) && File.Exists(lastHashesFilePath);
+                }
+                return false;
+            }
+            
+            // Store the path for future use
+            lastHashesFilePath = hashesPath;
+            
+            try
+            {
+                string[] lines = File.ReadAllLines(hashesPath);
+                foreach (string line in lines)
+                {
+                    // Skip comments and empty lines
+                    if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("#"))
+                        continue;
+                    
+                    // Parse format: "0x006CB618, functionname" or "0x006CB618, 0bogsindex..."
+                    string[] parts = line.Split(new[] { ',' }, 2);
+                    if (parts.Length == 2)
+                    {
+                        string hash = parts[0].Trim();
+                        string functionName = parts[1].Trim();
+                        
+                        // Skip obfuscated function names (those starting with "0bogs")
+                        if (functionName.StartsWith("0bogs", StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        
+                        // Store hash without "0x" prefix for easier lookup
+                        string hashKey = hash.Replace("0x", "").Replace("0X", "").ToUpper();
+                        if (!hashToFunctionMap.ContainsKey(hashKey))
+                        {
+                            hashToFunctionMap[hashKey] = functionName;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Silently fail - hash checker is optional
+                System.Diagnostics.Debug.WriteLine($"Error loading hashes.txt: {ex.Message}");
+                return false;
+            }
+            
+            return true; // Successfully loaded
+        }
+        
+        /// <summary>
+        /// Prompts the user to select the hashes.txt file location
+        /// </summary>
+        private void PromptForHashesFile()
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "Hash Files|hashes.txt|All Files|*.*";
+                dialog.Title = "Select hashes.txt file";
+                dialog.CheckFileExists = true;
+                
+                // Set initial directory to project path or last used path
+                if (!string.IsNullOrEmpty(projectPath) && Directory.Exists(projectPath))
+                {
+                    dialog.InitialDirectory = projectPath;
+                }
+                else if (!string.IsNullOrEmpty(lastHashesFilePath))
+                {
+                    dialog.InitialDirectory = Path.GetDirectoryName(lastHashesFilePath);
+                    dialog.FileName = Path.GetFileName(lastHashesFilePath);
+                }
+                
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    lastHashesFilePath = dialog.FileName;
+                    LoadHashesFile(false); // Reload with the new path
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Looks up a function name from a hash
+        /// </summary>
+        private string GetFunctionNameFromHash(string hash)
+        {
+            if (string.IsNullOrWhiteSpace(hash))
+                return null;
+            
+            // Normalize hash (remove 0x prefix, uppercase)
+            string hashKey = hash.Replace("0x", "").Replace("0X", "").Trim().ToUpper();
+            
+            if (hashToFunctionMap.ContainsKey(hashKey))
+            {
+                return hashToFunctionMap[hashKey];
+            }
+            
+            return null;
+        }
+        
+        /// <summary>
+        /// Searches for a function in all open files and navigates to it
+        /// </summary>
+        private bool NavigateToFunction(string functionName)
+        {
+            if (string.IsNullOrWhiteSpace(functionName))
+                return false;
+            
+            // Try different patterns: functionName(, functionName {, functionName =, etc.
+            string[] searchPatterns = new[]
+            {
+                $@"\b{Regex.Escape(functionName)}\s*\(",
+                $@"\b{Regex.Escape(functionName)}\s*{{",
+                $@"\b{Regex.Escape(functionName)}\s*=",
+                $@"\b{Regex.Escape(functionName)}\s*;",
+                $@"\b{Regex.Escape(functionName)}\b"
+            };
+            
+            // Search in all open files
+            foreach (var kvp in openEditors)
+            {
+                string fileName = kvp.Key;
+                AvalonEditWrapper editor = kvp.Value;
+                
+                if (editor == null)
+                    continue;
+                
+                string content = editor.Text;
+                
+                // Try each search pattern
+                foreach (string pattern in searchPatterns)
+                {
+                    Match match = Regex.Match(content, pattern, RegexOptions.IgnoreCase);
+                    if (match.Success)
+                    {
+                        // Found it! Navigate to this position
+                        int position = match.Index;
+                        
+                        // Switch to this tab
+                        if (editorTabs.ContainsKey(fileName))
+                        {
+                            tabControl.SelectedTab = editorTabs[fileName];
+                        }
+                        
+                        // Set cursor position and scroll to it
+                        editor.GotoPosition(position);
+                        editor.SetSelection(position, position + match.Length);
+                        editor.ScrollCaret();
+                        
+                        return true;
+                    }
+                }
+            }
+            
+            // If not found in open files, try to find and open the file
+            if (!string.IsNullOrEmpty(projectPath) && Directory.Exists(projectPath))
+            {
+                try
+                {
+                    // Search for .gsc files containing the function
+                    string[] gscFiles = Directory.GetFiles(projectPath, "*.gsc", SearchOption.AllDirectories);
+                    
+                    foreach (string filePath in gscFiles)
+                    {
+                        try
+                        {
+                            string content = File.ReadAllText(filePath);
+                            
+                            // Try each search pattern
+                            foreach (string pattern in searchPatterns)
+                            {
+                                Match match = Regex.Match(content, pattern, RegexOptions.IgnoreCase);
+                                if (match.Success)
+                                {
+                                    // Found it! Open the file
+                                    string relativePath = GetRelativePath(projectPath, filePath);
+                                    OpenFileInEditor(relativePath);
+                                    
+                                    // Wait a bit for the file to open, then navigate
+                                    Application.DoEvents();
+                                    System.Threading.Thread.Sleep(50);
+                                    
+                                    if (openEditors.ContainsKey(relativePath))
+                                    {
+                                        AvalonEditWrapper editor = openEditors[relativePath];
+                                        int position = match.Index;
+                                        editor.GotoPosition(position);
+                                        editor.SetSelection(position, position + match.Length);
+                                        editor.ScrollCaret();
+                                    }
+                                    
+                                    return true;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Skip files that can't be read
+                            continue;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore errors
+                }
+            }
+            
+            return false;
+        }
+        
+        private void BtnHashCheck_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            string hashInput = txtHashInput.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(hashInput))
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    "Please enter a hash (e.g., DBC91BB1 or 0xDBC91BB1)",
+                    "Hash Checker",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+            
+            // Load hashes if not already loaded, prompt if not found
+            if (hashToFunctionMap.Count == 0)
+            {
+                bool loaded = LoadHashesFile(promptIfNotFound: true);
+                if (!loaded)
+                {
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                        "Could not find hashes.txt file. Please select the file location.",
+                        "Hash File Not Found",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    PromptForHashesFile();
+                    
+                    // Try loading again after user selects file
+                    if (hashToFunctionMap.Count == 0)
+                    {
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                            "No hash file loaded. Please select hashes.txt to use the hash checker.",
+                            "No Hash File",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+            }
+            
+            // Lookup function name
+            string functionName = GetFunctionNameFromHash(hashInput);
+            
+            if (string.IsNullOrEmpty(functionName))
+            {
+                // Offer to reload or select a different file
+                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    $"Hash '{hashInput}' not found in hashes.txt.\n\nWould you like to select a different hashes.txt file?",
+                    "Hash Not Found",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+                
+                if (result == DialogResult.Yes)
+                {
+                    PromptForHashesFile();
+                    // Try lookup again
+                    functionName = GetFunctionNameFromHash(hashInput);
+                    if (string.IsNullOrEmpty(functionName))
+                    {
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                            $"Hash '{hashInput}' still not found in the selected hashes.txt file.",
+                            "Hash Not Found",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+                else
+                {
+                    return;
+                }
+            }
+            
+            // Navigate to function
+            bool found = NavigateToFunction(functionName);
+            
+            if (!found)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    $"Function '{functionName}' found in hashes.txt, but could not locate it in the project files.\n\nHash: {hashInput}\nFunction: {functionName}",
+                    "Function Not Found",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            else
+            {
+                // Show a brief message
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    $"Found function: {functionName}\nHash: {hashInput}",
+                    "Function Found",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+        }
+        
+        private void TxtHashInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                BtnHashCheck_Click(btnHashCheck, EventArgs.Empty);
+            }
+        }
+
+        #endregion
+
+        #region Folder and File Management
+
+        private void OpenFolder(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
+                return;
+
+            long dirSize = FileHelper.DirSize(path);
+            if (dirSize > 5000000) // 5MB
+            {
+                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    "This appears to be a large folder, continuing will destroy FOLDER STRUCTURE ARE YOU SURE WANT TO CONTINUE?",
+                    "WARNING",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+                
+                if (result != DialogResult.Yes)
+                    return;
+                    
+                var m = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    "Do you really wish to open this folder? IT WILL DESTROY YOUR FOLDER STRUCTURE",
+                    "WARNING",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+                    
+                if (m != DialogResult.Yes)
+                    return;
+            }
+
+            try
+            {
+                // Clear existing tabs and editors when opening a new folder
+                if (tabControl.TabPages.Count > 0)
+                {
+                    tabControl.TabPages.Clear();
+                    openEditors.Clear();
+                    editorTabs.Clear();
+                }
+                fileButtonsPanel.Controls.Clear();
+            }
+            catch { }
+
+            // Set project path and folder opened BEFORE calling RefreshFileList
+            projectPath = path;
+            folderOpened = true;
+            CompilerActions.menu = Path.GetFileName(projectPath);
+            lblProjectPath.Text = $"Project: {CompilerActions.menu}";
+            
+            // Update status bar to show project path
+            if (statusLabel != null)
+            {
+                statusLabel.Text = GetDefaultStatusText();
+            }
+            
+            // Add to recent projects
+            AddToRecentProjects(path);
+
+            // Check for IL project
+            foreach (string file in Directory.GetFiles(path))
+            {
+                if (file.Contains(".il"))
+                {
+                    var a = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                        this,
+                        "This could be an Infinity Loader Project. Would you like to port it? (required)",
+                        "Error",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (a != DialogResult.Yes)
+                    {
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "One project failed to load: (IL PROJECT)", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        CreateDefaultProjectOnStartup();
+                        return;
+                    }
+
+                    PortILProject(path, "unknown");
+                    return;
+                }
+            }
+
+            // Auto-detect project structure - don't force scripts folder
+            // Only move contents if scripts folder exists and has no files, or if no GSC files found in root
+            string scriptsPath = Path.Combine(projectPath, "scripts");
+            bool hasGscFilesInRoot = Directory.GetFiles(projectPath, "*.gsc", SearchOption.TopDirectoryOnly).Length > 0;
+            
+            // Only move contents if scripts folder exists and project appears to need organization
+            if (Directory.Exists(scriptsPath) && !hasGscFilesInRoot)
+            {
+            MoveContentsToScripts(scriptsPath);
+            }
+
+            // Setup file watcher to watch entire project folder (not just scripts)
+            if (fileWatcher != null)
+            {
+                fileWatcher.Path = projectPath;
+                fileWatcher.Filter = "*.gsc";
+                fileWatcher.IncludeSubdirectories = true; // Watch subdirectories too
+                fileWatcher.EnableRaisingEvents = true;
+            }
+
+            // Load symbols from gsc.conf
+            LoadSymbolsFromGscConf();
+            
+            // Load hashes.txt for hash checker
+            LoadHashesFile(false);
+            
+            // Now refresh file list (folderOpened and projectPath are set)
+            RefreshFileList(false);
+            UpdateTitle();
+        }
+
+        private void MoveContentsToScripts(string path)
+        {
+            DirectoryInfo dirInfo = new DirectoryInfo(path);
+            if (!dirInfo.Exists)
+                Directory.CreateDirectory(path);
+
+            List<string> scripts = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories).ToList();
+
+            foreach (string file in scripts)
+            {
+                FileInfo mFile = new FileInfo(file);
+                // to remove name collisions
+                if (!new FileInfo(Path.Combine(dirInfo.FullName, mFile.Name)).Exists)
+                {
+                    try
+                    {
+                        mFile.MoveTo(Path.Combine(dirInfo.FullName, mFile.Name));
+                    }
+                    catch
+                    {
+                        // File might be in use or already in correct location
+                    }
+                }
+            }
+        }
+
+        private void RefreshFileList(bool force)
+        {
+            if (!force && !folderOpened)
+                return;
+
+            // Clear existing tabs and editors when refreshing
+            if (tabControl.TabPages.Count > 0)
+            {
+                tabControl.TabPages.Clear();
+                openEditors.Clear();
+                editorTabs.Clear();
+            }
+            fileButtonsPanel.Controls.Clear();
+
+            if (!folderOpened || string.IsNullOrEmpty(projectPath))
+                return;
+
+            // Move contents to scripts folder (matching original Compiler UI behavior)
+            // This ensures all GSC files are in the scripts folder for consistent project structure
+            string scriptsPath = Path.Combine(projectPath, "scripts");
+            if (!Directory.Exists(scriptsPath))
+            {
+                Directory.CreateDirectory(scriptsPath);
+            }
+            MoveContentsToScripts(scriptsPath);
+
+            // Auto-detect GSC project: search recursively for .gsc and .txt files anywhere in the project folder
+            // This supports various folder structures (scripts/, root, subfolders, etc.)
+            string[] gscFiles = Directory.GetFiles(projectPath, "*.gsc", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(projectPath, "*.txt", SearchOption.AllDirectories))
+                .Where(f => !f.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase) && 
+                            !f.EndsWith(".stub.gscc", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => {
+                    // Always put main.gsc first (case-insensitive)
+                    string fileName = Path.GetFileName(f);
+                    if (fileName.Equals("main.gsc", StringComparison.OrdinalIgnoreCase))
+                        return "0" + fileName; // Prefix with 0 to sort first
+                    return "1" + fileName; // Other files come after
+                })
+                .ThenBy(f => Path.GetFileName(f)) // Then sort alphabetically
+                .ToArray();
+
+            if (gscFiles == null || gscFiles.Length == 0)
+            {
+                // No GSC files found - check if scripts folder exists and create it if needed
+                // scriptsPath is already declared above, so just check and create if needed
+                if (!Directory.Exists(scriptsPath))
+                {
+                    Directory.CreateDirectory(scriptsPath);
+                }
+                return;
+            }
+
+            // Set loading flag to prevent hasChanges during file loading
+            isLoadingFiles = true;
+
+            try
+            {
+                // Prepare file list with relative paths
+                var fileList = new List<(string relativePath, int index)>();
+            int i = 0;
+            foreach (string gscFile in gscFiles)
+            {
+                    string relativePath = GetRelativePath(projectPath, gscFile);
+                string filename = Path.GetFileName(gscFile);
+                    
+                if (filename.EndsWith(".gsc") || filename.EndsWith(".txt"))
+                {
+                        fileList.Add((relativePath, i));
+                    i++;
+                }
+            }
+
+                // Create all file buttons first (UI operations must be on UI thread)
+                foreach (var (relativePath, index) in fileList)
+                {
+                    CreateFileButton(relativePath, index);
+                }
+
+                // Load all files efficiently - read files in parallel, then create editors on UI thread
+                var fileContents = new ConcurrentDictionary<string, string>();
+                
+                // Read all files in parallel (file I/O can be done on background threads)
+                System.Threading.Tasks.Parallel.ForEach(fileList, fileInfo =>
+                {
+                    string filePath = Path.Combine(projectPath, fileInfo.relativePath);
+                    if (File.Exists(filePath))
+                    {
+                        try
+                        {
+                            string content = File.ReadAllText(filePath);
+                            // Store content even if empty - empty files should still show in editor
+                            fileContents[fileInfo.relativePath] = content ?? "";
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log error but still create empty editor for the file
+                            System.Diagnostics.Debug.WriteLine($"Failed to read file {filePath}: {ex.Message}");
+                            fileContents[fileInfo.relativePath] = "";
+                        }
+                    }
+                    else
+                    {
+                        // File doesn't exist - create empty editor
+                        fileContents[fileInfo.relativePath] = "";
+                    }
+                });
+
+                // Create all editors on UI thread (must be on UI thread for WinForms controls)
+                // This is fast since file I/O is already done
+                int fileIndex = 0;
+                foreach (var fileInfo in fileList)
+                {
+                    if (fileContents.TryGetValue(fileInfo.relativePath, out string content))
+                    {
+                        // Ensure content is not null
+                        string contentToLoad = content ?? "";
+                        OpenFileInEditorWithContent(fileInfo.relativePath, contentToLoad);
+                        // Allow UI to update between files for smooth loading
+                        if (fileIndex % 5 == 0) // Update every 5 files
+                        {
+                            Application.DoEvents();
+                        }
+                        fileIndex++;
+                    }
+                    else
+                    {
+                        // File was found but couldn't be read - create empty editor
+                        OpenFileInEditorWithContent(fileInfo.relativePath, "");
+                    }
+                }
+            }
+            finally
+            {
+                // Always clear the loading flag, even if an exception occurs
+                // This ensures user edits will properly set hasChanges
+                isLoadingFiles = false;
+            }
+            
+            // Ensure hasChanges is false after loading all files - use CheckForUnsavedChanges to verify
+            CheckForUnsavedChanges();
+            
+            folderOpened = true;
+        }
+
+        private void CreateFileButton(string filename, int index)
+        {
+            // Create container panel for file button and close button - use PoisonPanel for theme consistency
+            PoisonPanel buttonContainer = new PoisonPanel
+            {
+                Height = 23,
+                Width = fileButtonsPanel.Width - 10,
+                Margin = new Padding(0, 2, 0, 2)
+            };
+            
+            // Apply theme to container panel
+            if (styleManager != null)
+            {
+                buttonContainer.StyleManager = styleManager;
+                buttonContainer.UseStyleColors = true;
+            }
+
+            // File button
+            PoisonButton fileButton = new PoisonButton
+            {
+                Text = filename.Replace(' ', '_'),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                FlatStyle = FlatStyle.Flat,
+                UseStyleColors = true
+            };
+            
+            // Apply theme to file button
+            if (styleManager != null)
+            {
+                fileButton.StyleManager = styleManager;
+                fileButton.UseStyleColors = true;
+            }
+            
+            fileButton.Click += (s, e) => {
+                OpenFileInEditor(filename);
+                ResetButtonState(fileButton);
+            };
+            fileButton.Tag = index;
+
+            // Close button (X) - use theme-aware colors
+            PoisonButton closeButton = new PoisonButton
+            {
+                Text = "X",
+                Size = new Size(20, 23),
+                Dock = DockStyle.Right,
+                FlatStyle = FlatStyle.Flat,
+                UseVisualStyleBackColor = false
+            };
+            
+            // Set theme-aware colors
+            if (styleManager != null)
+            {
+                closeButton.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
+                closeButton.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
+            }
+            else
+            {
+                closeButton.BackColor = Color.FromArgb(45, 45, 45);
+                closeButton.ForeColor = Color.White;
+            }
+            
+            closeButton.MouseEnter += (s, e) => {
+                closeButton.BackColor = Color.Red;
+            };
+            closeButton.MouseLeave += (s, e) => {
+                if (styleManager != null)
+                    closeButton.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
+                else
+                    closeButton.BackColor = Color.FromArgb(45, 45, 45);
+            };
+            closeButton.Click += (s, e) => {
+                DeleteFile(filename, index);
+            };
+            closeButton.Name = filename.Replace(".gsc", "").Replace(".txt", "").Replace(' ', '_');
+
+            buttonContainer.Controls.Add(closeButton);
+            buttonContainer.Controls.Add(fileButton);
+            fileButtonsPanel.Controls.Add(buttonContainer);
+        }
+
+        private void DeleteFile(string filename, int index)
+        {
+            var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                this,
+                $"Warning: This will delete the file ({filename}) Continue?",
+                "Warning",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (result != DialogResult.Yes)
+                return;
+
+            // Get file path - filename may be a relative path or simple filename
+            string filePath;
+            if (filename.Contains(Path.DirectorySeparatorChar) || filename.Contains(Path.AltDirectorySeparatorChar))
+            {
+                // Relative path - use it directly
+                filePath = Path.Combine(projectPath, filename);
+            }
+            else
+            {
+                // Simple filename - check scripts folder first, then search
+                filePath = Path.Combine(projectPath, "scripts", filename);
+                if (!File.Exists(filePath))
+                {
+                    string[] foundFiles = Directory.GetFiles(projectPath, filename, SearchOption.AllDirectories);
+                    if (foundFiles.Length > 0)
+                        filePath = foundFiles[0];
+                }
+            }
+            
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+
+            // Remove from editors
+            if (editorTabs.ContainsKey(filename))
+            {
+                tabControl.TabPages.Remove(editorTabs[filename]);
+                editorTabs.Remove(filename);
+                openEditors.Remove(filename);
+            }
+
+            RefreshFileList(false);
+            
+            if (tabControl.TabPages.Count > 0)
+            {
+                if (index > 0 && index <= tabControl.TabPages.Count)
+                    tabControl.SelectedIndex = index - 1;
+                else
+                    tabControl.SelectedIndex = 0;
+            }
+        }
+
+        #endregion
+
+        #region Editor Management
+
+        private void OpenFileInEditorWithContent(string filename, string content)
+        {
+            if (string.IsNullOrEmpty(filename))
+                return;
+
+            // Check if already open
+            if (editorTabs.ContainsKey(filename))
+            {
+                tabControl.SelectedTab = editorTabs[filename];
+                return;
+            }
+
+            // Create new tab and editor
+            string tabText = Path.GetFileName(filename);
+            
+            // Limit tab text length to prevent overlapping
+            const int maxTabTextLength = 18;
+            if (tabText.Length > maxTabTextLength)
+            {
+                string nameWithoutExt = Path.GetFileNameWithoutExtension(tabText);
+                string ext = Path.GetExtension(tabText);
+                
+                if (nameWithoutExt.Length > maxTabTextLength - ext.Length - 3)
+                {
+                    nameWithoutExt = nameWithoutExt.Substring(0, maxTabTextLength - ext.Length - 3) + "...";
+                }
+                tabText = nameWithoutExt + ext;
+            }
+            
+            ReaLTaiizor.Controls.PoisonTabPage tabPage = new ReaLTaiizor.Controls.PoisonTabPage
+            {
+                Text = tabText,
+                ToolTipText = filename,
+                UseVisualStyleBackColor = false,
+                // Disable scrollbars on tab page - AvalonEdit handles its own scrolling
+                HorizontalScrollbar = false,
+                VerticalScrollbar = false,
+                AutoScroll = false
+            };
+            AvalonEditWrapper editor = CreateAvalonEditEditor();
+            
+            // Store original content in fileContents for comparison
+            fileContents[filename] = content;
+            
+            // Track changes (but ignore during file loading)
+            EventHandler textChangedHandler = (s, e) => {
+                if (!isLoadingFiles)
+                {
+                    if (this.InvokeRequired)
+                    {
+                        try
+                        {
+                            if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                            {
+                                this.BeginInvoke(new Action(() => {
+                                    if (!isLoadingFiles && !this.IsDisposed && !this.Disposing)
+                                    {
+                                        CheckForUnsavedChanges();
+                                        UpdateConditionalCompilationIndicators(editor);
+                                        UpdateSyntaxHighlightingIndicators(editor);
+                                    }
+                                }));
+                            }
+                        }
+                        catch (ObjectDisposedException) { }
+                        catch (InvalidOperationException) { }
+                        catch (ArgumentException) { }
+                    }
+                    else
+                    {
+                        CheckForUnsavedChanges();
+                        UpdateConditionalCompilationIndicators(editor);
+                        UpdateSyntaxHighlightingIndicators(editor);
+                    }
+                }
+            };
+            
+            isLoadingFiles = true;
+            
+            try
+            {
+                editor.TextChanged -= textChangedHandler;
+                
+                // Load text with provided content (ensure content is not null)
+                string contentToSet = content ?? "";
+                editor.Text = contentToSet;
+                fileContents[filename] = contentToSet;
+
+                editor.EmptyUndoBuffer();
+                SetupGSCSyntaxHighlighting(editor);
+                DisableExtraMargins(editor);
+                SetupConditionalCompilationIndicators(editor);
+                UpdateSyntaxHighlightingIndicators(editor);
+                DisableExtraMargins(editor);
+                editor.EmptyUndoBuffer();
+                
+                editor.TextChanged -= textChangedHandler;
+                editor.TextChanged += textChangedHandler;
+            }
+            finally
+            {
+                isLoadingFiles = false;
+            }
+
+            // Add editor to tab BEFORE adding tab to tabControl
+            // This ensures the editor is properly initialized when the tab becomes visible
+            tabPage.Controls.Add(editor);
+            
+            // Store references BEFORE adding tab (needed for some operations)
+            openEditors[filename] = editor;
+            editorTabs[filename] = tabPage;
+            
+            // Add tab to tabControl
+            tabControl.TabPages.Add(tabPage);
+            if (tabControl.TabPages.Count == 1)
+            {
+                tabControl.SelectedTab = tabPage;
+            }
+
+            // Force editor to update/refresh after being added
+            editor.Refresh();
+
+            if (tabControl.SelectedTab == null)
+            {
+                currentFileName = filename;
+                selectedTabItem = filename;
+            }
+            
+            CheckForUnsavedChanges();
+            UpdateConditionalCompilationIndicators(editor);
+            UpdateSyntaxHighlightingIndicators(editor);
+        }
+
+        private void OpenFileInEditor(string filename)
+        {
+            if (string.IsNullOrEmpty(filename))
+                return;
+
+            // Support both relative paths (from RefreshFileList) and simple filenames (for new files)
+            // If filename contains path separators, treat it as a relative path from projectPath
+            // Otherwise, check scripts folder first (for backward compatibility), then search recursively
+            string filePath;
+            if (filename.Contains(Path.DirectorySeparatorChar) || filename.Contains(Path.AltDirectorySeparatorChar))
+            {
+                // Relative path - use it directly
+                filePath = Path.Combine(projectPath, filename);
+            }
+            else
+            {
+                // Simple filename - check scripts folder first, then search recursively
+                filePath = Path.Combine(projectPath, "scripts", filename);
+                if (!File.Exists(filePath))
+                {
+                    // Search recursively for the file
+                    string[] foundFiles = Directory.GetFiles(projectPath, filename, SearchOption.AllDirectories);
+                    if (foundFiles.Length > 0)
+                    {
+                        filePath = foundFiles[0];
+                        // Update filename to relative path for consistency
+                        filename = GetRelativePath(projectPath, filePath);
+                    }
+                }
+            }
+            
+            if (!File.Exists(filePath))
+                return;
+
+            // Check if already open
+            if (editorTabs.ContainsKey(filename))
+            {
+                tabControl.SelectedTab = editorTabs[filename];
+                return;
+            }
+
+            // Create new tab and editor
+            // Use just the filename without path, and ensure it's not too long to prevent overlapping
+            string tabText = Path.GetFileName(filename);
+            
+            // Limit tab text length to prevent overlapping (tabs need space for close button and padding)
+            // Typical tab needs ~100-120px width for comfortable display
+            const int maxTabTextLength = 18;
+            if (tabText.Length > maxTabTextLength)
+            {
+                string nameWithoutExt = Path.GetFileNameWithoutExtension(tabText);
+                string ext = Path.GetExtension(tabText);
+                
+                // Truncate name part, keep extension
+                if (nameWithoutExt.Length > maxTabTextLength - ext.Length - 3)
+                {
+                    nameWithoutExt = nameWithoutExt.Substring(0, maxTabTextLength - ext.Length - 3) + "...";
+                }
+                tabText = nameWithoutExt + ext;
+            }
+            
+            ReaLTaiizor.Controls.PoisonTabPage tabPage = new ReaLTaiizor.Controls.PoisonTabPage
+            {
+                Text = tabText,
+                ToolTipText = filename, // Show full filename in tooltip
+                UseVisualStyleBackColor = false,
+                // Disable scrollbars on tab page - AvalonEdit handles its own scrolling
+                HorizontalScrollbar = false,
+                VerticalScrollbar = false,
+                AutoScroll = false
+            };
+            AvalonEditWrapper editor = CreateAvalonEditEditor();
+            
+            // Load file content
+            string content = File.ReadAllText(filePath);
+            
+            // Store original content in fileContents for comparison
+            fileContents[filename] = content;
+            
+            // Track changes (but ignore during file loading)
+            EventHandler textChangedHandler = (s, e) => {
+                // Only set hasChanges if we're not currently loading files
+                if (!isLoadingFiles)
+                {
+                    // Always check all files for changes when any editor changes
+                    // This ensures we catch changes in any open file
+                    // Use BeginInvoke to ensure this runs on UI thread
+                    if (this.InvokeRequired)
+                    {
+                        try
+                        {
+                            if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                            {
+                                this.BeginInvoke(new Action(() => {
+                                    if (!isLoadingFiles && !this.IsDisposed && !this.Disposing)
+                                    {
+                                        CheckForUnsavedChanges();
+                                        // Update conditional compilation indicators when text changes
+                                        UpdateConditionalCompilationIndicators(editor);
+                                        // Update syntax highlighting indicators when text changes
+                                        UpdateSyntaxHighlightingIndicators(editor);
+                                    }
+                                }));
+                            }
+                        }
+                        catch (ObjectDisposedException) { }
+                        catch (InvalidOperationException) { }
+                        catch (ArgumentException) { }
+                    }
+                    else
+                    {
+                        CheckForUnsavedChanges();
+                        // Update conditional compilation indicators when text changes
+                        UpdateConditionalCompilationIndicators(editor);
+                        // Update syntax highlighting indicators when text changes
+                        UpdateSyntaxHighlightingIndicators(editor);
+                    }
+                }
+            };
+            
+            // Set loading flag to prevent hasChanges from being set during initialization
+            isLoadingFiles = true;
+            
+            try
+            {
+                // Temporarily disable events to prevent TextChanged from firing during setup
+                editor.TextChanged -= textChangedHandler; // Ensure it's not already attached
+                
+                // Load text BEFORE attaching event handler to prevent initial load from triggering hasChanges
+            editor.Text = content;
+            fileContents[filename] = content;
+
+                // Clear undo history after loading (so undo doesn't go back to empty state)
+                editor.EmptyUndoBuffer();
+
+                // Setup syntax highlighting BEFORE attaching handler (this might modify text)
+            SetupGSCSyntaxHighlighting(editor);
+                
+                // Ensure margins stay disabled after syntax highlighting setup
+                DisableExtraMargins(editor);
+                
+                // Setup conditional compilation indicators
+                SetupConditionalCompilationIndicators(editor);
+                
+                // Update syntax highlighting indicators (include paths, method calls)
+                UpdateSyntaxHighlightingIndicators(editor);
+                
+                // Ensure margins stay disabled after indicator updates
+                DisableExtraMargins(editor);
+                
+                // Clear undo history again after syntax highlighting (in case it modified text)
+                editor.EmptyUndoBuffer();
+                
+                // Now attach the event handler after everything is set up
+                // Make sure it's not already attached
+                editor.TextChanged -= textChangedHandler;
+                editor.TextChanged += textChangedHandler;
+            }
+            finally
+            {
+                // Always clear the loading flag AFTER handler is attached
+                // This ensures user edits will properly set hasChanges
+                isLoadingFiles = false;
+                
+                // Process any queued events after clearing the flag
+                Application.DoEvents();
+            }
+
+            // Add to tab
+            tabPage.Controls.Add(editor);
+            tabControl.TabPages.Add(tabPage);
+            tabControl.SelectedTab = tabPage;
+
+            // Store references
+            openEditors[filename] = editor;
+            editorTabs[filename] = tabPage;
+
+            currentFileName = filename;
+            selectedTabItem = filename;
+            
+            // Ensure hasChanges is false after loading - use CheckForUnsavedChanges to verify
+            CheckForUnsavedChanges();
+            
+            // Update conditional compilation indicators after file is loaded
+            UpdateConditionalCompilationIndicators(editor);
+            
+            // Update syntax highlighting indicators after file is loaded
+            // Apply indicators AFTER lexer has finished coloring to ensure they override
+            // In AvalonEdit, text markers should override syntax highlighting colors when applied correctly
+            UpdateSyntaxHighlightingIndicators(editor);
+            
+            // Force AvalonEdit to refresh the display to ensure indicators are visible
+            // This helps ensure that text markers properly override syntax highlighting colors
+            // Also refresh scrollbars to prevent white scrollbar artifacts
+            editor.Invalidate();
+            editor.Update();
+            editor.Refresh();
+        }
+
+        private AvalonEditWrapper CreateAvalonEditEditor()
+        {
+            AvalonEditWrapper editor = new AvalonEditWrapper
+            {
+                Dock = DockStyle.Fill
+            };
+            
+            // Disable word wrap - use horizontal scrollbar instead
+            editor.WordWrap = false;
+
+            // Set StyleManager to enable Poison theming
+            if (styleManager != null)
+            {
+                editor.StyleManager = styleManager;
+            }
+            else
+            {
+                // Fallback to default dark theme colors if no style manager
+                // These match the default dark theme appearance
+                Color editorBackColor = Color.FromArgb(16, 16, 16);
+                Color editorForeColor = Color.FromArgb(225, 225, 225);
+                editor.SetColors(editorBackColor, editorForeColor);
+            }
+
+            // Load GSC syntax highlighting from embedded GSC.xshd resource
+            editor.LoadGscSyntaxHighlighting();
+
+            // Setup code completion
+            SetupCodeCompletion(editor);
+            
+            // Setup context menu for line numbers
+            SetupEditorContextMenu(editor);
+            
+            // Disable AvalonEdit's built-in SearchPanel - we use custom search dialog instead
+            // Hook into editor to prevent Ctrl+F and F3 from opening SearchPanel
+            editor.Editor.TextArea.PreviewKeyDown += (s, e) =>
+            {
+                // Intercept Ctrl+F to open our custom search dialog instead of SearchPanel
+                if (e.Key == System.Windows.Input.Key.F && 
+                    (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
+                {
+                    e.Handled = true;
+                    // Use BeginInvoke to ensure this runs on the UI thread
+                    this.BeginInvoke(new Action(() => {
+                        BtnSearch_Click(null, EventArgs.Empty);
+                    }));
+                    return;
+                }
+                
+                // Handle F3 - Find Next across tabs
+                if (e.Key == System.Windows.Input.Key.F3)
+                {
+                    // Check if there's selected text first
+                    string selectedText = editor.Editor.SelectedText;
+                    if (!string.IsNullOrEmpty(selectedText) && selectedText.Trim().Length > 0 && selectedText.Length < 100)
+                    {
+                        // Use selected text as search term
+                        string trimmedText = selectedText.Trim();
+                        lastSearchText = trimmedText;
+                        
+                        // Trigger cross-tab search
+                        e.Handled = true;
+                        this.BeginInvoke(new Action(() => {
+                            FindNext();
+                        }));
+                        return;
+                    }
+                    
+                    // Use last search text if available
+                    if (!string.IsNullOrEmpty(lastSearchText))
+                    {
+                        e.Handled = true;
+                        this.BeginInvoke(new Action(() => {
+                            FindNext();
+                        }));
+                    }
+                }
+            };
+
+            return editor;
+        }
+        
+        /// <summary>
+        /// Sets up the context menu for the editor (appears when right-clicking on line numbers or text)
+        /// </summary>
+        private void SetupEditorContextMenu(AvalonEditWrapper editor)
+        {
+            if (editor?.Editor == null)
+                return;
+                
+            // Create context menu with useful items
+            var contextMenu = new System.Windows.Controls.ContextMenu();
+            
+            // Go to Line
+            var goToLineItem = new System.Windows.Controls.MenuItem
+            {
+                Header = "Go to Line...",
+                InputGestureText = "Ctrl+G"
+            };
+            goToLineItem.Click += (s, e) => GoToLine();
+            contextMenu.Items.Add(goToLineItem);
+            
+            contextMenu.Items.Add(new System.Windows.Controls.Separator());
+            
+            // Toggle ifdef - find the symbol on the current line and toggle it
+            var toggleIfdefItem = new System.Windows.Controls.MenuItem
+            {
+                Header = "Toggle ifdef"
+            };
+            toggleIfdefItem.Click += (s, e) => ToggleIfdefAtCurrentLine(editor);
+            contextMenu.Items.Add(toggleIfdefItem);
+            
+            // Set context menu on the text editor
+            editor.Editor.TextArea.ContextMenu = contextMenu;
+        }
+        
+        /// <summary>
+        /// Toggles the ifdef symbol at the current line
+        /// </summary>
+        private void ToggleIfdefAtCurrentLine(AvalonEditWrapper editor)
+        {
+            if (editor?.Editor == null)
+                return;
+                
+            int currentLine = editor.CurrentLine;
+            if (currentLine < 1 || currentLine > editor.LineCount)
+                return;
+                
+            string lineText = editor.GetLineText(currentLine);
+            if (string.IsNullOrWhiteSpace(lineText))
+                return;
+                
+            // Find #ifdef or #ifndef on this line
+            var ifdefMatch = System.Text.RegularExpressions.Regex.Match(lineText, @"#ifdef\s+(\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var ifndefMatch = System.Text.RegularExpressions.Regex.Match(lineText, @"#ifndef\s+(\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            
+            string symbol = null;
+            if (ifdefMatch.Success)
+            {
+                symbol = ifdefMatch.Groups[1].Value;
+            }
+            else if (ifndefMatch.Success)
+            {
+                symbol = ifndefMatch.Groups[1].Value;
+            }
+            
+            if (string.IsNullOrEmpty(symbol))
+            {
+                MessageBox.Show("No #ifdef or #ifndef found on this line.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            // Toggle the symbol in customSymbolStates
+            string upperSymbol = symbol.ToUpper();
+            
+            // Skip game mode symbols and constant definitions (they can't be toggled)
+            if (upperSymbol == "MP" || upperSymbol == "ZM" || upperSymbol == "SP" || 
+                upperSymbol == "BO3" || upperSymbol == "BO4" || upperSymbol == "SERIOUS")
+            {
+                MessageBox.Show($"Cannot toggle system symbol: {symbol}", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            
+            // Toggle the symbol state
+            bool currentState = customSymbolStates.ContainsKey(upperSymbol) && customSymbolStates[upperSymbol];
+            customSymbolStates[upperSymbol] = !currentState;
+            
+            // Update conditional compilation indicators for all editors
+            foreach (var kvp in openEditors)
+            {
+                UpdateConditionalCompilationIndicators(kvp.Value);
+            }
+            
+            // Show feedback
+            string status = !currentState ? "enabled" : "disabled";
+            MessageBox.Show($"Symbol '{symbol}' is now {status}.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // Store completion list as a field so it's accessible in the event handler
+        private string gscCompletionList = null;
+        
+        private void DisableExtraMargins(AvalonEditWrapper editor)
+        {
+            // AvalonEdit has built-in line numbers - no need for separate margin configuration
+            // This method is kept for compatibility but does nothing for AvalonEdit
+        }
+        
+        private void SetupCodeCompletion(AvalonEditWrapper editor)
+        {
+            // AvalonEdit has built-in code completion support
+            // We'll set it up to use GSC keywords from GSC.xshd
+            if (editor?.Editor == null)
+                return;
+
+            // Build completion list from GSC keywords and built-in functions
+            if (gscCompletionList == null)
+            {
+                gscCompletionList = BuildCompletionList();
+            }
+
+            // Setup AvalonEdit completion window
+            // Note: AvalonEdit has built-in completion support, but we'll use a simplified approach
+            // For now, completion is handled by AvalonEdit's built-in mechanisms
+            // This can be enhanced later with custom completion data if needed
+        }
+        
+        private string BuildCompletionList()
+        {
+            // Load GSC syntax data from GSC.xshd if not already loaded
+            LoadGscSyntaxData();
+            
+            // Build completion list from GSC keywords (deduplicated using HashSet)
+            var keywords = new HashSet<string>();
+            
+            // Main keywords from GSC.xshd
+            if (gscSyntaxData != null && gscSyntaxData.Keywords.Count > 0)
+            {
+                keywords.UnionWith(gscSyntaxData.Keywords);
+            }
+            else
+            {
+                // Fallback to hardcoded keywords
+                keywords.UnionWith("$_ player vararg class object new event var return thread undefined self world classes level game anim if else do while for foreach in waittill waittillmatch waittillframeend switch case default break continue notify endon assert assertmsg constructor destructor autoexec private const isdefined vectorscale waitrealtime profilestart profilestop .size wait waitframe".Split(' '));
+            }
+            
+            // TrueFalse keywords
+            if (gscSyntaxData != null && gscSyntaxData.TrueFalse.Count > 0)
+            {
+                keywords.UnionWith(gscSyntaxData.TrueFalse);
+            }
+            else
+            {
+                keywords.UnionWith("true false".Split(' '));
+            }
+            
+            // Command/preprocessor keywords
+            if (gscSyntaxData != null && gscSyntaxData.CommandKeywords.Count > 0)
+            {
+                keywords.UnionWith(gscSyntaxData.CommandKeywords);
+            }
+            else
+            {
+                keywords.UnionWith("#using_animtree #animtree #namespace #precache #include fn function callback".Split(' '));
+            }
+            
+            if (gscSyntaxData != null && gscSyntaxData.PreprocessorKeywords.Count > 0)
+            {
+                keywords.UnionWith(gscSyntaxData.PreprocessorKeywords);
+            }
+            else
+            {
+                keywords.UnionWith("#if #elif #else #endif #insert #define #ifdef #ifndef".Split(' '));
+            }
+            
+            // Built-in functions from GSC.xshd (this is the complete list from the file)
+            if (gscSyntaxData != null && gscSyntaxData.BuiltInFunctions.Count > 0)
+            {
+                keywords.UnionWith(gscSyntaxData.BuiltInFunctions);
+            }
+            else
+            {
+                // Fallback to a subset of common built-in functions
+                keywords.UnionWith("getent getentarray getentbynum getentitynumber getentitytype getentnum getplayers getplayername getplayerspawnid getplayerspeed getplayervehicle getplayercorpse getplayergibdef getplayergravity getplayerlastoutwatertime getorigin getangles setorigin setangles getcentroid getmaxs getmins getabsmaxs getabsmins getowner getparententity getlinkedent getmoverent getgroundent geteye geteyeapprox getaimangles getdistancefromscreencenter gethorizontaloffsetfromscreencenter getlocalplayer getlocalplayers getlocalplayerteam getnonpredictedlocalplayer getactivelocalclients getlobbyclientcount getnumconnectedplayers getnumexpectedplayers getnormalhealth getammocount getcurrentweaponincludingmelee getcurrentgunrank getequippedheroindex getequippedheromode getequippedloadoutitemforhero getequippedshowcaseweaponforhero getloadoutitem getloadoutweapon getloadoutperks getloadoutallocation getloadoutgunsmithvariantindex getloadoutitemref getitemarray getitemattachment getitemattachmentallocationcost getitemgroupforweaponname getitemgroupfromitemindex getbaseweaponitemindex getattachmentnames getattachmentcosmeticvariantforweapon getbuildkitweapon getbuildkitweaponoptions getbuildkitattachmentcosmeticvariantindexes getrandomcompatibleattachmentsforweapon getequippedbodyforhero getequippedbodyindexforhero getequippedheadindexforhero getequippedhelmetforhero getequippedhelmetindexforhero getequippedbodyaccentcolorforhero getequippedhelmetaccentcolorforhero getcharacterindex getcharacterdisplayname getcharacterassetname getcharacterbodymodelcount getcharacterbodymodelcolorcount getcharacterheadrenderoptions getcharacterhelmetmodelcount getcharacterhelmetmodelcolorcount getcharacterhelmetrenderoptions getcharacterhelmethideshead getcharacterbodystyleindex getcharactercustomizationforxuid getcharactermoderenderoptions getbodyrenderoptionspacked getfirstheadofgender getfirstheroofgender getheadgender getherogender getheroes getherobodymodelindices getheroheadmodelindices getherohelmetmodelindices getbodyaccentcolorcountforhero gethelmetaccentcolorcountforhero getallcharacterbodies getallcharacterheads getclassindexfromname getgametypeenumfromname getgametypesetting getshoutcastersetting getcontractname getcontractrequiredcount getcontractrequirements getcontractresetconditions getmissionname getmissionuniqueid getmissionversion getrootmapname getmapatindex getmapfields getmaporder getmapintromovie getmapoutromovie getnextmap getskiptoname getskiptos getcurrenteventid getcurrenteventname getcurrenteventoriginator getcurrenteventtype getcurrenteventtypename geteventpointofinterest getscriptbundle getscriptbundlelist getscriptbundlenames getscriptbundles getscriptmoverarray getlocalclientnumber getlocalclientcount getmaxlocalclients getlocalclientangles getlocalclientpos getlocalclienteyepos getlocalclientfov getlocalclientdriver getlocalgunnerangles getcontrollerposition getcontrollertype getenterbutton getclienttime getrealtime getmillisecondsraw getplaybacktime getcurrentanimscriptedname getanimlength getanimtime getanimframecount getanimcurrframecount getanimforcharacter getanimstatecategory getprimarydeltaanim getcorpseanim getentityanimrate getfootstepstrings getnotetracktimes getnotetracksindelta findanimbyname animhasnotetrack animrelative animscripted animmappingsearch asmsetanimationrate clearanim clearanimlimited camanimscripted endcamanimscripted extracamanimscripted endextracamanimscripted cameraforcedisablescriptcam camerasetlensid camerasetupdatecallback getcamangles getcamanglesbylocalclientnum getcamanimtime getcampos getcamposbylocalclientnum getdynent getdynentarray createdynentandlaunch cleanupspawneddynents getnode getnodearray getnodearraysorted getnodesinradius getnodesinradiussorted getnearestnode getnearestpathpoint getallnodes getpathfindingradius getpathmetric getclosestpointonnavmesh getclosestpointonnavvolume getnavmeshfacenormal getnavmeshtriggersforpoint getentnavmaterial getnodeindexonpath getnodeowner getnoderegion getnexttraversalnodeonpath getothernodeinnegotiationpair getcovernodearray getanynodearray getgrappletargetarray connectpaths disconnectpaths deletepathnode dropnodetofloor drawnode canclaimnode canpath findpath getaiarray getaicount getailimit getaiteamarray getaispeciesarray getaiarchetypearray getactorarray getactorteamarray getactorspawnerarray getactorspawnerteamarray getfreeactorcount getactorweaponoptions getaifxname getaitriggerflags getassignedteam getassignedteamname getenemies getenemyscrambleramount getfriendlyscrambleramount clearnearestenemyscrambler addfriendlyscrambler getinfluenceat getinfluencefacepos getinfluencenumfaces getinfluencerpreset getinfluencertimeoutremaining getbestinfluencepos enableinfluencer addinfluencer addorientedinfluencer addentityinfluencer evsetranges getinterestpoolawareness getinterestpoolvalue addtointerestpool getdamageableentarray dodamage clearplayergravity setplayergravity getlastoutwatertime depthinwater depthofplayerinwater gethealthoverlaytime forcepainon getequipmentheadobjective getcrateheadobjective getretrievableweapons getdroppedweapons getrope getlightcolor getlightintensity getlightradius getlightexponent getlightfovouter getfogsettings getreflectionlocs getreflectionorigin getdecorations getpartname getnumparts getknownlength getmovedelta getmovementtype getmovespeedscale getmaxreversespeed getmaxvehicles getnumfreeentities getbrushmodelcenter getpointinbounds getshootatpos getangledelta getanglefrombits getbitsforangle getnorthyaw getdebugeteye getinkillcam getkillcamentity getmigrationstatus getserverhighestclientfieldversion getclientfieldversion codegetclientfield codegetplayerstateclientfield codegetuimodelclientfield codegetworldclientfield codesetclientfield codesetplayerstateclientfield codesetuimodelclientfield codesetworldclientfield codeincrementclientfield codeincrementplayerstateclientfield codeincrementuimodelclientfield codeincrementworldclientfield getsnapshotindexarray getcountertotal getnumchallengescomplete getnumberofcollectiblesforlevel clearlastupdatedcollectibles delete attach detach detachall attachshieldmodel detachshieldmodel attachweapon getcorpsearray forcedelete cloneandremoveentity wait notify endon thread level game self world undefined isdefined".Split(' '));
+            }
+            
+            return string.Join(" ", keywords);
+        }
+        
+        // SetupFindReplace removed - find/replace is handled via keyboard shortcuts and dialogs
+
+        // GSC syntax highlighting data loaded from GSC.xshd
+        private static Helpers.GscSyntaxParser.GscSyntaxData gscSyntaxData = null;
+        
+        // GSC syntax highlighting color constants (loaded from GSC.xshd)
+        // Color names match the <Color name="..."> definitions in GSC.xshd
+        private static Color CommentColor => GetGscColor("Comment", Color.FromArgb(77, 166, 66));      // #4DA642 - green
+        private static Color StringColor => GetGscColor("String", Color.FromArgb(205, 153, 131));     // #CD9983 - orange/brown
+        private static Color KeywordColor => GetGscColor("Keywords", Color.FromArgb(86, 156, 214));     // #569cd6 - blue
+        private static Color CommandColor => GetGscColor("CommandKeywords", Color.FromArgb(197, 134, 192));    // #c586c0 - purple
+        private static Color NumberColor => GetGscColor("NumberLiteral", Color.FromArgb(162, 206, 159));     // #a2ce9f - light green
+        private static Color IncludePathColor => GetGscColor("IncludePath", Color.FromArgb(245, 156, 66)); // #f59c42 - orange/yellow
+        private static Color MethodCallColor => GetGscColor("MethodCall", Color.FromArgb(220, 220, 170)); // #DCDCAA - yellow/beige
+        private static Color BuiltInFunctionColor => GetGscColor("BuiltInFunctions", Color.FromArgb(86, 156, 214)); // #569cd6 - blue (same as keywords)
+        private static Color PreprocessorColor => GetGscColor("PreprocessorKeywords", Color.FromArgb(197, 134, 192)); // #c586c0 - purple (same as CommandKeywords)
+        
+        /// <summary>
+        /// Gets a color from GSC.xshd or returns a default fallback
+        /// </summary>
+        private static Color GetGscColor(string colorName, Color fallback)
+        {
+            if (gscSyntaxData?.Colors != null && gscSyntaxData.Colors.ContainsKey(colorName))
+                return gscSyntaxData.Colors[colorName];
+            return fallback;
+        }
+        
+        /// <summary>
+        /// Loads GSC syntax data from embedded GSC.xshd resource
+        /// </summary>
+        private static void LoadGscSyntaxData()
+        {
+            if (gscSyntaxData != null)
+                return; // Already loaded
+            
+            try
+            {
+                using (Stream xshdStream = Helpers.GscSyntaxParser.GetGscXshdStream())
+                {
+                    if (xshdStream != null)
+                    {
+                        gscSyntaxData = Helpers.GscSyntaxParser.ParseGscXshd(xshdStream);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // If parsing fails, use defaults (gscSyntaxData remains null)
+                System.Diagnostics.Debug.WriteLine($"Failed to load GSC.xshd: {ex.Message}");
+            }
+        }
+        
+        // Indicator indices for custom highlighting
+        private const int INCLUDE_PATH_INDICATOR = 1;
+        private const int METHOD_CALL_INDICATOR = 2;
+
+        private void SetupGSCSyntaxHighlighting(AvalonEditWrapper editor)
+        {
+            // AvalonEdit loads syntax highlighting directly from GSC.xshd
+            // This is already done in CreateAvalonEditEditor, so this method
+            // just ensures it's loaded and updates conditional compilation highlighting
+            if (editor?.Editor == null)
+                return;
+
+            // Syntax highlighting is already loaded from GSC.xshd in CreateAvalonEditEditor
+            // We just need to update conditional compilation indicators if needed
+            // (This will be handled by UpdateConditionalCompilationIndicators)
+        }
+        
+        private void SetupSyntaxHighlightingIndicators(AvalonEditWrapper editor)
+        {
+            // AvalonEdit handles syntax highlighting directly from GSC.xshd
+            // Include paths and method calls are already highlighted by GSC.xshd rules
+            // This method is kept for compatibility but does nothing for AvalonEdit
+        }
+        
+        private void UpdateSyntaxHighlightingIndicators(AvalonEditWrapper editor)
+        {
+            // AvalonEdit handles syntax highlighting directly from GSC.xshd
+            // Include paths, namespace names, and method calls are already highlighted
+            // by the GSC.xshd syntax definition file, so this method is no longer needed.
+            // However, we keep it for compatibility and as a placeholder for any future
+            // custom highlighting that might be needed beyond what GSC.xshd provides.
+        }
+
+        private void SetupConditionalCompilationIndicators(AvalonEditWrapper editor)
+        {
+            // AvalonEdit uses a different system for conditional compilation highlighting
+            // This can be implemented using TextMarkerService or LineTransformers if needed
+            // For now, this is a placeholder - conditional compilation highlighting
+            // can be enhanced later using AvalonEdit's highlighting system
+        }
+
+        private void UpdateConditionalCompilationIndicators()
+        {
+            // Ensure we're on the UI thread
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => UpdateConditionalCompilationIndicators()));
+                return;
+            }
+            
+            // Update indicators for all open editors
+            foreach (var editor in openEditors.Values)
+            {
+                if (editor != null)
+                {
+                    UpdateConditionalCompilationIndicators(editor);
+                }
+            }
+        }
+
+        private void UpdateConditionalCompilationIndicators(AvalonEditWrapper editor)
+        {
+            if (editor == null || editor.Editor == null) return;
+            
+            // Clear all existing markers
+            editor.ClearAllMarkers();
+            
+            // Get active symbols from current game mode and gsc.conf
+            HashSet<string> activeSymbols = GetActiveSymbols();
+            
+            // Parse conditional compilation blocks
+            string text = editor.Text;
+            if (string.IsNullOrEmpty(text))
+                return;
+            
+            List<CodeBlock> blocks = ParseConditionalBlocks(text);
+            
+            // Apply markers to inactive blocks
+            foreach (var block in blocks)
+            {
+                if (!block.IsActive)
+                {
+                    // Check if this is a one-line block (#ifdef ... #endif on same line)
+                    if (block.StartLine == block.EndLine)
+                    {
+                        // One-line block: highlight the content between #ifdef and #endif
+                        string line = editor.Lines[block.StartLine].Text;
+                        
+                        // Find positions of #ifdef/#ifndef and #endif anywhere on the line
+                        Regex ifdefRegex = new Regex(@"#if(def|ndef)\s+(\w+)", RegexOptions.IgnoreCase);
+                        Regex endifRegex = new Regex(@"#endif\b", RegexOptions.IgnoreCase);
+                        
+                        Match ifdefMatch = ifdefRegex.Match(line);
+                        Match endifMatch = endifRegex.Match(line);
+                        
+                        if (ifdefMatch.Success && endifMatch.Success)
+                        {
+                            // Get the line's start position (character offset)
+                            int lineStartPos = editor.Lines[block.StartLine].Position;
+                            
+                            // Calculate character positions for the content between #ifdef and #endif
+                            int ifdefEndChar = ifdefMatch.Index + ifdefMatch.Length;
+                            int endifStartChar = endifMatch.Index;
+                            
+                            // Highlight the content between #ifdef and #endif
+                            int startPos = lineStartPos + ifdefEndChar;
+                            int length = endifStartChar - ifdefEndChar;
+                            
+                            if (length > 0)
+                            {
+                                editor.IndicatorFillRange(startPos, length);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Multi-line block: highlight from line after #ifdef to line before #endif
+                        int startLine = block.StartLine + 1;
+                        if (startLine >= editor.Lines.Count)
+                            continue;
+                            
+                        int startPos = editor.Lines[startLine].Position;
+                        int endLine = block.EndLine < editor.Lines.Count ? block.EndLine - 1 : editor.Lines.Count - 1;
+                        if (endLine < startLine)
+                            continue;
+                            
+                        int endPos = editor.Lines[endLine].EndPosition;
+                        
+                        // Apply marker to inactive code
+                        editor.IndicatorFillRange(startPos, endPos - startPos);
+                    }
+                }
+            }
+            
+            // Force redraw to show markers
+            if (editor.Editor?.TextArea?.TextView != null)
+            {
+                editor.Editor.TextArea.TextView.Redraw();
+            }
+        }
+
+        // Track which custom symbols are enabled (user can toggle these)
+        private Dictionary<string, bool> customSymbolStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private List<string> availableCustomSymbols = new List<string>();
+        
+        private HashSet<string> GetActiveSymbols()
+        {
+            HashSet<string> symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            
+            // Add current game mode symbol
+            if (!string.IsNullOrEmpty(currentGameModeStr))
+            {
+                symbols.Add(currentGameModeStr.ToUpper());
+            }
+            
+            // Add game symbol (BO3 or BO4)
+            string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "BO3" : "BO4";
+            symbols.Add(gameSymbol);
+            
+            // Add "serious" symbol (always active)
+            symbols.Add("SERIOUS");
+            
+            // Add custom symbols that are enabled AND their parent conditions are met
+            foreach (var kvp in customSymbolStates)
+            {
+                if (kvp.Value) // If symbol is enabled
+                {
+                    string symbol = kvp.Key.ToUpper();
+                    
+                    // Check if this symbol has parent conditions (nested #ifdef blocks)
+                    if (symbolParentConditions.ContainsKey(symbol) && symbolParentConditions[symbol].Count > 0)
+                    {
+                        // Symbol is only active if all parent conditions are met
+                        // We need to recursively check if parents are active
+                        bool allParentsActive = true;
+                        foreach (string parentSymbol in symbolParentConditions[symbol])
+                        {
+                            // Check if parent symbol is active (recursively)
+                            bool parentActive = IsSymbolActive(parentSymbol, symbols, new HashSet<string>());
+                            if (!parentActive)
+                            {
+                                allParentsActive = false;
+                                break;
+                            }
+                        }
+                        
+                        if (allParentsActive)
+                        {
+                            symbols.Add(symbol);
+                        }
+                    }
+                    else
+                    {
+                        // No parent conditions, symbol is active if enabled
+                        symbols.Add(symbol);
+                    }
+                }
+            }
+            
+            return symbols;
+        }
+        
+        /// <summary>
+        /// Recursively checks if a symbol is active (including parent conditions)
+        /// </summary>
+        private bool IsSymbolActive(string symbol, HashSet<string> currentActiveSymbols, HashSet<string> visited)
+        {
+            // Prevent infinite recursion
+            if (visited.Contains(symbol))
+                return false;
+            visited.Add(symbol);
+            
+            // Check if symbol is in current active symbols (base case - already processed)
+            if (currentActiveSymbols.Contains(symbol))
+                return true;
+            
+            // Check if symbol is enabled in customSymbolStates
+            if (!customSymbolStates.ContainsKey(symbol) || !customSymbolStates[symbol])
+                return false;
+            
+            // Check parent conditions recursively
+            if (symbolParentConditions.ContainsKey(symbol) && symbolParentConditions[symbol].Count > 0)
+            {
+                foreach (string parentSymbol in symbolParentConditions[symbol])
+                {
+                    if (!IsSymbolActive(parentSymbol, currentActiveSymbols, visited))
+                        return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // Track which symbols are defined inside which #ifdef blocks
+        private Dictionary<string, List<string>> symbolParentConditions = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        
+        /// <summary>
+        /// Loads available symbols from gsc.conf and scans project files for symbols in #ifdef blocks
+        /// Also reads and sets the game mode from gsc.conf
+        /// </summary>
+        private void LoadSymbolsFromGscConf()
+        {
+            customSymbolStates.Clear();
+            availableCustomSymbols.Clear();
+            symbolParentConditions.Clear();
+            
+            if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
+                return;
+                
+            // First, load symbols from gsc.conf
+            string gscConfPath = Path.Combine(projectPath, "gsc.conf");
+            if (File.Exists(gscConfPath))
+            {
+                try
+                {
+                    // Use FileShare.ReadWrite to allow other processes to read/write while we read
+                    string[] lines;
+                    using (var fileStream = new FileStream(gscConfPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var reader = new StreamReader(fileStream))
+                    {
+                        lines = reader.ReadToEnd().Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                    }
+                    foreach (string line in lines)
+                    {
+                        // Skip empty lines and comments
+                        string trimmedLine = line.Trim();
+                        if (string.IsNullOrEmpty(trimmedLine) || trimmedLine.StartsWith("#") || trimmedLine.StartsWith("//"))
+                            continue;
+                            
+                        if (trimmedLine.StartsWith("symbols=", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Extract symbols value (handle both "symbols=" and "symbols =")
+                            int equalsIndex = trimmedLine.IndexOf('=');
+                            if (equalsIndex < 0) continue;
+                            
+                            string symbolsValue = trimmedLine.Substring(equalsIndex + 1).Trim();
+                            foreach (string symbol in symbolsValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                string trimmedSymbol = symbol.Trim();
+                                if (!string.IsNullOrEmpty(trimmedSymbol))
+                                {
+                                    string upperSymbol = trimmedSymbol.ToUpper();
+                                    
+                                    // Check for game mode (MP, ZM, SP) and set currentGameModeStr
+                                    if (upperSymbol == "MP" || upperSymbol == "ZM" || upperSymbol == "SP")
+                                    {
+                                        currentGameModeStr = upperSymbol;
+                                    }
+                                    // Check for game symbol (BO3, BO4) and set currentGame
+                                    else if (upperSymbol == "BO3")
+                                    {
+                                        currentGame = TreyarchCompiler.Enums.Games.T7;
+                                    }
+                                    else if (upperSymbol == "BO4")
+                                    {
+                                        currentGame = TreyarchCompiler.Enums.Games.T8;
+                                    }
+                                    // Track custom symbols (not game mode, game, or serious)
+                                    else if (upperSymbol != "SERIOUS")
+                                    {
+                                        // Use case-insensitive comparison for checking
+                                        if (!availableCustomSymbols.Any(s => s.Equals(upperSymbol, StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            availableCustomSymbols.Add(upperSymbol);
+                                        }
+                                        // Symbols in gsc.conf are enabled by default
+                                        customSymbolStates[upperSymbol] = true;
+                                    }
+                                }
+                            }
+                            break; // Only process first symbols= line
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log error but don't show prompt - silently fail to avoid interrupting user
+                    System.Diagnostics.Debug.WriteLine($"Error loading gsc.conf: {ex.Message}");
+                }
+            }
+            
+            // Scan project files for symbols in #ifdef blocks
+            ScanProjectForSymbols();
+            
+            // Update the symbols menu
+            UpdateSymbolsMenu();
+            
+            // Update the mode menu to reflect the mode from gsc.conf
+            UpdateModeMenu();
+        }
+        
+        /// <summary>
+        /// Updates the mode menu checkboxes to reflect the current game mode
+        /// </summary>
+        private void UpdateModeMenu()
+        {
+            if (campaignModeItem == null || multiplayerModeItem == null || zombiesModeItem == null)
+                return;
+            
+            // Uncheck all first
+            campaignModeItem.Checked = false;
+            multiplayerModeItem.Checked = false;
+            zombiesModeItem.Checked = false;
+            
+            // Check the appropriate mode based on currentGameModeStr
+            switch (currentGameModeStr.ToUpper())
+            {
+                case "SP":
+                    campaignModeItem.Checked = true;
+                    break;
+                case "MP":
+                    multiplayerModeItem.Checked = true;
+                    break;
+                case "ZM":
+                default:
+                    zombiesModeItem.Checked = true;
+                    break;
+            }
+        }
+        
+        /// <summary>
+        /// Scans all project files for symbols used in #ifdef/#ifndef blocks
+        /// </summary>
+        private void ScanProjectForSymbols()
+        {
+            if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
+                return;
+            
+            try
+            {
+                // Regex patterns for scanning project files
+                Regex ifdefPattern = new Regex(@"#if(?:def|ndef)\s+(\w+)", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+                Regex constantDefinePattern = new Regex(@"^\s*#define\s+(\w+)\s*=", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+                
+                HashSet<string> constantDefines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                
+                // Scan all .gsc and .csc files in the project
+                foreach (string gscFile in Directory.GetFiles(projectPath, "*.*", SearchOption.AllDirectories)
+                    .Where(f => f.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) || 
+                                f.EndsWith(".csc", StringComparison.OrdinalIgnoreCase)))
+                {
+                    try
+                    {
+                        string content = File.ReadAllText(gscFile);
+                        
+                        // First, identify constant definitions to exclude them
+                        foreach (Match match in constantDefinePattern.Matches(content))
+                        {
+                            if (match.Groups.Count > 1)
+                            {
+                                string constName = match.Groups[1].Value.Trim();
+                                if (!string.IsNullOrEmpty(constName))
+                                {
+                                    constantDefines.Add(constName);
+                                }
+                            }
+                        }
+                        
+                        // Find all symbols used in #ifdef/#ifndef blocks and track their parent conditions
+                        string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                        Stack<KeyValuePair<string, bool>> ifdefStack = new Stack<KeyValuePair<string, bool>>(); // Track nested #ifdef conditions (symbol, isIfndef)
+                        
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            string line = lines[i];
+                            
+                            // Check for #ifdef or #ifndef
+                            Match ifdefMatch = ifdefPattern.Match(line);
+                            if (ifdefMatch.Success && ifdefMatch.Groups.Count > 1)
+                            {
+                                string symbol = ifdefMatch.Groups[1].Value.Trim().ToUpper();
+                                bool isIfndef = line.Trim().StartsWith("#ifndef", StringComparison.OrdinalIgnoreCase);
+                                
+                                if (!string.IsNullOrEmpty(symbol))
+                                {
+                                    // Exclude game mode symbols and constant definitions
+                                    if (symbol != "MP" && symbol != "ZM" && symbol != "SP" && 
+                                        symbol != "BO3" && symbol != "BO4" && symbol != "SERIOUS" &&
+                                        !constantDefines.Contains(symbol))
+                                    {
+                                        // Add symbol to available list (case-insensitive check)
+                                        if (!availableCustomSymbols.Any(s => s.Equals(symbol, StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            availableCustomSymbols.Add(symbol);
+                                        }
+                                        // Initialize symbol state if not already set (from gsc.conf)
+                                        if (!customSymbolStates.ContainsKey(symbol))
+                                        {
+                                            customSymbolStates[symbol] = false; // Default to disabled if not in gsc.conf
+                                        }
+                                        
+                                        // Track parent conditions (nested #ifdef blocks)
+                                        // A symbol is only active if all its parent conditions are met
+                                        if (!symbolParentConditions.ContainsKey(symbol))
+                                        {
+                                            symbolParentConditions[symbol] = new List<string>();
+                                        }
+                                        
+                                        // Add current parent conditions to this symbol
+                                        // Only add parents that are not already in the list
+                                        foreach (var parent in ifdefStack)
+                                        {
+                                            if (!symbolParentConditions[symbol].Contains(parent.Key))
+                                            {
+                                                symbolParentConditions[symbol].Add(parent.Key);
+                                            }
+                                        }
+                                        
+                                        // Push this symbol onto the stack (it's now a parent for nested blocks)
+                                        ifdefStack.Push(new KeyValuePair<string, bool>(symbol, isIfndef));
+                                    }
+                                }
+                            }
+                            
+                            // Check for #endif to pop from stack
+                            if (Regex.IsMatch(line, @"^\s*#endif\b", RegexOptions.IgnoreCase))
+                            {
+                                if (ifdefStack.Count > 0)
+                                {
+                                    ifdefStack.Pop();
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Skip files that can't be read
+                        continue;
+                    }
+                }
+            }
+            catch { }
+        }
+        
+        /// <summary>
+        /// Updates the symbols menu to show all available custom symbols
+        /// </summary>
+        private void UpdateSymbolsMenu()
+        {
+            // Remove existing symbol menu items (if any)
+            if (symbolsMenu != null)
+            {
+                symbolsMenu.DropDownItems.Clear();
+            }
+            else
+            {
+                // Create symbols menu if it doesn't exist
+                symbolsMenu = new ToolStripMenuItem("Symbols");
+                // Insert after Mode menu
+                int modeIndex = mainMenuStrip.Items.IndexOf(modeMenu);
+                if (modeIndex >= 0)
+                {
+                    mainMenuStrip.Items.Insert(modeIndex + 1, symbolsMenu);
+                }
+                else
+                {
+                    mainMenuStrip.Items.Add(symbolsMenu);
+                }
+            }
+            
+            // Add menu items for each custom symbol
+            foreach (string symbol in availableCustomSymbols.OrderBy(s => s))
+            {
+                ToolStripMenuItem symbolItem = new ToolStripMenuItem(symbol);
+                symbolItem.CheckOnClick = true;
+                // Use case-insensitive lookup for consistency
+                string upperSymbol = symbol.ToUpper();
+                symbolItem.Checked = customSymbolStates.ContainsKey(upperSymbol) && customSymbolStates[upperSymbol];
+                symbolItem.Tag = upperSymbol; // Store uppercase version for consistency
+                symbolItem.Click += (s, e) => {
+                    ToolStripMenuItem item = s as ToolStripMenuItem;
+                    if (item != null && item.Tag != null)
+                    {
+                        string sym = item.Tag.ToString().ToUpper(); // Ensure uppercase
+                        customSymbolStates[sym] = item.Checked;
+                        // Force immediate update on UI thread
+                        if (this.InvokeRequired)
+                        {
+                            this.BeginInvoke(new Action(() => UpdateConditionalCompilationIndicators()));
+                        }
+                        else
+                        {
+                            UpdateConditionalCompilationIndicators();
+                        }
+                    }
+                };
+                symbolsMenu.DropDownItems.Add(symbolItem);
+            }
+            
+            // If no custom symbols, add a disabled item
+            if (availableCustomSymbols.Count == 0)
+            {
+                ToolStripMenuItem noSymbolsItem = new ToolStripMenuItem("(No custom symbols)");
+                noSymbolsItem.Enabled = false;
+                symbolsMenu.DropDownItems.Add(noSymbolsItem);
+            }
+        }
+
+        private class CodeBlock
+        {
+            public int StartLine { get; set; }
+            public int EndLine { get; set; }
+            public bool IsActive { get; set; }
+            public string Symbol { get; set; }
+            public bool IsIfndef { get; set; }
+        }
+
+        private List<CodeBlock> ParseConditionalBlocks(string text)
+        {
+            List<CodeBlock> blocks = new List<CodeBlock>();
+            HashSet<string> activeSymbols = GetActiveSymbols();
+            
+            string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            Stack<CodeBlock> blockStack = new Stack<CodeBlock>();
+            
+            // Match #ifdef/#ifndef anywhere on the line (not just at start) - needed for one-line blocks
+            Regex ifdefRegex = new Regex(@"#ifdef\s+(\w+)", RegexOptions.IgnoreCase);
+            Regex ifndefRegex = new Regex(@"#ifndef\s+(\w+)", RegexOptions.IgnoreCase);
+            Regex elseRegex = new Regex(@"^\s*#else\b", RegexOptions.IgnoreCase);
+            // Match #endif anywhere on the line (not just at start) - needed for one-line blocks
+            Regex endifRegex = new Regex(@"#endif\b", RegexOptions.IgnoreCase);
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                
+                Match ifdefMatch = ifdefRegex.Match(line);
+                Match ifndefMatch = ifndefRegex.Match(line);
+                Match elseMatch = elseRegex.Match(line);
+                Match endifMatch = endifRegex.Match(line);
+                
+                // Check for one-line blocks (e.g., "#ifndef MP AddSubmenu(...); #endif" or "#ifdef MP code(); #endif")
+                // Look for #endif on the same line after #ifdef/#ifndef
+                bool isOneLineBlock = false;
+                if ((ifdefMatch.Success || ifndefMatch.Success) && endifMatch.Success)
+                {
+                    // Check if #endif appears after #ifdef/#ifndef on the same line
+                    int ifdefPos = ifdefMatch.Success ? ifdefMatch.Index : ifndefMatch.Index;
+                    int endifPos = endifMatch.Index;
+                    if (endifPos > ifdefPos)
+                    {
+                        isOneLineBlock = true;
+                    }
+                }
+                
+                if (ifdefMatch.Success)
+                {
+                    string symbol = ifdefMatch.Groups[1].Value.ToUpper();
+                    bool isActive = activeSymbols.Contains(symbol);
+                    
+                    if (isOneLineBlock)
+                    {
+                        // One-line block: #ifdef ... #endif on same line
+                        // Extract the content between #ifdef and #endif
+                        int ifdefEnd = ifdefMatch.Index + ifdefMatch.Length;
+                        int endifStart = endifMatch.Index;
+                        
+                        // Create a block for the content between #ifdef and #endif
+                        CodeBlock block = new CodeBlock
+                        {
+                            StartLine = i,
+                            EndLine = i,
+                            Symbol = symbol,
+                            IsIfndef = false,
+                            IsActive = isActive
+                        };
+                        
+                        // Only add if inactive (we only need to grey out inactive code)
+                        if (!block.IsActive)
+                        {
+                            blocks.Add(block);
+                        }
+                        
+                        // Skip processing this line further (don't push to stack)
+                        continue;
+                    }
+                    else
+                    {
+                        CodeBlock block = new CodeBlock
+                        {
+                            StartLine = i,
+                            Symbol = symbol,
+                            IsIfndef = false,
+                            IsActive = isActive,
+                            EndLine = -1 // Will be set when we find #endif
+                        };
+                        
+                        blockStack.Push(block);
+                    }
+                }
+                else if (ifndefMatch.Success)
+                {
+                    string symbol = ifndefMatch.Groups[1].Value.ToUpper();
+                    // Special case: "serious" is always active as a namespace, so #ifndef serious blocks should always be active (not grayed out)
+                    bool isActive;
+                    if (symbol == "SERIOUS")
+                    {
+                        isActive = true; // Always active - don't gray out
+                    }
+                    else
+                    {
+                        isActive = !activeSymbols.Contains(symbol); // Inverted for #ifndef
+                    }
+                    
+                    if (isOneLineBlock)
+                    {
+                        // One-line block: #ifndef ... #endif on same line
+                        CodeBlock block = new CodeBlock
+                        {
+                            StartLine = i,
+                            EndLine = i,
+                            Symbol = symbol,
+                            IsIfndef = true,
+                            IsActive = isActive
+                        };
+                        
+                        // Only add if inactive (we only need to grey out inactive code)
+                        if (!block.IsActive)
+                        {
+                            blocks.Add(block);
+                        }
+                        
+                        // Skip processing this line further (don't push to stack)
+                        continue;
+                    }
+                    else
+                    {
+                        CodeBlock block = new CodeBlock
+                        {
+                            StartLine = i,
+                            Symbol = symbol,
+                            IsIfndef = true,
+                            IsActive = isActive,
+                            EndLine = -1
+                        };
+                        
+                        blockStack.Push(block);
+                    }
+                }
+                else if (elseMatch.Success && blockStack.Count > 0)
+                {
+                    // When we hit #else, we need to mark the previous block section
+                    // and create a new block for the #else section
+                    CodeBlock currentBlock = blockStack.Peek();
+                    
+                    // Mark the end of the "if" section (before #else)
+                    CodeBlock ifBlock = new CodeBlock
+                    {
+                        StartLine = currentBlock.StartLine + 1,
+                        EndLine = i - 1,
+                        IsActive = currentBlock.IsActive,
+                        Symbol = currentBlock.Symbol,
+                        IsIfndef = currentBlock.IsIfndef
+                    };
+                    // Only add if inactive (we only need to grey out inactive code)
+                    if (ifBlock.EndLine >= ifBlock.StartLine && !ifBlock.IsActive)
+                    {
+                        blocks.Add(ifBlock);
+                    }
+                    
+                    // The #else section has the opposite active state
+                    currentBlock.StartLine = i + 1; // Start after #else
+                    currentBlock.IsActive = !currentBlock.IsActive;
+                }
+                else if (endifMatch.Success && blockStack.Count > 0)
+                {
+                    CodeBlock block = blockStack.Pop();
+                    if (block.EndLine == -1) // Only set if not already set by #else
+                    {
+                        block.EndLine = i;
+                    }
+                    else
+                    {
+                        // This block was split by #else, so the end is the line before #endif
+                        block.EndLine = i - 1;
+                    }
+                    
+                    // Only add if there's actual content AND it's inactive (we only grey out inactive code)
+                    if (block.EndLine >= block.StartLine && !block.IsActive)
+                    {
+                        blocks.Add(block);
+                    }
+                }
+            }
+            
+            return blocks;
+        }
+
+        private AvalonEditWrapper GetCurrentEditor()
+        {
+            if (tabControl.SelectedTab == null)
+                return null;
+
+            foreach (var kvp in editorTabs)
+            {
+                if (kvp.Value == tabControl.SelectedTab)
+                {
+                    return openEditors[kvp.Key];
+                }
+            }
+            return null;
+        }
+
+        private void TabControl_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateSelectedTabItem();
+        }
+
+        private void TabControl_MouseWheel(object sender, MouseEventArgs e)
+        {
+            HandleTabControlMouseWheel(e);
+        }
+
+        private void HandleTabControlMouseWheel(MouseEventArgs e)
+        {
+            if (tabControl == null || tabControl.TabPages.Count == 0)
+                return;
+
+            // Throttle tab scrolling to prevent rapid changes
+            DateTime now = DateTime.Now;
+            if ((now - lastTabScrollTime).TotalMilliseconds < TabScrollThrottleMs)
+                return; // Too soon since last change, ignore this scroll event
+
+            // Scroll through tabs with mouse wheel
+            int currentIndex = tabControl.SelectedIndex;
+            if (currentIndex < 0)
+                currentIndex = 0;
+
+            int newIndex = currentIndex;
+
+            if (e.Delta > 0)
+            {
+                // Scroll up - go to previous tab
+                if (currentIndex > 0)
+                {
+                    newIndex = currentIndex - 1;
+                }
+                else
+                {
+                    // Wrap to last tab
+                    newIndex = tabControl.TabPages.Count - 1;
+                }
+            }
+            else if (e.Delta < 0)
+            {
+                // Scroll down - go to next tab
+                if (currentIndex < tabControl.TabPages.Count - 1)
+                {
+                    newIndex = currentIndex + 1;
+                }
+                else
+                {
+                    // Wrap to first tab
+                    newIndex = 0;
+                }
+            }
+
+            // Only change if index actually changed
+            if (newIndex != currentIndex)
+            {
+                // Change tab immediately (throttling already handled above)
+                tabControl.SelectedIndex = newIndex;
+                lastTabScrollTime = now;
+            }
+        }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            // Check if mouse is over tab control area - if so, handle tab scrolling
+            Point mousePos = this.PointToClient(Control.MousePosition);
+            if (tabControl != null && tabControl.Bounds.Contains(mousePos))
+            {
+                // Get the tab control's client coordinates
+                Point tabControlMousePos = tabControl.PointToClient(Control.MousePosition);
+                
+                // Check if mouse is in the tab area (top ~30 pixels) or if Ctrl key is held
+                // This allows scrolling tabs even when mouse is over content if Ctrl is held
+                bool isOverTabArea = tabControlMousePos.Y < 30;
+                bool ctrlHeld = (Control.ModifierKeys & Keys.Control) != 0;
+                
+                if (isOverTabArea || ctrlHeld)
+                {
+                    HandleTabControlMouseWheel(e);
+                    return; // Don't call base - we handled it
+                }
+            }
+            
+            base.OnMouseWheel(e);
+        }
+
+        private void UpdateSelectedTabItem()
+        {
+            if (!folderOpened)
+                return;
+
+            try
+            {
+                if (tabControl.SelectedTab != null)
+                {
+                    selectedTabItem = tabControl.SelectedTab.Text;
+                    currentFileName = selectedTabItem;
+                    // Recheck for unsaved changes when switching tabs
+                    CheckForUnsavedChanges();
+                }
+            }
+            catch { }
+        }
+
+        #endregion
+
+        #region Save Operations
+
+        private void SaveCurrentFile()
+        {
+            if (!folderOpened || string.IsNullOrEmpty(currentFileName))
+                return;
+
+            AvalonEditWrapper editor = GetCurrentEditor();
+            if (editor == null)
+                return;
+
+            // Get file path - currentFileName may be a relative path or simple filename
+            string filePath;
+            if (currentFileName.Contains(Path.DirectorySeparatorChar) || currentFileName.Contains(Path.AltDirectorySeparatorChar))
+            {
+                // Relative path - use it directly
+                filePath = Path.Combine(projectPath, currentFileName);
+            }
+            else
+            {
+                // Simple filename - check if it exists in scripts folder, otherwise search
+                filePath = Path.Combine(projectPath, "scripts", currentFileName);
+                if (!File.Exists(filePath))
+                {
+                    // Search for the file to get its actual location
+                    string[] foundFiles = Directory.GetFiles(projectPath, currentFileName, SearchOption.AllDirectories);
+                    if (foundFiles.Length > 0)
+                        filePath = foundFiles[0];
+                }
+            }
+            
+            // Ensure directory exists
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+            
+            string contentToSave = editor.Text;
+            File.WriteAllText(filePath, contentToSave);
+            
+            // Update saved content reference - this is what we compare against for hasChanges
+            fileContents[currentFileName] = contentToSave;
+            
+            // Clear undo history after save (so undo doesn't go back past save point)
+            editor.EmptyUndoBuffer();
+            
+            // Recheck for unsaved changes (this will update hasChanges and title)
+            CheckForUnsavedChanges();
+        }
+
+        private void SaveAllFiles(bool updateTitle = true)
+        {
+            if (!folderOpened || string.IsNullOrEmpty(projectPath))
+            {
+                hasChanges = false; // Reset if no folder opened
+                return;
+            }
+
+            try
+            {
+                // Use Application.DoEvents() to prevent UI freezing during save
+                int savedCount = 0;
+                foreach (var kvp in openEditors)
+                {
+                    if (kvp.Value == null)
+                        continue;
+
+                    try
+                    {
+                        // kvp.Key may be a relative path or simple filename
+                        string filePath;
+                        if (kvp.Key.Contains(Path.DirectorySeparatorChar) || kvp.Key.Contains(Path.AltDirectorySeparatorChar))
+                        {
+                            // Relative path - use it directly
+                            filePath = Path.Combine(projectPath, kvp.Key);
+                        }
+                        else
+                        {
+                            // Simple filename - check scripts folder first, then search
+                            filePath = Path.Combine(projectPath, "scripts", kvp.Key);
+                            if (!File.Exists(filePath))
+                            {
+                                string[] foundFiles = Directory.GetFiles(projectPath, kvp.Key, SearchOption.AllDirectories);
+                                if (foundFiles.Length > 0)
+                                    filePath = foundFiles[0];
+                            }
+                        }
+                        
+                        // Ensure directory exists
+                        string dir = Path.GetDirectoryName(filePath);
+                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                        {
+                            Directory.CreateDirectory(dir);
+                        }
+                        
+                        string contentToSave = kvp.Value.Text;
+                        
+                        // Process UI events before each save to keep UI responsive
+                        Application.DoEvents();
+                        
+                        // Use async file write to prevent blocking
+                        File.WriteAllText(filePath, contentToSave);
+                        
+                        // Update saved content reference - this is what we compare against for hasChanges
+                        fileContents[kvp.Key] = contentToSave;
+                        
+                        // Clear undo history after save (so undo doesn't go back past save point)
+                        kvp.Value.EmptyUndoBuffer();
+                        
+                        savedCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but continue saving other files
+                        System.Diagnostics.Debug.WriteLine($"Error saving file {kvp.Key}: {ex.Message}");
+                    }
+                }
+
+                // Process final UI events
+                Application.DoEvents();
+
+                // Update hasChanges flag directly (all files are now saved)
+                hasChanges = false;
+                
+                // Only update title if requested (not during form closing)
+                if (updateTitle)
+                {
+                    CheckForUnsavedChanges();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Re-throw to be handled by caller
+                throw new Exception($"Failed to save files: {ex.Message}", ex);
+            }
+        }
+
+
+        #endregion
+
+        #region Compilation
+
+        private void BtnCompile_Click(object sender, EventArgs e)
+        {
+            ResetButtonState(sender);
+            
+            if (!folderOpened || string.IsNullOrEmpty(projectPath))
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Please open a project folder first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            this.Cursor = Cursors.WaitCursor;
+            btnCompile.Cursor = Cursors.WaitCursor;
+            
+            try
+            {
+            SaveAllFiles();
+            
+                // Use MainForm's compile logic - find MainForm instance and use its public method
+                MainForm mainForm = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
+                if (mainForm != null)
+                {
+                    // Determine output path
+                    string outputPath = Path.Combine(projectPath, Path.GetFileName(projectPath) + ".gsc");
+                    
+                    // Get active symbols from the editor (includes mode and custom symbols)
+                    HashSet<string> activeSymbols = GetActiveSymbols();
+                    List<string> symbolsList = activeSymbols.ToList();
+                    
+                    // Use MainForm's public CompileProject method with symbols from editor
+                    mainForm.CompileProject(projectPath, outputPath, currentGame, GetGameModeEnum(), symbolsList);
+                }
+                else
+                {
+                    // Fallback: Show error message
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
+                        "MainForm not available. Please use the Compile tab in the main window.", 
+                        "Error", 
+                        MessageBoxButtons.OK, 
+                        MessageBoxIcon.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
+                    $"Error during compilation: {ex.Message}\n\nStack trace: {ex.StackTrace}", 
+                    "Error", 
+                    MessageBoxButtons.OK, 
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+            btnCompile.Cursor = Cursors.Default;
+            this.Cursor = Cursors.Default;
+            }
+        }
+
+        private TreyarchCompiler.Enums.Modes GetGameModeEnum()
+        {
+            switch (currentGameModeStr.ToLower())
+            {
+                case "zm":
+                    return TreyarchCompiler.Enums.Modes.ZM;
+                case "mp":
+                    return TreyarchCompiler.Enums.Modes.MP;
+                case "sp":
+                    return TreyarchCompiler.Enums.Modes.SP;
+                default:
+                    return TreyarchCompiler.Enums.Modes.ZM;
+            }
+        }
+
+
+        #endregion
+
+        #region Default Project Creation
+
+        private void CreateDefaultProjectOnStartup()
+        {
+            try
+            {
+                string gameSubfolder = currentGame == TreyarchCompiler.Enums.Games.T7 ? "T7" : "T8";
+                
+                // Create default project in the exe directory as "defaultproject"
+                string guiPath = GetGuiPath();
+                string defaultProjectBasePath = Path.Combine(guiPath, "defaultproject");
+                string defaultProjectPath = Path.Combine(defaultProjectBasePath, gameSubfolder);
+                
+                // Check if the defaultproject folder exists (from installer or build)
+                if (Directory.Exists(defaultProjectPath))
+                {
+                    // Use the existing defaultproject from installer or build
+                    OpenFolder(defaultProjectPath);
+                    folderOpened = true;
+                    return;
+                }
+                
+                // Get default template files path
+                string defaultsPath = GetDefaultsPath();
+                
+                // Create it using the template files
+                string scriptsPath = Path.Combine(defaultProjectPath, "scripts");
+                string functionsPath = Path.Combine(scriptsPath, "functions");
+                
+                // Create directories
+                Directory.CreateDirectory(defaultProjectPath);
+                Directory.CreateDirectory(scriptsPath);
+                Directory.CreateDirectory(functionsPath);
+                
+                if (currentGame == TreyarchCompiler.Enums.Games.T7)
+                {
+                    // For T7, use multiple template files
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.main", Path.Combine(scriptsPath, "main.gsc"), GetDefaultMainContent());
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.options", Path.Combine(scriptsPath, "options.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.util", Path.Combine(scriptsPath, "util.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project._util", Path.Combine(functionsPath, "_util.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.misc", Path.Combine(functionsPath, "misc.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.stats", Path.Combine(functionsPath, "stats.gsc"), "");
+                    CreateFileFromTemplate(defaultsPath, "defaultt7project.zombies_only", Path.Combine(functionsPath, "zombies_only.gsc"), "");
+                }
+                else
+                {
+                    // For T8, use main and headers files
+                    CreateFileFromTemplate(defaultsPath, "defaultt8project.main", Path.Combine(scriptsPath, "main.gsc"), GetDefaultMainContent());
+                    CreateFileFromTemplate(defaultsPath, "defaultt8project.headers", Path.Combine(scriptsPath, "headers.gsc"), GetDefaultHeadersContent());
+                }
+
+                // Create gsc.conf if it doesn't exist
+                string gscConfPath = Path.Combine(defaultProjectPath, "gsc.conf");
+                if (!File.Exists(gscConfPath))
+                {
+                    string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "bo3" : "bo4";
+                    string gameModeLower = currentGameModeStr.ToLower();
+                    File.WriteAllText(gscConfPath, $"symbols={gameSymbol},serious,{gameModeLower}");
+                }
+
+                // Open the folder
+                if (Directory.Exists(defaultProjectPath))
+                {
+                    OpenFolder(defaultProjectPath);
+                    folderOpened = true;
+                }
+                else
+                {
+                    throw new DirectoryNotFoundException($"Failed to create default project directory: {defaultProjectPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Use PoisonMessageBox for consistency with Poison UI
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    $"Default Project Failed to open.\n\nError: {ex.Message}\n\nYou can create a new project using 'New Project' button.",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        private void PortILProject(string input, string output)
+        {
+            // Port IL project logic (similar to BtnPortIL_Click but for auto-detection)
+            // Implementation similar to BtnPortIL_Click
+        }
+
+        #endregion
+
+        #region Discord Rich Presence
+
+        private void UpdateDiscordPresence()
+        {
+            // Discord Rich Presence disabled - not needed for this project
+            // This method is kept for compatibility but does nothing
+                return;
+        }
+
+        #endregion
+
+        #region Status Bar
+
+        private System.Windows.Forms.Timer statusBarTimer;
+
+        /// <summary>
+        /// Gets the default status text (Ready + project path if available)
+        /// </summary>
+        private string GetDefaultStatusText()
+        {
+            if (!string.IsNullOrEmpty(projectPath) && folderOpened)
+            {
+                // Replace %USERPROFILE% or actual user profile path with ~
+                string displayPath = projectPath;
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                
+                // First expand any environment variables
+                displayPath = Environment.ExpandEnvironmentVariables(displayPath);
+                
+                // Replace user profile path with ~
+                if (!string.IsNullOrEmpty(userProfile) && displayPath.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase))
+                {
+                    displayPath = "~" + displayPath.Substring(userProfile.Length);
+                }
+                // Also handle %USERPROFILE% if it wasn't expanded
+                else if (displayPath.IndexOf("%USERPROFILE%", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    // Case-insensitive replace
+                    int index = displayPath.IndexOf("%USERPROFILE%", StringComparison.OrdinalIgnoreCase);
+                    if (index >= 0)
+                    {
+                        displayPath = displayPath.Substring(0, index) + "~" + displayPath.Substring(index + "%USERPROFILE%".Length);
+                    }
+                }
+                
+                // Truncate path if too long (max 100 characters for path)
+                if (displayPath.Length > 100)
+                {
+                    displayPath = "..." + displayPath.Substring(displayPath.Length - 97);
+                }
+                return $"Ready | {displayPath}";
+            }
+            return "Ready";
+        }
+
+        /// <summary>
+        /// Shows a message in the status bar for a specified duration
+        /// </summary>
+        private void ShowStatusMessage(string message, int durationMs = 3000)
+        {
+            if (statusLabel == null)
+                return;
+
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => ShowStatusMessage(message, durationMs)));
+                return;
+            }
+
+            statusLabel.Text = message;
+
+            // Clear the timer if it exists
+            if (statusBarTimer != null)
+            {
+                statusBarTimer.Stop();
+                statusBarTimer.Dispose();
+            }
+
+            // Create a new timer to reset the status bar after the duration
+            statusBarTimer = new System.Windows.Forms.Timer();
+            statusBarTimer.Interval = durationMs;
+            statusBarTimer.Tick += (s, e) =>
+            {
+                statusBarTimer.Stop();
+                statusBarTimer.Dispose();
+                statusBarTimer = null;
+                if (statusLabel != null && !this.IsDisposed)
+                {
+                    statusLabel.Text = GetDefaultStatusText();
+                }
+            };
+            statusBarTimer.Start();
+        }
+
+        #endregion
+
+        #region File Watcher
+
+        private void FileWatcher_Changed(object sender, FileSystemEventArgs e)
+        {
+            // File was changed externally - reload if not currently editing
+            if (this.InvokeRequired)
+            {
+                // Use BeginInvoke instead of Invoke to avoid TimeoutException
+                // BeginInvoke is asynchronous and won't block or timeout
+                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                {
+                    try
+                    {
+                        this.BeginInvoke(new Action(() => FileWatcher_Changed(sender, e)));
+                    }
+                    catch (ObjectDisposedException) { }
+                    catch (InvalidOperationException) { }
+                    catch (ArgumentException) { }
+                }
+                return;
+            }
+
+            // Get relative path from projectPath to match openEditors keys
+            string relativePath = GetRelativePath(projectPath, e.FullPath);
+            string filename = Path.GetFileName(e.FullPath);
+            
+            // Check both relative path and filename (for backward compatibility)
+            string keyToUse = openEditors.ContainsKey(relativePath) ? relativePath : 
+                             (openEditors.ContainsKey(filename) ? filename : null);
+            
+            // Reload file if it's open
+            // If it's the current file being edited, we'll still reload but show a notification
+            if (keyToUse != null)
+            {
+                // Reload file from disk (external change)
+                AvalonEditWrapper editor = openEditors[keyToUse];
+                if (editor != null)
+                {
+                    // Use a background task to avoid blocking the UI thread
+                    System.Threading.Tasks.Task.Run(() =>
+                    {
+                        // Wait a bit for the file to be fully written (FileSystemWatcher can fire too early)
+                        System.Threading.Thread.Sleep(100);
+                        
+                        // Retry reading the file with delays to handle file locks
+                        string content = null;
+                        int retries = 10; // Increased retries
+                        int delay = 100; // Start with 100ms delay
+                        
+                        for (int i = 0; i < retries; i++)
+                        {
+                            try
+                            {
+                                // Try to read the file with FileShare.ReadWrite to allow other processes to write
+                                using (FileStream fs = new FileStream(e.FullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                {
+                                    using (StreamReader reader = new StreamReader(fs))
+                                    {
+                                        content = reader.ReadToEnd();
+                                        break; // Success, exit retry loop
+                                    }
+                                }
+                            }
+                            catch (IOException ioEx)
+                            {
+                                // File is locked or being used by another process
+                                if (i < retries - 1)
+                                {
+                                    // Wait before retrying, with exponential backoff
+                                    System.Threading.Thread.Sleep(delay);
+                                    delay = Math.Min(delay * 2, 2000); // Cap at 2 seconds
+                                }
+                                else
+                                {
+                                    // Last retry failed, log and give up
+                                    System.Diagnostics.Debug.WriteLine($"Failed to reload file {e.FullPath} after {retries} attempts: {ioEx.Message}");
+                                    return; // Don't update editor if we can't read the file
+                                }
+                            }
+                            catch (UnauthorizedAccessException)
+                            {
+                                // File access denied, don't retry
+                                System.Diagnostics.Debug.WriteLine($"Access denied to file {e.FullPath}");
+                                return;
+                            }
+                        }
+                        
+                        if (content != null)
+                        {
+                            // Update UI on the main thread
+                            if (this.InvokeRequired)
+                            {
+                                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                                {
+                                    try
+                                    {
+                                        this.BeginInvoke(new Action(() =>
+                                        {
+                                            if (!this.IsDisposed && !this.Disposing && openEditors.ContainsKey(keyToUse))
+                                            {
+                                                isLoadingFiles = true;
+                                                try
+                                                {
+                    editor.Text = content;
+                                                    fileContents[keyToUse] = content;
+                                                    // Clear undo history after external reload
+                                                    editor.EmptyUndoBuffer();
+                                                    // Don't set hasChanges = false here - external changes don't affect our unsaved state
+                                                    
+                                                    // Show notification in status bar
+                                                    ShowStatusMessage($"File '{Path.GetFileName(e.FullPath)}' was modified externally and has been reloaded.", 5000);
+                                                    
+                                                    // Update conditional compilation indicators after reload
+                                                    UpdateConditionalCompilationIndicators(editor);
+                                                    UpdateSyntaxHighlightingIndicators(editor);
+                                                }
+                                                finally
+                                                {
+                                                    isLoadingFiles = false;
+                                                }
+                                            }
+                                        }));
+                                    }
+                                    catch (ObjectDisposedException) { }
+                                    catch (InvalidOperationException) { }
+                                    catch (ArgumentException) { }
+                                }
+                            }
+                            else
+                            {
+                                isLoadingFiles = true;
+                                try
+                                {
+                                    editor.Text = content;
+                                    fileContents[keyToUse] = content;
+                                    // Clear undo history after external reload
+                                    editor.EmptyUndoBuffer();
+                                    // Don't set hasChanges = false here - external changes don't affect our unsaved state
+                                    
+                                    // Show notification in status bar
+                                    ShowStatusMessage($"File '{Path.GetFileName(e.FullPath)}' was modified externally and has been reloaded.", 5000);
+                                    
+                                    // Update conditional compilation indicators after reload
+                                    UpdateConditionalCompilationIndicators(editor);
+                                    UpdateSyntaxHighlightingIndicators(editor);
+                                }
+                                finally
+                                {
+                                    isLoadingFiles = false;
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        private void FileWatcher_Created(object sender, FileSystemEventArgs e)
+        {
+            if (this.InvokeRequired)
+            {
+                // Use BeginInvoke instead of Invoke to avoid TimeoutException
+                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                {
+                    try
+                    {
+                        this.BeginInvoke(new Action(() => FileWatcher_Created(sender, e)));
+                    }
+                    catch (ObjectDisposedException) { }
+                    catch (InvalidOperationException) { }
+                    catch (ArgumentException) { }
+                }
+                return;
+            }
+
+            RefreshFileList(false);
+        }
+
+        private void FileWatcher_Deleted(object sender, FileSystemEventArgs e)
+        {
+            if (this.InvokeRequired)
+            {
+                // Use BeginInvoke instead of Invoke to avoid TimeoutException
+                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                {
+                    try
+                    {
+                        this.BeginInvoke(new Action(() => FileWatcher_Deleted(sender, e)));
+                    }
+                    catch (ObjectDisposedException) { }
+                    catch (InvalidOperationException) { }
+                    catch (ArgumentException) { }
+                }
+                return;
+            }
+
+            // Get relative path from projectPath to match editorTabs keys
+            string relativePath = GetRelativePath(projectPath, e.FullPath);
+            string filename = Path.GetFileName(e.FullPath);
+            
+            // Check both relative path and filename (for backward compatibility)
+            string keyToUse = editorTabs.ContainsKey(relativePath) ? relativePath : 
+                             (editorTabs.ContainsKey(filename) ? filename : null);
+            
+            if (keyToUse != null)
+            {
+                // Show notification in status bar
+                ShowStatusMessage($"File '{Path.GetFileName(e.FullPath)}' was deleted. Closing tab...", 3000);
+                
+                tabControl.TabPages.Remove(editorTabs[keyToUse]);
+                editorTabs.Remove(keyToUse);
+                openEditors.Remove(keyToUse);
+                fileContents.Remove(keyToUse);
+            }
+            
+            RefreshFileList(false);
+        }
+
+        private void FileWatcher_Renamed(object sender, RenamedEventArgs e)
+        {
+            if (this.InvokeRequired)
+            {
+                // Use BeginInvoke instead of Invoke to avoid TimeoutException
+                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                {
+                    try
+                    {
+                        this.BeginInvoke(new Action(() => FileWatcher_Renamed(sender, e)));
+                    }
+                    catch (ObjectDisposedException) { }
+                    catch (InvalidOperationException) { }
+                    catch (ArgumentException) { }
+                }
+                return;
+            }
+
+            // Show notification in status bar
+            ShowStatusMessage($"File '{Path.GetFileName(e.OldFullPath)}' was renamed to '{Path.GetFileName(e.FullPath)}'. Refreshing...", 3000);
+
+            RefreshFileList(false);
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Gets the relative path from basePath to targetPath (compatible with .NET Framework 4.8)
+        /// </summary>
+        private string GetRelativePath(string basePath, string targetPath)
+        {
+            if (string.IsNullOrEmpty(basePath) || string.IsNullOrEmpty(targetPath))
+                return targetPath;
+
+            Uri baseUri = new Uri(basePath + Path.DirectorySeparatorChar);
+            Uri targetUri = new Uri(targetPath);
+            Uri relativeUri = baseUri.MakeRelativeUri(targetUri);
+            string relativePath = Uri.UnescapeDataString(relativeUri.ToString()).Replace('/', Path.DirectorySeparatorChar);
+            
+            return relativePath;
+        }
+
+        private void CheckForUnsavedChanges()
+        {
+            bool anyChanges = false;
+            
+            // Check all open editors against their saved content
+            foreach (var kvp in openEditors)
+            {
+                if (kvp.Value != null)
+                {
+                    try
+                    {
+                        string currentText = kvp.Value.Text ?? string.Empty;
+                        
+                        if (fileContents.ContainsKey(kvp.Key))
+                        {
+                            // Compare against saved content
+                            string savedText = fileContents[kvp.Key] ?? string.Empty;
+                            if (currentText != savedText)
+                            {
+                                anyChanges = true;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            // File was opened but never saved - if it has content, consider it changed
+                            if (!string.IsNullOrEmpty(currentText))
+                            {
+                                anyChanges = true;
+                                break;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // If we can't read the text, assume no changes to avoid errors
+                    }
+                }
+            }
+            
+            // Always update hasChanges flag
+            bool previousState = hasChanges;
+            hasChanges = anyChanges;
+            
+            // Update title if state changed or if we're on UI thread (for immediate feedback)
+            if (previousState != anyChanges || !this.InvokeRequired)
+            {
+                if (this.InvokeRequired)
+                {
+                    try
+                    {
+                        if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                        {
+                            // Use BeginInvoke instead of Invoke to avoid TimeoutException
+                            if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                            {
+                                try
+                                {
+                                    this.BeginInvoke(new Action(() => UpdateTitle()));
+                                }
+                                catch (ObjectDisposedException) { }
+                                catch (InvalidOperationException) { }
+                                catch (ArgumentException) { }
+                            }
+                        }
+                    }
+                    catch (ObjectDisposedException) { }
+                    catch (InvalidOperationException) { }
+                    catch (ArgumentException) { }
+                }
+                else
+                {
+                    UpdateTitle();
+                }
+            }
+        }
+
+        private void UpdateTitle()
+        {
+            string title = "Code Editor";
+            if (folderOpened && !string.IsNullOrEmpty(projectPath))
+            {
+                title += $" - {Path.GetFileName(projectPath)}";
+            }
+            if (hasChanges)
+            {
+                title += " *";
+            }
+            this.Text = title;
+        }
+
+        /// <summary>
+        /// Reads an embedded resource file from the Defaults folder
+        /// </summary>
+        private string ReadEmbeddedTemplate(string resourceName)
+        {
+            try
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                string fullResourceName = $"T7CompilerGUI.Defaults.{resourceName}";
+                
+                using (Stream stream = assembly.GetManifestResourceStream(fullResourceName))
+                {
+                    if (stream != null)
+                    {
+                        using (StreamReader reader = new StreamReader(stream))
+                        {
+                            return reader.ReadToEnd();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // If embedded resource not found, return empty string
+            }
+            
+            return "";
+        }
+
+        private string GetDefaultMainContent()
+        {
+            if (currentGame == TreyarchCompiler.Enums.Games.T8)
+            {
+                string content = ReadEmbeddedTemplate("defaultt8project.main");
+                if (!string.IsNullOrEmpty(content))
+                    return content;
+            }
+            else
+            {
+                string content = ReadEmbeddedTemplate("defaultt7project.main");
+                if (!string.IsNullOrEmpty(content))
+                    return content;
+            }
+            
+            // Fallback: try file system (for development)
+            string templatePath = GetDefaultsPath();
+            if (currentGame == TreyarchCompiler.Enums.Games.T8)
+            {
+                string bo4MainPath = Path.Combine(templatePath, "defaultt8project.main");
+                if (File.Exists(bo4MainPath))
+                    return File.ReadAllText(bo4MainPath);
+            }
+            else
+            {
+                string bo3MainPath = Path.Combine(templatePath, "defaultt7project.main");
+                if (File.Exists(bo3MainPath))
+                    return File.ReadAllText(bo3MainPath);
+            }
+            
+            return "";
+        }
+
+        private string GetDefaultHeadersContent()
+        {
+            if (currentGame == TreyarchCompiler.Enums.Games.T8)
+            {
+                string content = ReadEmbeddedTemplate("defaultt8project.headers");
+                if (!string.IsNullOrEmpty(content))
+                    return content;
+            }
+            
+            // Fallback: try file system (for development)
+            string templatePath = GetDefaultsPath();
+            if (currentGame == TreyarchCompiler.Enums.Games.T8)
+            {
+                string bo4HeadersPath = Path.Combine(templatePath, "defaultt8project.headers");
+                if (File.Exists(bo4HeadersPath))
+                    return File.ReadAllText(bo4HeadersPath);
+            }
+            
+            // T7 doesn't use headers file, it uses multiple files (options, util, functions/*)
+            return @"// Headers file
+// Add your function declarations and includes here";
+        }
+
+        /// <summary>
+        /// Creates a file from an embedded template resource or file system template, otherwise uses fallback content
+        /// Always writes the content to ensure files have the default content
+        /// </summary>
+        private void CreateFileFromTemplate(string templateDir, string templateFileName, string outputPath, string fallbackContent)
+        {
+            // Ensure the output directory exists
+            string outputDir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+            {
+                Directory.CreateDirectory(outputDir);
+            }
+            
+            string contentToWrite = "";
+            
+            // First, try to read from embedded resources
+            string embeddedContent = ReadEmbeddedTemplate(templateFileName);
+            if (!string.IsNullOrEmpty(embeddedContent))
+            {
+                contentToWrite = embeddedContent;
+            }
+            else
+            {
+                // Fallback: try file system (for development)
+                string templatePath = Path.Combine(templateDir, templateFileName);
+                if (File.Exists(templatePath))
+                {
+                    // Read content from template file
+                    contentToWrite = File.ReadAllText(templatePath);
+                }
+                else
+                {
+                    // Use fallback content
+                    contentToWrite = fallbackContent ?? "";
+                }
+            }
+            
+            // Always write the content (overwrite if file exists to ensure default content is set)
+            File.WriteAllText(outputPath, contentToWrite);
+        }
+
+        #endregion
+
+        #region Additional UI Features
+
+        private void UpdateCompilerMenu_Click(object sender, EventArgs e)
+        {
+            var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                this,
+                "This will delete the current compiler and reinstall it. Continue?",
+                "Update Compiler",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            
+            if (result == DialogResult.Yes)
+            {
+                try
+                {
+                    if (Directory.Exists("c:\\t7compiler"))
+                        Directory.Delete("c:\\t7compiler", true);
+                    
+                    CompilerActions.InstallCompiler(@"https://gsc.dev/t7c_package");
+                }
+                catch (Exception ex)
+                {
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Error updating compiler: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void ForceHostMenu_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                BlackOps3.ApplyHostDvars();
+                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    "Host Dvars Set, click OK when you are ready to start",
+                    "Info",
+                    MessageBoxButtons.OKCancel,
+                    MessageBoxIcon.Information);
+                
+                if (result == DialogResult.OK)
+                {
+                    BlackOps3.ApplyHostDvars();
+                    BlackOps3.Cbuf_AddText("lobbylaunchgame");
+                }
+            }
+            catch (Exception ex)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Error: {ex.Message}\n\nMake sure Black Ops 3 is running.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ClearHostDvarsMenu_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                BlackOps3.ClearHostDVARS();
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Host Dvars cleared.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Error: {ex.Message}\n\nMake sure Black Ops 3 is running.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void InjectPrecompiledScript(TreyarchCompiler.Enums.Games game)
+        {
+            string gameName = game == TreyarchCompiler.Enums.Games.T7 ? "Black Ops 3" : "Black Ops 4";
+            
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Title = $"{gameName} - Precompiled Script";
+                dialog.Filter = "Compiled Scripts (*.gsc;*.gscc)|*.gsc;*.gscc|All Files (*.*)|*.*";
+                dialog.FilterIndex = 1;
+                
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    if (!dialog.FileName.EndsWith(".gsc") && !dialog.FileName.EndsWith(".gscc"))
+                    {
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Select a compiled script to inject.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        InjectPrecompiledScript(game);
+                        return;
+                    }
+                    
+                    // Use MainForm's inject logic - find MainForm instance and use its public method
+                    MainForm mainForm = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
+                    if (mainForm != null)
+                    {
+                        // Determine replace path based on game (default paths from original Compiler UI)
+                        string replacePath = null;
+                        if (game == TreyarchCompiler.Enums.Games.T7)
+                            replacePath = "scripts\\shared\\duplicaterender_mgr.gsc";
+                        else
+                            replacePath = "scripts\\zm_common\\load.gsc";
+                        
+                        // Use MainForm's public InjectPrecompiledScript method
+                        mainForm.InjectPrecompiledScript(dialog.FileName, game, replacePath);
+                    }
+                    else
+                    {
+                        // Fallback: Show error message
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
+                            "MainForm not available. Please use the Inject tab in the main window.", 
+                            "Error", 
+                            MessageBoxButtons.OK, 
+                            MessageBoxIcon.Warning);
+                    }
+                }
+            }
+        }
+
+        private void KillGame(string processName)
+        {
+            try
+            {
+                Process[] processes = Process.GetProcessesByName(processName);
+                if (processes.Length == 0)
+                {
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"{processName} is not running.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                
+                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    $"Are you sure you want to kill {processName}?",
+                    "Confirm",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                
+                if (result == DialogResult.Yes)
+                {
+                    foreach (var process in processes)
+                    {
+                        try
+                        {
+                            process.Kill();
+                        }
+                        catch { }
+                    }
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"{processName} killed successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Error killing process: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        #endregion
+
+        #region Cleanup
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            // Always check for unsaved changes by comparing all editors against saved content
+            // This ensures we catch any changes even if the TextChanged handler didn't fire
+            CheckForUnsavedChanges();
+            
+            if (hasChanges)
+            {
+                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                    this,
+                    "You have unsaved changes. Save before closing?",
+                    "Unsaved Changes",
+                    MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    // Cancel the close event temporarily so we can save first
+                    e.Cancel = true;
+                    
+                    try
+                    {
+                        // Ensure message box is fully dismissed and form regains focus
+                        this.Activate();
+                        this.BringToFront();
+                        this.Focus();
+                        
+                        // Process all pending messages to ensure message box is fully closed
+                        Application.DoEvents();
+                        System.Threading.Thread.Sleep(50); // Brief pause to ensure message box is dismissed
+                        Application.DoEvents();
+                        
+                        this.Cursor = Cursors.WaitCursor;
+                        this.Update();
+                        Application.DoEvents();
+                        
+                        // Save files (don't update title - form is closing)
+                        SaveAllFiles(updateTitle: false);
+                        
+                        // Process events after save
+                        Application.DoEvents();
+                        
+                        this.Cursor = Cursors.Default;
+                        this.Update();
+                        Application.DoEvents();
+                        
+                        // Close the form synchronously on the UI thread
+                        // Use a timer to close after a brief delay to ensure all UI updates complete
+                        var closeTimer = new System.Windows.Forms.Timer { Interval = 50 };
+                        closeTimer.Tick += (s, args) => {
+                            closeTimer.Stop();
+                            closeTimer.Dispose();
+                            this.Close();
+                        };
+                        closeTimer.Start();
+                    }
+                    catch (Exception ex)
+                    {
+                        this.Cursor = Cursors.Default;
+                        e.Cancel = true; // Keep form open on error
+                        
+                        // If save fails, ask user if they still want to close
+                        var errorResult = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                            this,
+                            $"Failed to save files: {ex.Message}\n\nDo you still want to close?",
+                            "Save Error",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning);
+                        
+                        if (errorResult == DialogResult.Yes)
+                        {
+                            // User wants to close anyway - use timer to close
+                            var closeTimer = new System.Windows.Forms.Timer { Interval = 50 };
+                            closeTimer.Tick += (s, args) => {
+                                closeTimer.Stop();
+                                closeTimer.Dispose();
+                                this.Close();
+                            };
+                            closeTimer.Start();
+                        }
+                        // If No, form stays open (e.Cancel = true)
+                    }
+                    
+                    return; // Exit early since we're handling close programmatically
+                }
+                else if (result == DialogResult.Cancel)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                else if (result == DialogResult.No)
+                {
+                    // User chose not to save, allow form to close
+                    // hasChanges will remain true but we're closing anyway
+                }
+            }
+
+            // Cleanup timers
+            // Auto-save timer is disabled (manual save only)
+            // if (autoSaveTimer != null)
+            // {
+            //     autoSaveTimer.Stop();
+            //     autoSaveTimer.Dispose();
+            // }
+
+            if (themeCheckTimer != null)
+            {
+                themeCheckTimer.Stop();
+                themeCheckTimer.Dispose();
+                themeCheckTimer = null;
+            }
+
+            if (tabUpdateTimer != null)
+            {
+                tabUpdateTimer.Stop();
+                tabUpdateTimer.Dispose();
+            }
+
+            // Discord Rich Presence cleanup removed - feature is disabled
+
+            // Cleanup file watcher
+            if (fileWatcher != null)
+            {
+                fileWatcher.EnableRaisingEvents = false;
+                fileWatcher.Dispose();
+            }
+
+            // Cleanup status bar timer
+            if (statusBarTimer != null)
+            {
+                statusBarTimer.Stop();
+                statusBarTimer.Dispose();
+            }
+
+            base.OnFormClosing(e);
+    }
+
+    #endregion
+    }
+}
+

@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A8B3C4D5-E6F7-4A8B-9C0D-1E2F3A4B5C6D}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>T7CompilerGUI</RootNamespace>
+    <AssemblyName>T7CompilerGUI</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+    <ApplicationIcon>Resources\t7gui.ico</ApplicationIcon>
+    <AppConfig>Properties\Config\App.config</AppConfig>
+    <!-- Suppress MSB3277 warnings - these are harmless build-time assembly conflicts that are resolved at runtime via binding redirects in App.config -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\T7CompilerGUI\$(Configuration)\</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\T7CompilerGUI\$(Configuration)\</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Development|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\T7CompilerGUI\$(Configuration)\</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\T7CompilerGUI\x64\$(Configuration)\</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\T7CompilerGUI\x64\$(Configuration)\</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Development|x64' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <!-- Builds folder is at root level (same as SolutionDir) -->
+    <OutputPath>$(SolutionDir)Builds\T7CompilerGUI\x64\$(Configuration)\</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <!-- ReaLTaiizor UI Library -->
+  <ItemGroup>
+    <PackageReference Include="ReaLTaiizor" Version="3.8.1.4" />
+    <PackageReference Include="Vanara.PInvoke.Shell32" Version="4.2.1" />
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <!-- WPF references for AvalonEdit -->
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsFormsIntegration" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Forms\MainForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\MainForm.Designer.cs">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\MainForm.WindowsAPI.cs">
+      <DependentUpon>MainForm.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\MainForm.Helpers.cs">
+      <DependentUpon>MainForm.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Utils\ConditionalBlocks.cs" />
+    <Compile Include="Utils\SourceTokenDef.cs" />
+    <Compile Include="Forms\Dialogs\KeybindDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\KeybindDialog.Designer.cs">
+      <DependentUpon>KeybindDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\ConfigLocationsDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\ConfigLocationsDialog.Designer.cs">
+      <DependentUpon>ConfigLocationsDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\GscConfEditorDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\GscConfEditorDialog.Designer.cs">
+      <DependentUpon>GscConfEditorDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\NewFileDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\NewFileDialog.Designer.cs">
+      <DependentUpon>NewFileDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\PoisonControlHelper.cs" />
+    <Compile Include="Controls\AvalonEditWrapper.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\TextMarkerService.cs" />
+    <Compile Include="Forms\CodeEditorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\CodeEditorForm.Designer.cs">
+      <DependentUpon>CodeEditorForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\CodeEditorForm.Improvements.cs">
+      <DependentUpon>CodeEditorForm.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\CodeEditorForm.MenuRenderer.cs">
+      <DependentUpon>CodeEditorForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\GoToLineDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\GoToLineDialog.Designer.cs">
+      <DependentUpon>GoToLineDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\InputDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\InputDialog.Designer.cs">
+      <DependentUpon>InputDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\ReplaceDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\ReplaceDialog.Designer.cs">
+      <DependentUpon>ReplaceDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\SearchDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\SearchDialog.Designer.cs">
+      <DependentUpon>SearchDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Games\BlackOps3.cs" />
+    <Compile Include="Games\BlackOps4.cs" />
+    <Compile Include="Helpers\WindowHelper.cs" />
+    <Compile Include="Helpers\FileHelper.cs" />
+    <Compile Include="Helpers\ModernFolderDialog.cs" />
+    <Compile Include="Helpers\GscSyntaxParser.cs" />
+    <Compile Include="Actions\CompilerActions.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Forms\CodeEditorForm.resx">
+      <DependentUpon>CodeEditorForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\ConfigLocationsDialog.resx">
+      <DependentUpon>ConfigLocationsDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\GoToLineDialog.resx">
+      <DependentUpon>GoToLineDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\GscConfEditorDialog.resx">
+      <DependentUpon>GscConfEditorDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\InputDialog.resx">
+      <DependentUpon>InputDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\KeybindDialog.resx">
+      <DependentUpon>KeybindDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\NewFileDialog.resx">
+      <DependentUpon>NewFileDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\ReplaceDialog.resx">
+      <DependentUpon>ReplaceDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\SearchDialog.resx">
+      <DependentUpon>SearchDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\MainForm.resx">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\External\External.csproj">
+      <Project>{810bdf68-87bb-45a2-ac4f-87643045bf4c}</Project>
+      <Name>External</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\T7CompilerLib\T7CompilerLib.csproj">
+      <Project>{7527fb74-e8ac-43f1-9e48-e9d4d2b5d5b3}</Project>
+      <Name>T7CompilerLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\T8CompilerLib\T89CompilerLib.csproj">
+      <Project>{C630E36A-4A4C-4F14-AA8B-AE80F592DAAD}</Project>
+      <Name>T89CompilerLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TreyarchCompiler\TreyarchCompiler.csproj">
+      <Project>{2cdefd40-3952-44a7-b69e-711fbacac869}</Project>
+      <Name>TreyarchCompiler</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Defaults\defaultt7project.main" />
+    <EmbeddedResource Include="Defaults\defaultt7project.misc" />
+    <EmbeddedResource Include="Defaults\defaultt7project.options" />
+    <EmbeddedResource Include="Defaults\defaultt7project.stats" />
+    <EmbeddedResource Include="Defaults\defaultt7project.util" />
+    <EmbeddedResource Include="Defaults\defaultt7project.zombies_only" />
+    <EmbeddedResource Include="Defaults\defaultt7project._util" />
+    <EmbeddedResource Include="Defaults\defaultt8project.headers" />
+    <EmbeddedResource Include="Defaults\defaultt8project.main" />
+    <None Include="Properties\Config\App.config" />
+    <None Include="Properties\Config\FodyWeavers.xml" />
+    <None Include="Properties\Config\packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <WeaverFiles Include="..\..\packages\Costura.Fody.6.0.0\netclassicweaver\Costura.Fody.dll">
+      <Visible>false</Visible>
+    </WeaverFiles>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Database files are copied by CopyDatabaseFiles target, not via None Include -->
+    <!-- These are kept for reference only, but CopyToOutputDirectory is handled by the target -->
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Resources\t7gui.ico">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
+    <!-- GSC.xshd is embedded as a resource (located at solution root Resources folder) -->
+    <EmbeddedResource Include="..\..\Resources\GSC.xshd">
+      <Link>Resources\GSC.xshd</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- Copy FodyWeavers.xml to project root for Fody to find it -->
+  <Target Name="CopyFodyWeavers" BeforeTargets="PrepareForBuild">
+    <Copy SourceFiles="Properties\Config\FodyWeavers.xml" DestinationFiles="FodyWeavers.xml" SkipUnchangedFiles="true" Condition="Exists('Properties\Config\FodyWeavers.xml')" />
+    <Copy SourceFiles="Properties\Config\FodyWeavers.xsd" DestinationFiles="FodyWeavers.xsd" SkipUnchangedFiles="true" Condition="Exists('Properties\Config\FodyWeavers.xsd')" />
+  </Target>
+  <!-- Ensure database files are copied to output directory -->
+  <Target Name="CopyDatabaseFiles" AfterTargets="CopyFilesToOutputDirectory">
+    <PropertyGroup>
+      <!-- SolutionDir is the directory containing the .sln file (root My T7\), so Resources is at $(SolutionDir)Resources -->
+      <_ResourcesPath>$(SolutionDir)Resources</_ResourcesPath>
+    </PropertyGroup>
+    <Message Text="CopyDatabaseFiles: Looking for database files in $(_ResourcesPath)" Importance="normal" />
+    <ItemGroup>
+      <DatabaseFiles Include="$(_ResourcesPath)\T7PCV2.db" Condition="Exists('$(_ResourcesPath)\T7PCV2.db')" />
+      <DatabaseFiles Include="$(_ResourcesPath)\T7PS4V2.db" Condition="Exists('$(_ResourcesPath)\T7PS4V2.db')" />
+      <DatabaseFiles Include="$(_ResourcesPath)\vm_codes.db2" Condition="Exists('$(_ResourcesPath)\vm_codes.db2')" />
+    </ItemGroup>
+    <Message Text="CopyDatabaseFiles: Found @(DatabaseFiles-&gt;Count()) database files to copy to $(OutDir)" Importance="normal" />
+    <Message Text="CopyDatabaseFiles: Files: @(DatabaseFiles)" Importance="normal" Condition="'@(DatabaseFiles)' != ''" />
+    <Copy SourceFiles="@(DatabaseFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(DatabaseFiles)' != ''" />
+    <Message Text="CopyDatabaseFiles: ERROR - No database files found in $(_ResourcesPath)" Importance="high" Condition="'@(DatabaseFiles)' == ''" />
+  </Target>
+  <Import Project="..\..\packages\Fody.6.9.3\build\Fody.targets" Condition="Exists('..\..\packages\Fody.6.9.3\build\Fody.targets')" />
+  <Import Project="..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets" Condition="Exists('..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\..\packages\Fody.6.9.3\build\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Fody.6.9.3\build\Fody.targets'))" />
+    <Error Condition="!Exists('..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets'))" />
+  </Target>
+  <!-- Close T7GUI if it's running during build to prevent file locking issues -->
+  <!-- Run before PrepareForBuild to ensure files are unlocked before compilation starts -->
+  <Target Name="CloseT7GUI" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ProcessName>T7CompilerGUI</ProcessName>
+    </PropertyGroup>
+    <!-- Check if process is running and close it -->
+    <Exec Command="taskkill /IM $(ProcessName).exe /T /F 2&gt;nul" ContinueOnError="true" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="TaskKillExitCode" />
+    </Exec>
+    <!-- Wait a brief moment for the process to fully close and release file locks -->
+    <Exec Command="timeout /t 1 /nobreak &gt;nul 2&gt;&amp;1" ContinueOnError="true" IgnoreExitCode="true" Condition="'$(TaskKillExitCode)' == '0'" />
+    <Message Text="Closed T7GUI process if it was running" Importance="normal" Condition="'$(TaskKillExitCode)' == '0'" />
+  </Target>
+  <!-- Copy GUI to __depot\build\t7gui on Release builds (only .exe since everything is embedded) -->
+  <!-- Run after Costura finishes embedding DLLs -->
+  <Target Name="CopyToDepot" AfterTargets="AfterBuild">
+    <PropertyGroup>
+      <!-- SolutionDir is the directory containing the .sln file (root My T7\) -->
+      <DepotGuiPath>$(SolutionDir)__depot\build\t7gui</DepotGuiPath>
+    </PropertyGroup>
+    <!-- Create depot folder if it doesn't exist -->
+    <MakeDir Directories="$(DepotGuiPath)" Condition="!Exists('$(DepotGuiPath)')" />
+    <!-- Copy only the .exe file (everything else is embedded with Costura, including Defaults template files and GSC.xshd) -->
+    <!-- Note: defaultproject is created by the code editor at runtime in the exe directory -->
+    <Copy SourceFiles="$(OutDir)$(TargetFileName)" DestinationFolder="$(DepotGuiPath)" SkipUnchangedFiles="true" ContinueOnError="false" />
+    <Message Text="Copied $(TargetFileName) to $(DepotGuiPath)" Importance="high" />
+  </Target>
+</Project>
