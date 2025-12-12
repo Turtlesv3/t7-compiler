@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Manager;
@@ -11,6 +14,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         public string SearchText => txtSearch.Text;
         public bool MatchCase => chkMatchCase.Checked;
         public bool WholeWord => chkWholeWord.Checked;
+        public bool SearchAllFiles => true; // Always search all files
 
         private PoisonStyleManager styleManager;
 

@@ -675,22 +675,50 @@ namespace T7CompilerGUI.Controls
                 }
                 
                 // Also search for ScrollViewer and hide its corner control directly
+                // The corner control is PART_CornerControl in WPF's ScrollViewer template
                 var scrollViewer = FindVisualChild<ScrollViewer>(textEditor);
                 if (scrollViewer != null)
                 {
-                    // Search for any small controls in the ScrollViewer (corner control could be various types)
-                    var scrollViewerChildren = FindVisualChildren<System.Windows.FrameworkElement>(scrollViewer).ToList();
-                    foreach (var child in scrollViewerChildren)
+                    // Method 1: Use Template.FindName to find PART_CornerControl (proper WPF way)
+                    if (scrollViewer.Template != null)
                     {
-                        // Hide small elements that could be the corner control
-                        if (child.Width < 30 && child.Height < 30 && child.Width > 0 && child.Height > 0)
+                        var cornerControl = scrollViewer.Template.FindName("PART_CornerControl", scrollViewer) as System.Windows.FrameworkElement;
+                        if (cornerControl != null)
                         {
-                            // Check if it's positioned at the corner
+                            cornerControl.Visibility = System.Windows.Visibility.Collapsed;
+                            cornerControl.IsHitTestVisible = false;
+                            cornerControl.Opacity = 0;
+                            cornerControl.Width = 0;
+                            cornerControl.Height = 0;
+                        }
+                    }
+                    
+                    // Method 2: Search visual tree for any element named PART_CornerControl
+                    var allElements = FindVisualChildren<System.Windows.FrameworkElement>(scrollViewer).ToList();
+                    foreach (var child in allElements)
+                    {
+                        if (child.Name != null && 
+                            (child.Name.Equals("PART_CornerControl", StringComparison.OrdinalIgnoreCase) ||
+                             child.Name.ToLowerInvariant().Contains("corner")))
+                        {
+                            child.Visibility = System.Windows.Visibility.Collapsed;
+                            child.IsHitTestVisible = false;
+                            child.Opacity = 0;
+                            child.Width = 0;
+                            child.Height = 0;
+                        }
+                    }
+                    
+                    // Method 3: Hide small elements in the corner position (bottom-right where scrollbars meet)
+                    foreach (var child in allElements)
+                    {
+                        if (child.Width < 20 && child.Height < 20 && child.Width > 0 && child.Height > 0)
+                        {
                             try
                             {
                                 var position = child.TransformToAncestor(scrollViewer).Transform(new System.Windows.Point(0, 0));
-                                // Corner is typically at top-right
-                                if (position.X > scrollViewer.ActualWidth - 50 && position.Y < 50)
+                                // Corner is at bottom-right where horizontal and vertical scrollbars meet
+                                if (position.X > scrollViewer.ActualWidth - 25 && position.Y > scrollViewer.ActualHeight - 25)
                                 {
                                     child.Visibility = System.Windows.Visibility.Collapsed;
                                     child.IsHitTestVisible = false;
@@ -699,7 +727,7 @@ namespace T7CompilerGUI.Controls
                             }
                             catch
                             {
-                                // If we can't determine position, hide small unnamed elements
+                                // If transform fails, hide small unnamed elements that might be corner
                                 if (string.IsNullOrEmpty(child.Name) || child.Name.Contains("Corner") || child.Name.Contains("PART_"))
                                 {
                                     child.Visibility = System.Windows.Visibility.Collapsed;

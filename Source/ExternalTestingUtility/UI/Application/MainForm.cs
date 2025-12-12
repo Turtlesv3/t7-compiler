@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -16,6 +17,14 @@ namespace t7c_installer
 {
     public partial class MainForm : Form, IThemeableControl
     {
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+        
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        
+        private const int SW_RESTORE = 9;
+        
         public MainForm()
         {
             InitializeComponent();
@@ -23,6 +32,22 @@ namespace t7c_installer
             this.SetThemeAware();
             MaximizeBox = true;
             MinimizeBox = true;
+            
+            // Ensure form comes to front when shown
+            this.Shown += MainForm_Shown;
+        }
+        
+        private void MainForm_Shown(object sender, EventArgs e)
+        {
+            // Use Windows API to force window to foreground
+            ShowWindow(this.Handle, SW_RESTORE);
+            SetForegroundWindow(this.Handle);
+            
+            // Also use WinForms methods as backup
+            this.BringToFront();
+            this.Activate();
+            this.WindowState = FormWindowState.Normal;
+            this.Focus();
         }
 
         public IEnumerable<Control> GetThemedControls()

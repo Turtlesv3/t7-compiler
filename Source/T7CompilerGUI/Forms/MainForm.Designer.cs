@@ -1,3 +1,4 @@
+using System.Windows.Forms;
 using ReaLTaiizor.Controls;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Extension.Poison;
@@ -190,6 +191,7 @@ namespace T7CompilerGUI.Forms
             // txtLog
             // 
             this.poisonStyleExtender.SetApplyPoisonTheme(this.txtLog, true);
+            this.txtLog.AllowDrop = false;
             this.txtLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.txtLog.Dock = System.Windows.Forms.DockStyle.Fill;
             this.txtLog.Font = new System.Drawing.Font("Consolas", 9F);
@@ -201,6 +203,8 @@ namespace T7CompilerGUI.Forms
             this.txtLog.TabIndex = 0;
             this.txtLog.Text = "";
             this.txtLog.WordWrap = false;
+            this.txtLog.MouseDown += new System.Windows.Forms.MouseEventHandler(this.txtLog_MouseDown);
+            this.txtLog.QueryContinueDrag += new System.Windows.Forms.QueryContinueDragEventHandler(this.txtLog_QueryContinueDrag);
             // 
             // platformMenu
             // 
@@ -476,6 +480,7 @@ namespace T7CompilerGUI.Forms
             this.txtOutputFile.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
             this.txtOutputFile.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
             this.txtOutputFile.TextChanged += new System.EventHandler(this.txtOutputFile_TextChanged);
+            this.txtOutputFile.DoubleClick += new System.EventHandler(this.txtOutputFile_DoubleClick);
             // 
             // btnSelectOutputFile
             // 
@@ -836,7 +841,7 @@ namespace T7CompilerGUI.Forms
             this.toggleSettingsTheme.Name = "toggleSettingsTheme";
             this.toggleSettingsTheme.Size = new System.Drawing.Size(80, 19);
             this.toggleSettingsTheme.TabIndex = 2;
-            this.toggleSettingsTheme.Text = "On";
+            this.toggleSettingsTheme.Text = "Dark";
             this.toggleSettingsTheme.UseSelectable = true;
             this.toggleSettingsTheme.CheckedChanged += new System.EventHandler(this.toggleSettingsTheme_CheckedChanged);
             // 
@@ -1134,6 +1139,7 @@ namespace T7CompilerGUI.Forms
             this.lblGameStatus.Name = "lblGameStatus";
             this.lblGameStatus.Size = new System.Drawing.Size(615, 19);
             this.lblGameStatus.TabIndex = 50;
+            this.lblGameStatus.Font = new System.Drawing.Font("Consolas", 9F);
             this.lblGameStatus.Text = "BO3: Not Running | BO4: Not Running";
             this.lblGameStatus.UseCustomFont = true;
             this.lblGameStatus.UseStyleColors = true;
@@ -1153,6 +1159,61 @@ namespace T7CompilerGUI.Forms
             this.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.MinimumSize = new System.Drawing.Size(500, 550);
+            // Load icon - try multiple locations
+            System.Drawing.Icon formIcon = null;
+            
+            // Try 1: Embedded resource
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                // Try different possible resource names
+                var resourceNames = new[] { "T7CompilerGUI.Resources.t7gui.ico", "t7gui.ico", "Resources.t7gui.ico" };
+                foreach (var resourceName in resourceNames)
+                {
+                    using (var stream = assembly.GetManifestResourceStream(resourceName))
+                    {
+                        if (stream != null)
+                        {
+                            formIcon = new System.Drawing.Icon(stream);
+                            break;
+                        }
+                    }
+                }
+            }
+            catch { }
+            
+            // Try 2: Resources folder relative to executable
+            if (formIcon == null)
+            {
+                try
+                {
+                    string iconPath = System.IO.Path.Combine(Application.StartupPath, "Resources", "t7gui.ico");
+                    if (System.IO.File.Exists(iconPath))
+                    {
+                        formIcon = new System.Drawing.Icon(iconPath);
+                    }
+                }
+                catch { }
+            }
+            
+            // Try 3: Resources folder relative to assembly location
+            if (formIcon == null)
+            {
+                try
+                {
+                    string iconPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "Resources", "t7gui.ico");
+                    if (System.IO.File.Exists(iconPath))
+                    {
+                        formIcon = new System.Drawing.Icon(iconPath);
+                    }
+                }
+                catch { }
+            }
+            
+            if (formIcon != null)
+            {
+                this.Icon = formIcon;
+            }
             this.Name = "MainForm";
             this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.AeroShadow;
@@ -1160,6 +1221,8 @@ namespace T7CompilerGUI.Forms
             this.Text = "T7 GSC Compiler";
             this.DragDrop += new System.Windows.Forms.DragEventHandler(this.MainForm_DragDrop);
             this.DragEnter += new System.Windows.Forms.DragEventHandler(this.MainForm_DragEnter);
+            this.ResizeBegin += new System.EventHandler(this.MainForm_ResizeBegin);
+            this.ResizeEnd += new System.EventHandler(this.MainForm_ResizeEnd);
             ((System.ComponentModel.ISupportInitialize)(this.poisonStyleManager)).EndInit();
             this.tabControl.ResumeLayout(false);
             this.tabCompile.ResumeLayout(false);

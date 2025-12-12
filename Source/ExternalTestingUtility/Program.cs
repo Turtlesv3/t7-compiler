@@ -125,7 +125,12 @@ namespace t7c_installer
                 }
                 Environment.Exit(1);
             }
-            Application.Run(new MainForm());
+            var mainForm = new MainForm();
+            mainForm.Show();
+            mainForm.BringToFront();
+            mainForm.Activate();
+            mainForm.WindowState = FormWindowState.Normal;
+            Application.Run(mainForm);
         }
 
         static void DeployCompiler(string compilerDirectory, string defaultProjectDirectory, string solutionDirectory)

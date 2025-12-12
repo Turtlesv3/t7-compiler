@@ -31,6 +31,12 @@ namespace T7CompilerGUI.Forms
                     if (!string.IsNullOrEmpty(filter))
                         dialog.Filter = filter;
                     
+                    // Set icon - dialogs inherit from owner form
+                    if (this.Icon != null)
+                    {
+                        // The dialog will use the owner form's icon automatically
+                    }
+                    
                     if (!string.IsNullOrWhiteSpace(initialPath))
                     {
                         if (File.Exists(initialPath))

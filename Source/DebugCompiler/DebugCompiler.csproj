@@ -144,22 +144,8 @@
     <Copy SourceFiles="Properties\Config\FodyWeavers.xml" DestinationFiles="FodyWeavers.xml" SkipUnchangedFiles="true" Condition="Exists('Properties\Config\FodyWeavers.xml')" />
     <Copy SourceFiles="Properties\Config\FodyWeavers.xsd" DestinationFiles="FodyWeavers.xsd" SkipUnchangedFiles="true" Condition="Exists('Properties\Config\FodyWeavers.xsd')" />
   </Target>
-  <!-- Ensure database files are copied to output directory -->
-  <Target Name="CopyDatabaseFiles" AfterTargets="CopyFilesToOutputDirectory">
-    <PropertyGroup>
-      <!-- SolutionDir is the directory containing the .sln file (root My T7\), so Resources is at $(SolutionDir)Resources -->
-      <_ResourcesPath>$(SolutionDir)Resources</_ResourcesPath>
-    </PropertyGroup>
-    <Message Text="CopyDatabaseFiles: Looking for database files in $(_ResourcesPath)" Importance="normal" />
-    <ItemGroup>
-      <DatabaseFiles Include="$(_ResourcesPath)\T7PCV2.db" Condition="Exists('$(_ResourcesPath)\T7PCV2.db')" />
-      <DatabaseFiles Include="$(_ResourcesPath)\T7PS4V2.db" Condition="Exists('$(_ResourcesPath)\T7PS4V2.db')" />
-    </ItemGroup>
-    <Message Text="CopyDatabaseFiles: Found @(DatabaseFiles->Count()) database files to copy to $(OutDir)" Importance="normal" />
-    <Message Text="CopyDatabaseFiles: Files: @(DatabaseFiles)" Importance="normal" Condition="'@(DatabaseFiles)' != ''" />
-    <Copy SourceFiles="@(DatabaseFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(DatabaseFiles)' != ''" />
-    <Message Text="CopyDatabaseFiles: ERROR - No database files found in $(_ResourcesPath)" Importance="high" Condition="'@(DatabaseFiles)' == ''" />
-  </Target>
+  <!-- Database files (.db, .db2) are NOT copied to output - they should be excluded from builds -->
+  <!-- If database files are needed at runtime, they should be provided separately -->
   <Import Project="..\..\packages\Fody.6.9.3\build\Fody.targets" Condition="Exists('..\..\packages\Fody.6.9.3\build\Fody.targets')" />
   <Import Project="..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets" Condition="Exists('..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

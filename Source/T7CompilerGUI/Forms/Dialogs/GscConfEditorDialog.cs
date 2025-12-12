@@ -340,7 +340,8 @@ namespace T7CompilerGUI.Forms.Dialogs
                     {
                         string item = lstOtherSymbols.Items[i].ToString();
                         // Check if this symbol is in gsc.conf (case-insensitive comparison)
-                        bool isChecked = symbolsFromConf.Contains(item);
+                        // symbolsFromConf uses case-insensitive comparison, so this will work correctly
+                        bool isChecked = symbolsFromConf.Any(s => s.Equals(item, StringComparison.OrdinalIgnoreCase));
                         lstOtherSymbols.SetItemChecked(i, isChecked);
                     }
                 }

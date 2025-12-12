@@ -439,32 +439,85 @@ namespace T7CompilerGUI.Forms
             
             try
             {
-                // Get theme colors from Poison
+                // Get theme colors from Poison - match MainForm's PoisonContextMenuStrip
                 var backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                var foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                var foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
                 var borderColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
+                var styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
                 
                 // Convert to WPF colors
-                contextMenu.Background = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(backColor.A, backColor.R, backColor.G, backColor.B));
-                contextMenu.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(foreColor.A, foreColor.R, foreColor.G, foreColor.B));
-                contextMenu.BorderBrush = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(borderColor.A, borderColor.R, borderColor.G, borderColor.B));
+                var wpfBackColor = System.Windows.Media.Color.FromArgb(backColor.A, backColor.R, backColor.G, backColor.B);
+                var wpfForeColor = System.Windows.Media.Color.FromArgb(foreColor.A, foreColor.R, foreColor.G, foreColor.B);
+                var wpfBorderColor = System.Windows.Media.Color.FromArgb(borderColor.A, borderColor.R, borderColor.G, borderColor.B);
+                // Use style color with 150 alpha for hover (matches MainForm's StyleBasedMenuRenderer)
+                var wpfHoverColor = System.Windows.Media.Color.FromArgb(150, 
+                    (byte)styleColor.R, (byte)styleColor.G, (byte)styleColor.B);
                 
-                // Update all menu items
+                contextMenu.Background = new System.Windows.Media.SolidColorBrush(wpfBackColor);
+                contextMenu.Foreground = new System.Windows.Media.SolidColorBrush(wpfForeColor);
+                contextMenu.BorderBrush = new System.Windows.Media.SolidColorBrush(wpfBorderColor);
+                
+                // Update all menu items with proper hover handling
                 foreach (var item in contextMenu.Items)
                 {
                     if (item is System.Windows.Controls.MenuItem menuItem)
                     {
-                        menuItem.Background = contextMenu.Background;
-                        menuItem.Foreground = contextMenu.Foreground;
+                        menuItem.Background = new System.Windows.Media.SolidColorBrush(wpfBackColor);
+                        menuItem.Foreground = new System.Windows.Media.SolidColorBrush(wpfForeColor);
+                        
+                        // Remove existing handlers to avoid duplicates
+                        menuItem.MouseEnter -= MenuItem_MouseEnter;
+                        menuItem.MouseLeave -= MenuItem_MouseLeave;
+                        
+                        // Add hover handlers
+                        menuItem.MouseEnter += MenuItem_MouseEnter;
+                        menuItem.MouseLeave += MenuItem_MouseLeave;
+                        
+                        // Store colors in Tag for use in event handlers
+                        menuItem.Tag = new { Normal = wpfBackColor, Hover = wpfHoverColor };
+                    }
+                    else if (item is System.Windows.Controls.Separator separator)
+                    {
+                        // Style separator to match theme
+                        separator.Background = new System.Windows.Media.SolidColorBrush(wpfBorderColor);
                     }
                 }
             }
             catch
             {
                 // Ignore errors - context menu might be disposed
+            }
+        }
+        
+        private void MenuItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (sender is System.Windows.Controls.MenuItem menuItem && menuItem.Tag != null)
+            {
+                try
+                {
+                    dynamic colors = menuItem.Tag;
+                    menuItem.Background = new System.Windows.Media.SolidColorBrush(colors.Hover);
+                }
+                catch
+                {
+                    // Ignore errors
+                }
+            }
+        }
+        
+        private void MenuItem_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (sender is System.Windows.Controls.MenuItem menuItem && menuItem.Tag != null)
+            {
+                try
+                {
+                    dynamic colors = menuItem.Tag;
+                    menuItem.Background = new System.Windows.Media.SolidColorBrush(colors.Normal);
+                }
+                catch
+                {
+                    // Ignore errors
+                }
             }
         }
         
@@ -902,6 +955,8 @@ namespace T7CompilerGUI.Forms
             campaignModeItem.Checked = true;
             multiplayerModeItem.Checked = false;
             zombiesModeItem.Checked = false;
+            // Save mode change to gsc.conf
+            SaveModeToGscConf();
             UpdateConditionalCompilationIndicators();
         }
         
@@ -911,6 +966,8 @@ namespace T7CompilerGUI.Forms
             multiplayerModeItem.Checked = true;
             campaignModeItem.Checked = false;
             zombiesModeItem.Checked = false;
+            // Save mode change to gsc.conf
+            SaveModeToGscConf();
             UpdateConditionalCompilationIndicators();
         }
         
@@ -920,7 +977,55 @@ namespace T7CompilerGUI.Forms
             zombiesModeItem.Checked = true;
             campaignModeItem.Checked = false;
             multiplayerModeItem.Checked = false;
+            // Save mode change to gsc.conf
+            SaveModeToGscConf();
             UpdateConditionalCompilationIndicators();
+        }
+        
+        /// <summary>
+        /// Saves the current mode and symbols to gsc.conf
+        /// </summary>
+        private void SaveModeToGscConf()
+        {
+            if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
+                return;
+                
+            string gscConfPath = Path.Combine(projectPath, "gsc.conf");
+            try
+            {
+                // Build symbols string from current state
+                var symbolsList = new List<string>();
+                
+                // Add game symbol (BO3 or BO4)
+                if (currentGame == TreyarchCompiler.Enums.Games.T7)
+                    symbolsList.Add("BO3");
+                else if (currentGame == TreyarchCompiler.Enums.Games.T8)
+                    symbolsList.Add("BO4");
+                
+                // Add serious
+                symbolsList.Add("serious");
+                
+                // Add game mode (MP, ZM, or SP)
+                symbolsList.Add(currentGameModeStr.ToLower());
+                
+                // Add enabled custom symbols
+                foreach (var symbol in availableCustomSymbols.OrderBy(s => s))
+                {
+                    string upperSymbol = symbol.ToUpper();
+                    if (customSymbolStates.ContainsKey(upperSymbol) && customSymbolStates[upperSymbol])
+                    {
+                        symbolsList.Add(symbol);
+                    }
+                }
+                
+                string symbolsString = string.Join(",", symbolsList);
+                File.WriteAllText(gscConfPath, $"symbols={symbolsString}");
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't interrupt user
+                System.Diagnostics.Debug.WriteLine($"Error saving gsc.conf: {ex.Message}");
+            }
         }
         
         private void InjectBO3Item_Click(object sender, EventArgs e)
@@ -1618,7 +1723,27 @@ namespace T7CompilerGUI.Forms
                     currentSearchPosition = -1;
                     searchableFiles.Clear();
                     
-                    FindNext();
+                    // Always search all project files
+                    InitializeSearchAllProjectFiles();
+                    
+                    // Perform search and show results
+                    List<Dialogs.SearchResultsDialog.SearchResult> results = PerformSearch(searchDialog.SearchText, lastSearchFlags, true);
+                    
+                    if (results.Count > 1)
+                    {
+                        // Show results dialog if multiple matches
+                        ShowSearchResults(results);
+                    }
+                    else if (results.Count == 1)
+                    {
+                        // Navigate to the single result
+                        NavigateToSearchResult(results[0]);
+                    }
+                    else
+                    {
+                        // No results found
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Text not found.", "Search", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
                 }
             }
         }
@@ -1845,6 +1970,8 @@ namespace T7CompilerGUI.Forms
         private int currentSearchFileIndex = -1;
         private int currentSearchPosition = -1;
         private List<string> searchableFiles = new List<string>();
+        
+        // Use SearchResultsDialog.SearchResult for consistency
 
         private void FindNext()
         {
@@ -1951,6 +2078,176 @@ namespace T7CompilerGUI.Forms
             currentSearchFileIndex = 0;
             currentSearchPosition = 0;
         }
+        
+        private void InitializeSearchAllProjectFiles()
+        {
+            searchableFiles.Clear();
+            
+            if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
+                return;
+            
+            try
+            {
+                // Get all .gsc and .csc files from the project
+                string[] files = Directory.GetFiles(projectPath, "*.gsc", SearchOption.AllDirectories);
+                foreach (string file in files)
+                {
+                    if (!searchableFiles.Contains(file, StringComparer.OrdinalIgnoreCase))
+                        searchableFiles.Add(file);
+                }
+                
+                files = Directory.GetFiles(projectPath, "*.csc", SearchOption.AllDirectories);
+                foreach (string file in files)
+                {
+                    if (!searchableFiles.Contains(file, StringComparer.OrdinalIgnoreCase))
+                        searchableFiles.Add(file);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing search all project files: {ex.Message}");
+            }
+        }
+        
+        private List<Dialogs.SearchResultsDialog.SearchResult> PerformSearch(string searchText, AvalonEditWrapper.SearchFlagsEnum flags, bool searchAllFiles)
+        {
+            List<Dialogs.SearchResultsDialog.SearchResult> results = new List<Dialogs.SearchResultsDialog.SearchResult>();
+            
+            if (string.IsNullOrEmpty(searchText))
+                return results;
+            
+            List<string> filesToSearch = new List<string>();
+            
+            if (searchAllFiles)
+            {
+                // Search all project files
+                InitializeSearchAllProjectFiles();
+                filesToSearch.AddRange(searchableFiles);
+            }
+            else
+            {
+                // Search only open files
+                foreach (var kvp in openEditors)
+                {
+                    if (kvp.Key.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) || 
+                        kvp.Key.EndsWith(".csc", StringComparison.OrdinalIgnoreCase) ||
+                        kvp.Key.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                    {
+                        filesToSearch.Add(kvp.Key);
+                    }
+                }
+            }
+            
+            foreach (string filePath in filesToSearch)
+            {
+                try
+                {
+                    string[] lines = File.ReadAllLines(filePath);
+                    bool matchCase = (flags & AvalonEditWrapper.SearchFlagsEnum.MatchCase) != 0;
+                    bool wholeWord = (flags & AvalonEditWrapper.SearchFlagsEnum.WholeWord) != 0;
+                    
+                    StringComparison comparison = matchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                    
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        string line = lines[i];
+                        int searchIndex = 0;
+                        
+                        while (true)
+                        {
+                            int index = line.IndexOf(searchText, searchIndex, comparison);
+                            if (index < 0)
+                                break;
+                            
+                            // Check whole word if needed
+                            if (wholeWord)
+                            {
+                                bool isWholeWord = true;
+                                if (index > 0 && char.IsLetterOrDigit(line[index - 1]))
+                                    isWholeWord = false;
+                                if (index + searchText.Length < line.Length && char.IsLetterOrDigit(line[index + searchText.Length]))
+                                    isWholeWord = false;
+                                
+                                if (!isWholeWord)
+                                {
+                                    searchIndex = index + 1;
+                                    continue;
+                                }
+                            }
+                            
+                            // Found a match
+                            results.Add(new Dialogs.SearchResultsDialog.SearchResult
+                            {
+                                FilePath = filePath,
+                                LineNumber = i + 1,
+                                ColumnNumber = index + 1,
+                                LineText = line,
+                                MatchStart = index,
+                                MatchLength = searchText.Length
+                            });
+                            
+                            searchIndex = index + searchText.Length;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Skip files that can't be read
+                    continue;
+                }
+            }
+            
+            return results;
+        }
+        
+        private void ShowSearchResults(List<Dialogs.SearchResultsDialog.SearchResult> results)
+        {
+            using (var resultsDialog = new Dialogs.SearchResultsDialog(results, styleManager, projectPath))
+            {
+                if (resultsDialog.ShowDialog(this) == DialogResult.OK && resultsDialog.SelectedResult != null)
+                {
+                    NavigateToSearchResult(resultsDialog.SelectedResult);
+                }
+            }
+        }
+        
+        private void NavigateToSearchResult(Dialogs.SearchResultsDialog.SearchResult result)
+        {
+            // Open the file if not already open
+            if (!openEditors.ContainsKey(result.FilePath))
+            {
+                OpenFileInEditor(result.FilePath);
+                // Give it time to load
+                Application.DoEvents();
+            }
+            
+            // Switch to the file's tab
+            if (editorTabs.ContainsKey(result.FilePath))
+            {
+                tabControl.SelectedTab = editorTabs[result.FilePath];
+                Application.DoEvents();
+            }
+            
+            // Navigate to the line and column
+            if (openEditors.ContainsKey(result.FilePath))
+            {
+                AvalonEditWrapper editor = openEditors[result.FilePath];
+                editor.CurrentLine = result.LineNumber;
+                editor.CurrentColumn = result.ColumnNumber;
+                
+                // Select the match
+                if (result.LineNumber > 0 && result.LineNumber <= editor.LineCount)
+                {
+                    int lineStart = editor.Lines[result.LineNumber - 1].Position;
+                    int startPos = lineStart + result.MatchStart;
+                    int endPos = startPos + result.MatchLength;
+                    editor.SetSelection(startPos, endPos);
+                    editor.ScrollCaret();
+                    editor.Focus();
+                }
+            }
+        }
+        
 
         private bool SearchInNextFile()
         {
@@ -1969,6 +2266,22 @@ namespace T7CompilerGUI.Forms
                         {
                 int fileIndex = (startFileIndex + fileOffset) % searchableFiles.Count;
                 string fileName = searchableFiles[fileIndex];
+                
+                // If file is not open, open it for searching
+                if (!openEditors.ContainsKey(fileName))
+                {
+                    if (File.Exists(fileName))
+                    {
+                        // Open the file in a new tab
+                        OpenFileInEditor(fileName);
+                        // Give it time to load
+                        Application.DoEvents();
+                    }
+                    else
+                    {
+                        continue; // File doesn't exist, skip it
+                    }
+                }
                 
                 if (!openEditors.ContainsKey(fileName))
                     continue;
@@ -3527,47 +3840,87 @@ namespace T7CompilerGUI.Forms
                 contextMenu.BorderThickness = new System.Windows.Thickness(1);
             }
             
-            // Go to Line
-            var goToLineItem = new System.Windows.Controls.MenuItem
+            // Helper to create styled menu item - matches MainForm's PoisonContextMenuStrip styling
+            System.Windows.Controls.MenuItem CreateMenuItem(string header, string inputGestureText, System.Windows.RoutedEventHandler clickHandler)
             {
-                Header = "Go to Line...",
-                InputGestureText = "Ctrl+G"
-            };
-            goToLineItem.Click += (s, e) => GoToLine();
-            
-            // Style menu item
-            if (styleManager != null)
-            {
-                var itemBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                var itemForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
-                goToLineItem.Background = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(itemBackColor.A, itemBackColor.R, itemBackColor.G, itemBackColor.B));
-                goToLineItem.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(itemForeColor.A, itemForeColor.R, itemForeColor.G, itemForeColor.B));
+                var menuItem = new System.Windows.Controls.MenuItem
+                {
+                    Header = header,
+                    InputGestureText = inputGestureText,
+                    Padding = new System.Windows.Thickness(8, 4, 8, 4) // Match WinForms menu item padding
+                };
+                menuItem.Click += clickHandler;
+                
+                // Style menu item with Poison theme colors - match MainForm's context menu
+                if (styleManager != null)
+                {
+                    var itemBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    var itemForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
+                    // Use style color for hover (like MainForm's StyleBasedMenuRenderer does)
+                    var styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
+                    var hoverColor = System.Windows.Media.Color.FromArgb(150, 
+                        (byte)styleColor.R, (byte)styleColor.G, (byte)styleColor.B); // 150 alpha like MainForm
+                    
+                    menuItem.Background = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromArgb(itemBackColor.A, itemBackColor.R, itemBackColor.G, itemBackColor.B));
+                    menuItem.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromArgb(itemForeColor.A, itemForeColor.R, itemForeColor.G, itemForeColor.B));
+                    
+                    // Handle hover state - use style color with transparency (matches MainForm)
+                    menuItem.MouseEnter += (s, e) =>
+                    {
+                        menuItem.Background = new System.Windows.Media.SolidColorBrush(hoverColor);
+                    };
+                    menuItem.MouseLeave += (s, e) =>
+                    {
+                        menuItem.Background = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromArgb(itemBackColor.A, itemBackColor.R, itemBackColor.G, itemBackColor.B));
+                    };
+                }
+                else
+                {
+                    // Fallback dark theme colors
+                    menuItem.Background = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(45, 45, 48));
+                    menuItem.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(200, 200, 200));
+                    
+                    menuItem.MouseEnter += (s, e) =>
+                    {
+                        menuItem.Background = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromArgb(150, 0, 122, 204)); // Default blue hover
+                    };
+                    menuItem.MouseLeave += (s, e) =>
+                    {
+                        menuItem.Background = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(45, 45, 48));
+                    };
+                }
+                
+                return menuItem;
             }
             
+            // Go to Line
+            var goToLineItem = CreateMenuItem("Go to Line...", "Ctrl+G", (s, e) => GoToLine());
             contextMenu.Items.Add(goToLineItem);
             
-            contextMenu.Items.Add(new System.Windows.Controls.Separator());
-            
-            // Toggle ifdef - find the symbol on the current line and toggle it
-            var toggleIfdefItem = new System.Windows.Controls.MenuItem
-            {
-                Header = "Toggle ifdef"
-            };
-            toggleIfdefItem.Click += (s, e) => ToggleIfdefAtCurrentLine(editor);
-            
-            // Style menu item
+            // Separator - style it to match Poison theme
+            var separator = new System.Windows.Controls.Separator();
             if (styleManager != null)
             {
-                var itemBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                var itemForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
-                toggleIfdefItem.Background = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(itemBackColor.A, itemBackColor.R, itemBackColor.G, itemBackColor.B));
-                toggleIfdefItem.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(itemForeColor.A, itemForeColor.R, itemForeColor.G, itemForeColor.B));
+                var separatorColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
+                separator.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(separatorColor.A, separatorColor.R, separatorColor.G, separatorColor.B));
             }
+            else
+            {
+                separator.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(100, 100, 100));
+            }
+            contextMenu.Items.Add(separator);
             
+            // Toggle ifdef - find the symbol on the current line and toggle it
+            var toggleIfdefItem = CreateMenuItem("Toggle ifdef", null, (s, e) => ToggleIfdefAtCurrentLine(editor));
             contextMenu.Items.Add(toggleIfdefItem);
             
             // Set context menu on the text editor
@@ -3650,6 +4003,12 @@ namespace T7CompilerGUI.Forms
             // Toggle the symbol state
             bool currentState = customSymbolStates.ContainsKey(upperSymbol) && customSymbolStates[upperSymbol];
             customSymbolStates[upperSymbol] = !currentState;
+            
+            // Save symbol changes to gsc.conf
+            SaveModeToGscConf();
+            
+            // Update the symbols menu to reflect the new state
+            UpdateSymbolsMenu();
             
             // Update conditional compilation indicators for all editors
             foreach (var kvp in openEditors)
@@ -3966,38 +4325,32 @@ namespace T7CompilerGUI.Forms
             // Add "serious" symbol (always active)
             symbols.Add("SERIOUS");
             
-            // Add custom symbols that are enabled AND their parent conditions are met
+            // Add custom symbols that are enabled
+            // Symbols work independently UNLESS they are inside a mode-specific ifdef (MP, ZM, SP)
+            // If a symbol is inside a mode ifdef, it requires that mode to be active
             foreach (var kvp in customSymbolStates)
             {
                 if (kvp.Value) // If symbol is enabled
                 {
                     string symbol = kvp.Key.ToUpper();
                     
-                    // Check if this symbol has parent conditions (nested #ifdef blocks)
-                    if (symbolParentConditions.ContainsKey(symbol) && symbolParentConditions[symbol].Count > 0)
+                    // Check if this symbol is inside a mode-specific ifdef block
+                    if (symbolModeConditions.ContainsKey(symbol) && symbolModeConditions[symbol].Count > 0)
                     {
-                        // Symbol is only active if all parent conditions are met
-                        // We need to recursively check if parents are active
-                        bool allParentsActive = true;
-                        foreach (string parentSymbol in symbolParentConditions[symbol])
-                        {
-                            // Check if parent symbol is active (recursively)
-                            bool parentActive = IsSymbolActive(parentSymbol, symbols, new HashSet<string>());
-                            if (!parentActive)
-                            {
-                                allParentsActive = false;
-                                break;
-                            }
-                        }
+                        // Symbol is inside one or more mode ifdefs - check if current mode matches
+                        string currentMode = currentGameModeStr.ToUpper();
+                        bool modeMatches = symbolModeConditions[symbol].Contains(currentMode);
                         
-                        if (allParentsActive)
+                        if (modeMatches)
                         {
+                            // Current mode matches one of the modes this symbol is inside - symbol is active
                             symbols.Add(symbol);
                         }
+                        // If mode doesn't match, symbol is not active (even though it's enabled)
                     }
                     else
                     {
-                        // No parent conditions, symbol is active if enabled
+                        // Symbol is not inside any mode-specific ifdef - it's active if enabled
                         symbols.Add(symbol);
                     }
                 }
@@ -4006,39 +4359,37 @@ namespace T7CompilerGUI.Forms
             return symbols;
         }
         
-        /// <summary>
-        /// Recursively checks if a symbol is active (including parent conditions)
-        /// </summary>
-        private bool IsSymbolActive(string symbol, HashSet<string> currentActiveSymbols, HashSet<string> visited)
-        {
-            // Prevent infinite recursion
-            if (visited.Contains(symbol))
-                return false;
-            visited.Add(symbol);
-            
-            // Check if symbol is in current active symbols (base case - already processed)
-            if (currentActiveSymbols.Contains(symbol))
-                return true;
-            
-            // Check if symbol is enabled in customSymbolStates
-            if (!customSymbolStates.ContainsKey(symbol) || !customSymbolStates[symbol])
-                return false;
-            
-            // Check parent conditions recursively
-            if (symbolParentConditions.ContainsKey(symbol) && symbolParentConditions[symbol].Count > 0)
-            {
-                foreach (string parentSymbol in symbolParentConditions[symbol])
-                {
-                    if (!IsSymbolActive(parentSymbol, currentActiveSymbols, visited))
-                        return false;
-                }
-            }
-            
-            return true;
-        }
+        // Note: IsSymbolActive method removed - symbols now work independently
+        // Parent conditions are still tracked for reference but don't affect symbol activation
         
         // Track which symbols are defined inside which #ifdef blocks
         private Dictionary<string, List<string>> symbolParentConditions = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        
+        // Track which symbols are inside mode-specific ifdef blocks (MP, ZM, SP)
+        // Key: symbol name, Value: list of mode symbols (MP, ZM, SP) that this symbol appears inside
+        private Dictionary<string, List<string>> symbolModeConditions = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        
+        /// <summary>
+        /// Public method to reload symbols from gsc.conf (called when GSC Configuration Editor saves)
+        /// </summary>
+        public void ReloadSymbolsFromGscConf()
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(ReloadSymbolsFromGscConf));
+                return;
+            }
+            
+            LoadSymbolsFromGscConf();
+            UpdateSymbolsMenu();
+            UpdateModeMenu();
+            
+            // Update conditional compilation indicators for all open editors
+            foreach (var kvp in openEditors)
+            {
+                UpdateConditionalCompilationIndicators(kvp.Value);
+            }
+        }
         
         /// <summary>
         /// Loads available symbols from gsc.conf and scans project files for symbols in #ifdef blocks
@@ -4049,6 +4400,7 @@ namespace T7CompilerGUI.Forms
             customSymbolStates.Clear();
             availableCustomSymbols.Clear();
             symbolParentConditions.Clear();
+            symbolModeConditions.Clear();
             
             if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
                 return;
@@ -4105,12 +4457,28 @@ namespace T7CompilerGUI.Forms
                                     else if (upperSymbol != "SERIOUS")
                                     {
                                         // Use case-insensitive comparison for checking
-                                        if (!availableCustomSymbols.Any(s => s.Equals(upperSymbol, StringComparison.OrdinalIgnoreCase)))
+                                        // Find existing symbol (case-insensitive) to preserve its exact casing
+                                        string existingSymbol = availableCustomSymbols.FirstOrDefault(s => s.Equals(upperSymbol, StringComparison.OrdinalIgnoreCase));
+                                        
+                                        if (existingSymbol == null)
                                         {
+                                            // Symbol doesn't exist, add it
                                             availableCustomSymbols.Add(upperSymbol);
+                                            // Symbols in gsc.conf are enabled by default
+                                            customSymbolStates[upperSymbol] = true;
                                         }
-                                        // Symbols in gsc.conf are enabled by default
-                                        customSymbolStates[upperSymbol] = true;
+                                        else
+                                        {
+                                            // Symbol already exists (from previous load or scan), preserve its state
+                                            // Use uppercase key consistently (customSymbolStates uses case-insensitive comparison)
+                                            // Only set to true if it's not already set (don't overwrite if it was disabled)
+                                            if (!customSymbolStates.ContainsKey(upperSymbol))
+                                            {
+                                                customSymbolStates[upperSymbol] = true;
+                                            }
+                                            // If it already exists in customSymbolStates, preserve its current state
+                                            // Note: We use upperSymbol (uppercase) for the key to ensure consistency
+                                        }
                                     }
                                 }
                             }
@@ -4205,6 +4573,7 @@ namespace T7CompilerGUI.Forms
                         // Find all symbols used in #ifdef/#ifndef blocks and track their parent conditions
                         string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
                         Stack<KeyValuePair<string, bool>> ifdefStack = new Stack<KeyValuePair<string, bool>>(); // Track nested #ifdef conditions (symbol, isIfndef)
+                        HashSet<string> currentModeParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // Track which mode symbols (MP, ZM, SP) are in the stack
                         
                         for (int i = 0; i < lines.Length; i++)
                         {
@@ -4225,14 +4594,25 @@ namespace T7CompilerGUI.Forms
                                         !constantDefines.Contains(symbol))
                                     {
                                         // Add symbol to available list (case-insensitive check)
-                                        if (!availableCustomSymbols.Any(s => s.Equals(symbol, StringComparison.OrdinalIgnoreCase)))
+                                        // Find existing symbol (case-insensitive) to preserve its exact casing
+                                        string existingSymbol = availableCustomSymbols.FirstOrDefault(s => s.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+                                        
+                                        if (existingSymbol == null)
                                         {
+                                            // Symbol doesn't exist, add it
                                             availableCustomSymbols.Add(symbol);
+                                            // Initialize symbol state if not already set (from gsc.conf)
+                                            // Don't overwrite existing state - only set if it doesn't exist
+                                            if (!customSymbolStates.ContainsKey(symbol))
+                                            {
+                                                customSymbolStates[symbol] = false; // Default to disabled if not in gsc.conf
+                                            }
                                         }
-                                        // Initialize symbol state if not already set (from gsc.conf)
-                                        if (!customSymbolStates.ContainsKey(symbol))
+                                        else
                                         {
-                                            customSymbolStates[symbol] = false; // Default to disabled if not in gsc.conf
+                                            // Symbol already exists (from gsc.conf), use the existing key for state lookup
+                                            // Don't modify customSymbolStates - preserve whatever state was set from gsc.conf
+                                            // The state is already set correctly from gsc.conf loading
                                         }
                                         
                                         // Track parent conditions (nested #ifdef blocks)
@@ -4240,6 +4620,12 @@ namespace T7CompilerGUI.Forms
                                         if (!symbolParentConditions.ContainsKey(symbol))
                                         {
                                             symbolParentConditions[symbol] = new List<string>();
+                                        }
+                                        
+                                        // Track mode-specific conditions (if symbol is inside MP, ZM, or SP ifdef)
+                                        if (!symbolModeConditions.ContainsKey(symbol))
+                                        {
+                                            symbolModeConditions[symbol] = new List<string>();
                                         }
                                         
                                         // Add current parent conditions to this symbol
@@ -4250,10 +4636,34 @@ namespace T7CompilerGUI.Forms
                                             {
                                                 symbolParentConditions[symbol].Add(parent.Key);
                                             }
+                                            
+                                            // If parent is a mode symbol (MP, ZM, SP), track it separately
+                                            if (parent.Key == "MP" || parent.Key == "ZM" || parent.Key == "SP")
+                                            {
+                                                if (!symbolModeConditions[symbol].Contains(parent.Key))
+                                                {
+                                                    symbolModeConditions[symbol].Add(parent.Key);
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Also check currentModeParents (modes in the stack)
+                                        foreach (string modeParent in currentModeParents)
+                                        {
+                                            if (!symbolModeConditions[symbol].Contains(modeParent))
+                                            {
+                                                symbolModeConditions[symbol].Add(modeParent);
+                                            }
                                         }
                                         
                                         // Push this symbol onto the stack (it's now a parent for nested blocks)
                                         ifdefStack.Push(new KeyValuePair<string, bool>(symbol, isIfndef));
+                                        
+                                        // If this symbol is a mode symbol, add it to currentModeParents
+                                        if (symbol == "MP" || symbol == "ZM" || symbol == "SP")
+                                        {
+                                            currentModeParents.Add(symbol);
+                                        }
                                     }
                                 }
                             }
@@ -4263,7 +4673,12 @@ namespace T7CompilerGUI.Forms
                             {
                                 if (ifdefStack.Count > 0)
                                 {
-                                    ifdefStack.Pop();
+                                    var popped = ifdefStack.Pop();
+                                    // If we popped a mode symbol, remove it from currentModeParents
+                                    if (popped.Key == "MP" || popped.Key == "ZM" || popped.Key == "SP")
+                                    {
+                                        currentModeParents.Remove(popped.Key);
+                                    }
                                 }
                             }
                         }
@@ -4319,6 +4734,8 @@ namespace T7CompilerGUI.Forms
                     {
                         string sym = item.Tag.ToString().ToUpper(); // Ensure uppercase
                         customSymbolStates[sym] = item.Checked;
+                        // Save symbol changes to gsc.conf
+                        SaveModeToGscConf();
                         // Force immediate update on UI thread
                         if (this.InvokeRequired)
                         {
@@ -4445,7 +4862,9 @@ namespace T7CompilerGUI.Forms
                     }
                     else
                     {
-                        isActive = !activeSymbols.Contains(symbol); // Inverted for #ifndef
+                        // For #ifndef: blank when symbol is disabled, unblank when symbol is enabled
+                        // This matches user expectation: if XBOX is disabled, #ifndef XBOX should be blanked
+                        isActive = activeSymbols.Contains(symbol);
                     }
                     
                     if (isOneLineBlock)
@@ -6057,8 +6476,10 @@ namespace T7CompilerGUI.Forms
             {
                 try
                 {
-                    if (Directory.Exists("c:\\t7compiler"))
-                        Directory.Delete("c:\\t7compiler", true);
+                    // Use temp folder instead of hardcoded path
+                    string tempCompilerPath = Path.Combine(Path.GetTempPath(), "t7compiler");
+                    if (Directory.Exists(tempCompilerPath))
+                        Directory.Delete(tempCompilerPath, true);
                     
                     CompilerActions.InstallCompiler(@"https://gsc.dev/t7c_package");
                 }

@@ -281,6 +281,7 @@
     <ItemGroup>
       <DatabaseFilesToCopy Include="$(ResourcesPath)\T7PCV2.db" Condition="Exists('$(ResourcesPath)\T7PCV2.db')" />
       <DatabaseFilesToCopy Include="$(ResourcesPath)\T7PS4V2.db" Condition="Exists('$(ResourcesPath)\T7PS4V2.db')" />
+      <DatabaseFilesToCopy Include="$(ResourcesPath)\vm_codes.db2" Condition="Exists('$(ResourcesPath)\vm_codes.db2')" />
     </ItemGroup>
     <Message Text="Found @(DatabaseFilesToCopy->Count()) database files to copy to compiler" Importance="normal" />
     <Message Text="Database files: @(DatabaseFilesToCopy)" Importance="normal" Condition="'@(DatabaseFilesToCopy)' != ''" />

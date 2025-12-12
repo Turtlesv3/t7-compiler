@@ -98,11 +98,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Properties\Config\App.config" />
-    <None Include="$(SolutionDir)Resources\vm_codes.db2" Condition="Exists('$(SolutionDir)Resources\vm_codes.db2')">
+    <!-- Database files are NOT copied to output - they should be excluded from builds -->
+    <!-- <None Include="$(SolutionDir)Resources\vm_codes.db2" Condition="Exists('$(SolutionDir)Resources\vm_codes.db2')">
       <Link>vm_codes.db2</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>false</Visible>
-    </None>
+    </None> -->
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -72,6 +72,7 @@ namespace T7CompilerGUI.Forms
         private int currentInjectGameIndex = 0;
         private List<string> compileSymbolsFromEditor = null; // Symbols from CodeEditorForm
         private bool isLoadingSettings = false;
+        private Forms.CodeEditorForm codeEditorForm = null; // Reference to open CodeEditorForm
         
         // Initialize buildFolder to a safe default location (will be properly initialized in InitializeBuildFolder)
         private string buildFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "T7Compiler", "build");
@@ -153,6 +154,9 @@ namespace T7CompilerGUI.Forms
         public MainForm()
         {
             InitializeComponent();
+            
+            // PoisonPanel already handles double buffering internally via its constructor
+            // No need to manually set ControlStyles - it's a protected method anyway
             
             // PoisonForm already sets ControlStyles in its constructor:
             // - AllPaintingInWmPaint
@@ -372,6 +376,44 @@ namespace T7CompilerGUI.Forms
         {
             // Adjust panelLog height after size change
             AdjustPanelLogHeight();
+            
+            // Force immediate update of log panels during resize to prevent visual glitches
+            if (panelLogControls != null)
+            {
+                panelLogControls.Invalidate();
+                panelLogControls.Update();
+            }
+            if (panelLog != null)
+            {
+                panelLog.Invalidate();
+                panelLog.Update();
+            }
+        }
+        
+        private void MainForm_ResizeBegin(object sender, EventArgs e)
+        {
+            // Suspend layout during resize to improve performance
+            if (panelLogControls != null)
+                panelLogControls.SuspendLayout();
+            if (panelLog != null)
+                panelLog.SuspendLayout();
+        }
+        
+        private void MainForm_ResizeEnd(object sender, EventArgs e)
+        {
+            // Resume layout and force update after resize completes
+            if (panelLogControls != null)
+            {
+                panelLogControls.ResumeLayout(true);
+                panelLogControls.Invalidate();
+                panelLogControls.Update();
+            }
+            if (panelLog != null)
+            {
+                panelLog.ResumeLayout(true);
+                panelLog.Invalidate();
+                panelLog.Update();
+            }
         }
         
         /// <summary>
@@ -707,11 +749,17 @@ namespace T7CompilerGUI.Forms
         /// </summary>
         private void ShowAdvancedSettingsDialog()
         {
+            // Constants for dialog sizing (runtime dialog, so sizes are set here)
+            const int DIALOG_WIDTH = 650;
+            const int DIALOG_HEIGHT = 550;
+            const int DIALOG_MIN_WIDTH = 550;
+            const int DIALOG_MIN_HEIGHT = 450;
+            
             using (var dialog = new PoisonForm())
             {
                 dialog.Text = "Advanced Settings";
-                dialog.Size = new Size(650, 550);
-                dialog.MinimumSize = new Size(550, 450);
+                dialog.Size = new Size(DIALOG_WIDTH, DIALOG_HEIGHT);
+                dialog.MinimumSize = new Size(DIALOG_MIN_WIDTH, DIALOG_MIN_HEIGHT);
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.DropShadow;
                 dialog.Theme = poisonStyleManager?.Theme ?? ThemeStyle.Dark;
@@ -905,7 +953,8 @@ namespace T7CompilerGUI.Forms
                 Color backColor = PoisonPaint.BackColor.Form(theme);
                 Color foreColor = theme == ThemeStyle.Dark ? Color.White : Color.Black;
                 Color categoryForeColor = PoisonPaint.GetStyleColor(style);
-                Color lineColor = theme == ThemeStyle.Dark ? Color.FromArgb(60, 60, 60) : Color.FromArgb(200, 200, 200);
+                // Use PoisonPaint for line color to match theme
+                Color lineColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(theme);
                 Color selectedBackColor = PoisonPaint.GetStyleColor(style);
                 Color selectedForeColor = Color.White;
                 
@@ -1019,10 +1068,7 @@ namespace T7CompilerGUI.Forms
         {
             if (lblGameStatus != null && lblGameStatus is ReaLTaiizor.Controls.PoisonLabel statusLabel)
             {
-                // Set custom Consolas font for game status label
-                statusLabel.UseCustomFont = true;
-                statusLabel.Font = new System.Drawing.Font("Consolas", 9F);
-                
+                // Font is set in Designer - no need to set it here
                 // PoisonLabel is naturally non-interactive and non-selectable
                 statusLabel.UseStyleColors = false;
             }
@@ -1174,13 +1220,20 @@ namespace T7CompilerGUI.Forms
                         statusLabel.Text = $"BO3: {bo3Status} | BO4: {bo4Status}";
                         
                         // Set color based on running status - green if any game is running, red if none
+                        // Use theme-aware colors for status label
                         if (t7Running || t8Running)
                         {
-                            statusLabel.ForeColor = Color.FromArgb(0, 200, 0); // Green
+                            // Green for success - use PoisonPaint success color or theme-aware green
+                            statusLabel.ForeColor = poisonStyleManager != null 
+                                ? ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(poisonStyleManager.Theme)
+                                : Color.FromArgb(0, 200, 0);
                         }
                         else
                         {
-                            statusLabel.ForeColor = Color.FromArgb(200, 0, 0); // Red
+                            // Red for error - use theme-aware red
+                            statusLabel.ForeColor = poisonStyleManager != null 
+                                ? ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(poisonStyleManager.Theme)
+                                : Color.FromArgb(200, 0, 0);
                         }
                     }
                     
@@ -2991,6 +3044,12 @@ namespace T7CompilerGUI.Forms
                     if (dialog.ShowDialog(this) == DialogResult.OK)
                     {
                         txtLog.AppendText($"[INFO] Updated gsc.conf with symbols: {dialog.SelectedSymbols}\r\n");
+                        
+                        // Notify code editor to reload symbols if it's open
+                        if (codeEditorForm != null && !codeEditorForm.IsDisposed)
+                        {
+                            codeEditorForm.ReloadSymbolsFromGscConf();
+                        }
                     }
                 }
             }
@@ -3178,23 +3237,82 @@ namespace T7CompilerGUI.Forms
                 saveDialog.FilterIndex = 1;
                 saveDialog.DefaultExt = "gscc";
                 
-                // Determine initial path - use directory from current output file if it exists, otherwise use build folder
-                string initialDir = buildFolder;
+                // Determine initial path - priority:
+                // 1. Directory from current output file if it exists and is valid
+                // 2. Directory from default output path if it's set
+                // 3. Build folder as fallback
+                string initialDir = null;
                 string initialFileName = "compiled.gscc";
                 
-                if (!string.IsNullOrWhiteSpace(txtOutputFile.Text) && Path.IsPathRooted(txtOutputFile.Text))
+                // First, try to use current output file path if it's valid
+                if (!string.IsNullOrWhiteSpace(txtOutputFile.Text))
                 {
-                    string currentDir = Path.GetDirectoryName(txtOutputFile.Text);
-                    if (!string.IsNullOrWhiteSpace(currentDir) && Directory.Exists(currentDir))
-                    {
-                        initialDir = currentDir;
-                    }
+                    string outputPath = txtOutputFile.Text.Trim();
                     
-                    string existingFileName = Path.GetFileName(txtOutputFile.Text);
-                    if (!string.IsNullOrWhiteSpace(existingFileName))
+                    if (Directory.Exists(outputPath))
                     {
-                        initialFileName = existingFileName;
+                        // It's a directory, use it directly
+                        initialDir = outputPath;
                     }
+                    else if (File.Exists(outputPath))
+                    {
+                        // File exists, get its directory
+                        string currentDir = Path.GetDirectoryName(outputPath);
+                        if (!string.IsNullOrWhiteSpace(currentDir) && Directory.Exists(currentDir))
+                        {
+                            initialDir = currentDir;
+                            initialFileName = Path.GetFileName(outputPath);
+                        }
+                    }
+                    else if (Path.IsPathRooted(outputPath))
+                    {
+                        // Path is rooted but file doesn't exist - get directory from path
+                        string currentDir = Path.GetDirectoryName(outputPath);
+                        if (!string.IsNullOrWhiteSpace(currentDir) && Directory.Exists(currentDir))
+                        {
+                            initialDir = currentDir;
+                            initialFileName = Path.GetFileName(outputPath);
+                        }
+                    }
+                }
+                
+                // If no valid directory from current output file, use default output path
+                if (string.IsNullOrWhiteSpace(initialDir) && !string.IsNullOrWhiteSpace(defaultOutputPath))
+                {
+                    string defaultPath = defaultOutputPath.Trim();
+                    
+                    if (Directory.Exists(defaultPath))
+                    {
+                        initialDir = defaultPath;
+                    }
+                    else if (File.Exists(defaultPath))
+                    {
+                        string defaultDir = Path.GetDirectoryName(defaultPath);
+                        if (!string.IsNullOrWhiteSpace(defaultDir) && Directory.Exists(defaultDir))
+                        {
+                            initialDir = defaultDir;
+                            initialFileName = Path.GetFileName(defaultPath);
+                        }
+                    }
+                    else if (Path.IsPathRooted(defaultPath))
+                    {
+                        string defaultDir = Path.GetDirectoryName(defaultPath);
+                        if (!string.IsNullOrWhiteSpace(defaultDir) && Directory.Exists(defaultDir))
+                        {
+                            initialDir = defaultDir;
+                            string defaultFileName = Path.GetFileName(defaultPath);
+                            if (!string.IsNullOrWhiteSpace(defaultFileName))
+                            {
+                                initialFileName = defaultFileName;
+                            }
+                        }
+                    }
+                }
+                
+                // Final fallback to build folder
+                if (string.IsNullOrWhiteSpace(initialDir) || !Directory.Exists(initialDir))
+                {
+                    initialDir = buildFolder;
                 }
                 
                 saveDialog.InitialDirectory = initialDir;
@@ -3356,12 +3474,14 @@ namespace T7CompilerGUI.Forms
             try
             {
                 Forms.CodeEditorForm editorForm = new Forms.CodeEditorForm(poisonStyleManager);
+                codeEditorForm = editorForm; // Store reference for reloading symbols
                 editorForm.FormClosed += (s, args) =>
                 {
                     // Bring focus back to MainForm when CodeEditorForm closes
                     this.Activate();
                     this.Focus();
                     this.BringToFront();
+                    codeEditorForm = null; // Clear reference when closed
                 };
                 editorForm.Show();
                 editorForm.BringToFront();
@@ -4290,6 +4410,12 @@ namespace T7CompilerGUI.Forms
         private void txtOutputFile_TextChanged(object sender, EventArgs e)
         {
             UpdateUI();
+        }
+        
+        private void txtOutputFile_DoubleClick(object sender, EventArgs e)
+        {
+            // Open the file dialog when double-clicking the output file text box
+            btnSelectOutputFile_Click(sender, e);
         }
         
         private void txtDefaultOutputPath_TextChanged(object sender, EventArgs e)
@@ -5473,19 +5599,30 @@ namespace T7CompilerGUI.Forms
             
             // Apply color based on level
             txtLog.Select(start, end - start);
+            // Use theme-aware colors for log levels
+            ThemeStyle currentTheme = poisonStyleManager?.Theme ?? ThemeStyle.Dark;
             switch (level)
             {
                 case LogLevel.Error:
-                    txtLog.SelectionColor = Color.FromArgb(255, 100, 100); // Red
+                    // Red for errors - theme-aware
+                    txtLog.SelectionColor = currentTheme == ThemeStyle.Dark
+                        ? Color.FromArgb(255, 100, 100) // Dark theme red
+                        : Color.FromArgb(200, 0, 0); // Light theme red
                     break;
                 case LogLevel.Warning:
-                    txtLog.SelectionColor = Color.FromArgb(255, 200, 100); // Orange/Yellow
+                    // Orange/Yellow for warnings - theme-aware
+                    txtLog.SelectionColor = currentTheme == ThemeStyle.Dark
+                        ? Color.FromArgb(255, 200, 100) // Dark theme orange
+                        : Color.FromArgb(255, 140, 0); // Light theme orange
                     break;
                 case LogLevel.Success:
-                    txtLog.SelectionColor = Color.FromArgb(100, 255, 100); // Green
+                    // Green for success - theme-aware
+                    txtLog.SelectionColor = currentTheme == ThemeStyle.Dark
+                        ? Color.FromArgb(100, 255, 100) // Dark theme green
+                        : Color.FromArgb(0, 150, 0); // Light theme green
                     break;
                 default:
-                    txtLog.SelectionColor = txtLog.ForeColor; // Default
+                    txtLog.SelectionColor = txtLog.ForeColor; // Default - use theme color
                     break;
             }
             txtLog.DeselectAll();
@@ -6299,20 +6436,11 @@ namespace T7CompilerGUI.Forms
                     poisonStyleExtender.StyleManager = poisonStyleManager;
                 }
                     
-                // Update RichTextBox colors based on theme
+                // Update RichTextBox colors based on theme - use PoisonPaint for consistency
                 if (txtLog != null)
                 {
-                    bool isDark = theme == ThemeStyle.Dark;
-                    if (isDark)
-                    {
-                        txtLog.BackColor = Color.FromArgb(30, 30, 30);
-                        txtLog.ForeColor = Color.FromArgb(224, 224, 224);
-                    }
-                    else
-                    {
-                        txtLog.BackColor = Color.FromArgb(255, 255, 255);
-                        txtLog.ForeColor = Color.FromArgb(30, 30, 30);
-                    }
+                    txtLog.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(theme);
+                    txtLog.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(theme);
                 }
                 
                 // Update tooltip theme
@@ -6852,8 +6980,32 @@ namespace T7CompilerGUI.Forms
             // Update version text dynamically (text is set in Designer as default)
             if (lblVersion != null)
             {
-                var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-                lblVersion.Text = $"T7 GSC Compiler v{version.Major}.{version.Minor}.{version.Build}";
+                // Try to get version from AssemblyFileVersion first, then fall back to AssemblyVersion
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var fileVersion = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+                string versionString;
+                
+                if (!string.IsNullOrEmpty(fileVersion.FileVersion))
+                {
+                    // Use FileVersion (e.g., "3.6.9.0")
+                    var versionParts = fileVersion.FileVersion.Split('.');
+                    if (versionParts.Length >= 3)
+                    {
+                        versionString = $"{versionParts[0]}.{versionParts[1]}.{versionParts[2]}";
+                    }
+                    else
+                    {
+                        versionString = fileVersion.FileVersion;
+                    }
+                }
+                else
+                {
+                    // Fall back to AssemblyVersion
+                    var version = assembly.GetName().Version;
+                    versionString = $"{version.Major}.{version.Minor}.{version.Build}";
+                }
+                
+                lblVersion.Text = $"T7 GSC Compiler v{versionString}";
             }
             
             // About text is now set in Designer, but we can update it here if needed
@@ -8273,6 +8425,28 @@ namespace T7CompilerGUI.Forms
             // Save all settings to unified config file
             SaveAllSettings();
             base.OnFormClosing(e);
+        }
+        
+        private void txtLog_MouseDown(object sender, MouseEventArgs e)
+        {
+            // Prevent dragging text out of the window
+            // When user clicks, clear any existing selection to prevent drag operation
+            if (e.Button == MouseButtons.Left)
+            {
+                // If there's a selection, clear it to prevent drag
+                if (txtLog.SelectionLength > 0)
+                {
+                    int caretPos = txtLog.SelectionStart;
+                    txtLog.SelectionLength = 0;
+                    txtLog.SelectionStart = caretPos;
+                }
+            }
+        }
+        
+        private void txtLog_QueryContinueDrag(object sender, QueryContinueDragEventArgs e)
+        {
+            // Cancel any drag operations to prevent dragging text out of the window
+            e.Action = DragAction.Cancel;
         }
         
         #endregion

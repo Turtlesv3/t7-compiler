@@ -100,10 +100,10 @@ namespace T7CompilerGUI.Forms.Dialogs
             // btnFind
             // 
             this.btnFind.DialogResult = System.Windows.Forms.DialogResult.OK;
-            this.btnFind.Location = new System.Drawing.Point(213, 140);
+            this.btnFind.Location = new System.Drawing.Point(213, 130);
             this.btnFind.Name = "btnFind";
             this.btnFind.Size = new System.Drawing.Size(75, 30);
-            this.btnFind.TabIndex = 4;
+            this.btnFind.TabIndex = 5;
             this.btnFind.Text = "Find";
             this.btnFind.UseSelectable = true;
             this.btnFind.UseStyleColors = true;
@@ -111,10 +111,10 @@ namespace T7CompilerGUI.Forms.Dialogs
             // btnCancel
             // 
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(298, 140);
+            this.btnCancel.Location = new System.Drawing.Point(298, 130);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 30);
-            this.btnCancel.TabIndex = 5;
+            this.btnCancel.TabIndex = 6;
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseSelectable = true;
             this.btnCancel.UseStyleColors = true;
@@ -125,7 +125,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(392, 191);
+            this.ClientSize = new System.Drawing.Size(392, 181);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnFind);
             this.Controls.Add(this.chkWholeWord);

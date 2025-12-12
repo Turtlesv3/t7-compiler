@@ -16,6 +16,10 @@
     <AppConfig>Properties\Config\App.config</AppConfig>
     <!-- Suppress MSB3277 warnings - these are harmless build-time assembly conflicts that are resolved at runtime via binding redirects in App.config -->
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
+    <!-- Version Information -->
+    <AssemblyVersion>3.6.9.0</AssemblyVersion>
+    <FileVersion>3.6.9.0</FileVersion>
+    <Version>3.6.9</Version>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -122,11 +126,9 @@
     </Compile>
     <Compile Include="Forms\MainForm.WindowsAPI.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
-      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Forms\MainForm.Helpers.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
-      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -195,8 +197,14 @@
     <Compile Include="Forms\Dialogs\SearchDialog.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Forms\Dialogs\SearchResultsDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Forms\Dialogs\SearchDialog.Designer.cs">
       <DependentUpon>SearchDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Dialogs\SearchResultsDialog.Designer.cs">
+      <DependentUpon>SearchResultsDialog.cs</DependentUpon>
     </Compile>
     <Compile Include="Games\BlackOps3.cs" />
     <Compile Include="Games\BlackOps4.cs" />
@@ -233,6 +241,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\Dialogs\SearchDialog.resx">
       <DependentUpon>SearchDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Dialogs\SearchResultsDialog.resx">
+      <DependentUpon>SearchResultsDialog.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
@@ -281,8 +292,11 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Resources\t7gui.ico">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <EmbeddedResource Include="Resources\t7gui.ico">
+      <LogicalName>t7gui.ico</LogicalName>
+    </EmbeddedResource>
     <!-- GSC.xshd is embedded as a resource (located at solution root Resources folder) -->
     <EmbeddedResource Include="..\..\Resources\GSC.xshd">
       <Link>Resources\GSC.xshd</Link>
@@ -294,23 +308,7 @@
     <Copy SourceFiles="Properties\Config\FodyWeavers.xml" DestinationFiles="FodyWeavers.xml" SkipUnchangedFiles="true" Condition="Exists('Properties\Config\FodyWeavers.xml')" />
     <Copy SourceFiles="Properties\Config\FodyWeavers.xsd" DestinationFiles="FodyWeavers.xsd" SkipUnchangedFiles="true" Condition="Exists('Properties\Config\FodyWeavers.xsd')" />
   </Target>
-  <!-- Ensure database files are copied to output directory -->
-  <Target Name="CopyDatabaseFiles" AfterTargets="CopyFilesToOutputDirectory">
-    <PropertyGroup>
-      <!-- SolutionDir is the directory containing the .sln file (root My T7\), so Resources is at $(SolutionDir)Resources -->
-      <_ResourcesPath>$(SolutionDir)Resources</_ResourcesPath>
-    </PropertyGroup>
-    <Message Text="CopyDatabaseFiles: Looking for database files in $(_ResourcesPath)" Importance="normal" />
-    <ItemGroup>
-      <DatabaseFiles Include="$(_ResourcesPath)\T7PCV2.db" Condition="Exists('$(_ResourcesPath)\T7PCV2.db')" />
-      <DatabaseFiles Include="$(_ResourcesPath)\T7PS4V2.db" Condition="Exists('$(_ResourcesPath)\T7PS4V2.db')" />
-      <DatabaseFiles Include="$(_ResourcesPath)\vm_codes.db2" Condition="Exists('$(_ResourcesPath)\vm_codes.db2')" />
-    </ItemGroup>
-    <Message Text="CopyDatabaseFiles: Found @(DatabaseFiles-&gt;Count()) database files to copy to $(OutDir)" Importance="normal" />
-    <Message Text="CopyDatabaseFiles: Files: @(DatabaseFiles)" Importance="normal" Condition="'@(DatabaseFiles)' != ''" />
-    <Copy SourceFiles="@(DatabaseFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(DatabaseFiles)' != ''" />
-    <Message Text="CopyDatabaseFiles: ERROR - No database files found in $(_ResourcesPath)" Importance="high" Condition="'@(DatabaseFiles)' == ''" />
-  </Target>
+  <!-- Database files are copied by other build processes (t7cInstaller or referenced projects) -->
   <Import Project="..\..\packages\Fody.6.9.3\build\Fody.targets" Condition="Exists('..\..\packages\Fody.6.9.3\build\Fody.targets')" />
   <Import Project="..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets" Condition="Exists('..\..\packages\Costura.Fody.6.0.0\build\Costura.Fody.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

@@ -102,11 +102,12 @@
   <ItemGroup>
     <None Include="Properties\Config\App.config" />
     <None Include="Properties\Config\packages.config" />
-    <None Include="$(SolutionDir)Resources\T7PCV2.db" Condition="Exists('$(SolutionDir)Resources\T7PCV2.db')">
+    <!-- Database files are NOT copied to output - they should be excluded from builds -->
+    <!-- <None Include="$(SolutionDir)Resources\T7PCV2.db" Condition="Exists('$(SolutionDir)Resources\T7PCV2.db')">
       <Link>T7PCV2.db</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Visible>false</Visible>
-    </None>
+    </None> -->
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\..\packages\System.ValueTuple.4.6.1\build\net471\System.ValueTuple.targets" Condition="Exists('..\..\packages\System.ValueTuple.4.6.1\build\net471\System.ValueTuple.targets')" />
