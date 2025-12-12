@@ -99,8 +99,16 @@ namespace T7CompilerGUI.Forms.Dialogs
                 this.StyleManager = styleManager;
             }
             
-            // Set dynamic text properties
-            lblFilePath.Text = $"Config File: {Path.GetFileName(gscConfPath)}";
+            // Set dynamic text properties - preserve Designer text and append dynamic content
+            // Get base text from Designer and append filename
+            string filePathBaseText = lblFilePath.Text;
+            // Remove any previously appended filename (in case SetupControls is called multiple times)
+            if (filePathBaseText.Contains(":"))
+            {
+                int colonIndex = filePathBaseText.LastIndexOf(':');
+                filePathBaseText = filePathBaseText.Substring(0, colonIndex + 1);
+            }
+            lblFilePath.Text = $"{filePathBaseText.TrimEnd()} {Path.GetFileName(gscConfPath)}";
             
             // Wire up radio button event handlers for mutual exclusivity
             rdoMP.CheckedChanged += (s, e) =>
@@ -135,15 +143,20 @@ namespace T7CompilerGUI.Forms.Dialogs
             // So we just use availableDefs directly (it's already a combined list)
             List<string> allSymbols = availableDefs.OrderBy(s => s).ToList();
             
-            // Update label text with count
-            lblOtherSymbols.Text = $"Additional Symbols (from project) - Found {allSymbols.Count}:";
-            
-            // Apply Poison theme colors to the listbox
-            if (styleManager != null)
+            // Update label text with count - preserve Designer text and append count
+            // Get base text from Designer, removing any previously appended count
+            string symbolsBaseText = lblOtherSymbols.Text;
+            // Remove any previously appended count (in case SetupControls is called multiple times)
+            if (symbolsBaseText.Contains(" - Found "))
             {
-                lstOtherSymbols.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
-                lstOtherSymbols.ForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                int foundIndex = symbolsBaseText.IndexOf(" - Found ");
+                symbolsBaseText = symbolsBaseText.Substring(0, foundIndex);
             }
+            // Append count to the Designer text (preserves whatever text the user set in Designer)
+            lblOtherSymbols.Text = $"{symbolsBaseText.TrimEnd()} - Found {allSymbols.Count}:";
+            
+            // Don't set BackColor/ForeColor here - let StyleManager handle it via SyncAllControlsWithStyleManager
+            // The listbox colors are set in SyncAllControlsWithStyleManager which is called periodically
             
             // Clear listbox before adding items to prevent duplicates
             lstOtherSymbols.Items.Clear();
@@ -485,11 +498,17 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Sync all controls recursively
             SyncControlsRecursive(this);
             
-            // Update listbox colors
+            // Update listbox colors (CheckedListBox doesn't support StyleManager, so we set colors manually)
+            // But only if they're not already set correctly to avoid unnecessary updates
             if (lstOtherSymbols != null && styleManager != null)
             {
-                lstOtherSymbols.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
-                lstOtherSymbols.ForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                var expectedBackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                var expectedForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                
+                if (lstOtherSymbols.BackColor != expectedBackColor)
+                    lstOtherSymbols.BackColor = expectedBackColor;
+                if (lstOtherSymbols.ForeColor != expectedForeColor)
+                    lstOtherSymbols.ForeColor = expectedForeColor;
             }
         }
         

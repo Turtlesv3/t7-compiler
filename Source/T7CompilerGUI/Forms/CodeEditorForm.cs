@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -62,7 +63,7 @@ namespace T7CompilerGUI.Forms
         
         // Tab scrolling debounce
         private DateTime lastTabScrollTime = DateTime.MinValue;
-        private const int TabScrollThrottleMs = 50; // Minimum milliseconds between tab changes
+        private const int TabScrollThrottleMs = 10; // Minimum milliseconds between tab changes
         
         /// <summary>
         /// Gets the GUI installation path. Checks T7GUI_PATH environment variable first, then uses the executable directory
@@ -194,13 +195,15 @@ namespace T7CompilerGUI.Forms
             this.styleManager = styleManager;
             InitializeComponent();
             
+            // PoisonForm already has double buffering enabled via ControlStyles
+            // No need to enable it manually
+            
             // Load GSC syntax data from GSC.xshd early (before SetupControls)
             LoadGscSyntaxData();
             
             SetupControls();
             SetupKeyboardShortcuts();
             SetupTimers();
-            SetupDiscordRichPresence();
             SetupFileWatcher();
             SetupThemeChangeHandling();
             // Initialize code editor keybinds
@@ -259,7 +262,7 @@ namespace T7CompilerGUI.Forms
                     lastTheme = styleManager.Theme;
                     lastStyle = styleManager.Style;
                     
-                    // Update theme and style on UI thread
+                    // Update theme and style immediately on UI thread
                     if (this.InvokeRequired)
                     {
                         try
@@ -267,7 +270,8 @@ namespace T7CompilerGUI.Forms
                             // Check if form handle is valid before invoking
                             if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
                             {
-                                this.BeginInvoke(new Action(() => {
+                                // Use Invoke instead of BeginInvoke for immediate execution
+                                this.Invoke(new Action(() => {
                                     if (!this.IsDisposed && !this.Disposing)
                                     {
                                         UpdateThemeAndStyle();
@@ -338,7 +342,10 @@ namespace T7CompilerGUI.Forms
             
             try
             {
-                // Ensure StyleManager is still set and Owner is correct
+                // Suspend layout to batch all updates - prevents incremental painting
+                this.SuspendLayout();
+                
+                // Ensure StyleManager is set and Owner is correct
                 if (this.StyleManager != styleManager)
                 {
                     this.StyleManager = styleManager;
@@ -352,13 +359,15 @@ namespace T7CompilerGUI.Forms
                     poisonStyleManager.Style = styleManager.Style;
                 }
                 
+                // Update form background color to match theme (before StyleManager.Update)
+                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                
                 // Update menu strip (needs custom renderer, not handled by StyleManager)
                 if (mainMenuStrip != null)
                 {
                     mainMenuStrip.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
                     mainMenuStrip.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
                     mainMenuStrip.Renderer = new PoisonMenuStripRenderer(styleManager);
-                    mainMenuStrip.Invalidate();
                 }
                 
                 // Update file buttons panel background (FlowLayoutPanel doesn't support StyleManager)
@@ -367,22 +376,28 @@ namespace T7CompilerGUI.Forms
                     fileButtonsPanel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
                 }
                 
-                // Update form background color to match theme
-                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                
-                // Update all open code editors (custom controls)
+                // Update all open code editors (custom controls) - these need manual theme updates
                 UpdateAllEditorsTheme();
                 
-                // Update all file buttons (dynamically created)
+                // Update all file buttons (dynamically created) - ensure they're connected to StyleManager
                 UpdateAllFileButtonsTheme();
                 
+                // Update editor panel context menu theme
+                if (editorPanelContextMenu != null)
+                {
+                    editorPanelContextMenu.Theme = styleManager.Theme;
+                    editorPanelContextMenu.Style = styleManager.Style;
+                    editorPanelContextMenu.UseStyleColors = true;
+                    editorPanelContextMenu.StyleManager = styleManager;
+                }
+                
                 // Use StyleManager.Update() to automatically update all IPoisonControl and IPoisonComponent controls
-                // This is the proper ReaLTaiizor way - it recursively updates all child controls
+                // This recursively calls Refresh() on all controls, so no additional refresh calls are needed
                 styleManager.Update();
                 
-                // Force refresh of entire form
-                this.Invalidate(true);
-                this.Update();
+                // Resume layout - StyleManager.Update() already refreshed all controls
+                // No Invalidate/Update/Refresh needed - they cause visible transitions
+                this.ResumeLayout(false);
             }
             catch (ObjectDisposedException)
             {
@@ -399,71 +414,97 @@ namespace T7CompilerGUI.Forms
             if (styleManager == null) return;
             
             // Update StyleManager on all open editors - this will trigger ApplyPoisonTheme() in each editor
+            // All updates are batched - no individual refreshes happen here
             foreach (var editor in openEditors.Values)
             {
-                if (editor != null)
+                if (editor != null && !editor.IsDisposed)
                 {
                     // Setting StyleManager will automatically apply Poison theme colors
+                    // This doesn't trigger immediate refresh - StyleManager.Update() handles that
                     editor.StyleManager = styleManager;
                     
-                    // Force full editor refresh to ensure theme is applied
-                    editor.Invalidate();
-                    editor.Update();
-                    editor.Refresh();
+                    // Update WPF context menu theme if it exists
+                    // WPF controls need manual color updates, but no refresh is needed
+                    if (editor.Editor?.TextArea?.ContextMenu != null)
+                    {
+                        UpdateWpfContextMenuTheme(editor.Editor.TextArea.ContextMenu);
+                    }
                 }
+            }
+        }
+        
+        private void UpdateWpfContextMenuTheme(System.Windows.Controls.ContextMenu contextMenu)
+        {
+            if (contextMenu == null || styleManager == null) return;
+            
+            try
+            {
+                // Get theme colors from Poison
+                var backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                var foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                var borderColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
+                
+                // Convert to WPF colors
+                contextMenu.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(backColor.A, backColor.R, backColor.G, backColor.B));
+                contextMenu.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(foreColor.A, foreColor.R, foreColor.G, foreColor.B));
+                contextMenu.BorderBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(borderColor.A, borderColor.R, borderColor.G, borderColor.B));
+                
+                // Update all menu items
+                foreach (var item in contextMenu.Items)
+                {
+                    if (item is System.Windows.Controls.MenuItem menuItem)
+                    {
+                        menuItem.Background = contextMenu.Background;
+                        menuItem.Foreground = contextMenu.Foreground;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore errors - context menu might be disposed
             }
         }
         
         private void UpdateAllFileButtonsTheme()
         {
-            if (styleManager == null) return;
+            if (styleManager == null || fileButtonsPanel == null) return;
             
             // Update all file buttons in the file list panel
+            // All StyleManager assignments are batched - no individual refreshes happen here
             foreach (Control control in fileButtonsPanel.Controls)
             {
-                if (control is PoisonPanel buttonContainer)
+                if (control is PoisonPanel buttonContainer && !buttonContainer.IsDisposed)
                 {
-                    // Update container panel
+                    // Update container panel - StyleManager assignment doesn't trigger immediate refresh
                     buttonContainer.StyleManager = styleManager;
                     buttonContainer.UseStyleColors = true;
                     
                     // Update file button and close button
                     foreach (Control child in buttonContainer.Controls)
                     {
-                        if (child is PoisonButton btn)
+                        if (child is PoisonButton btn && !btn.IsDisposed)
                         {
+                            // Setting StyleManager will automatically apply theme
+                            // This doesn't trigger immediate refresh - StyleManager.Update() handles that
                             btn.StyleManager = styleManager;
                             btn.UseStyleColors = true;
-                            btn.Invalidate();
+                            
+                            // For close buttons (X buttons), update colors to match theme
+                            // These are set but won't paint until ResumeLayout and Refresh
+                            if (btn.Text == "X")
+                            {
+                                btn.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
+                                btn.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
+                            }
                         }
                     }
-                    
-                    buttonContainer.Invalidate();
                 }
             }
         }
         
-        private void UpdatePanelScrollbars()
-        {
-            if (styleManager == null) return;
-            
-            // Update all PoisonPanel scrollbars to match theme
-            UpdatePanelScrollbarTheme(mainPanel);
-            UpdatePanelScrollbarTheme(editorPanel);
-            UpdatePanelScrollbarTheme(fileListPanel);
-            UpdatePanelScrollbarTheme(buttonPanel);
-        }
-        
-        private void UpdatePanelScrollbarTheme(ReaLTaiizor.Controls.PoisonPanel panel)
-        {
-            if (panel == null || styleManager == null) return;
-            
-            // StyleManager is already set via Owner property, just ensure it's current
-            // UseStyleColors is already set in Designer, no need to set again
-            
-            // Force scrollbar refresh by invalidating
-            panel.Invalidate();
-        }
 
         protected override void OnLoad(EventArgs e)
         {
@@ -475,10 +516,8 @@ namespace T7CompilerGUI.Forms
         {
             base.OnShown(e);
             
-            // Refresh form to ensure proper rendering
-            this.Refresh();
-            
             // Update theme on show to catch any changes
+            // UpdateThemeAndStyle() handles all rendering - no need for explicit Refresh()
             if (styleManager != null)
             {
                 UpdateThemeAndStyle();
@@ -502,72 +541,237 @@ namespace T7CompilerGUI.Forms
         private void SetupControls()
         {
             // Replace Designer's poisonStyleManager with the passed-in styleManager from MainForm
-            // This ensures theme and style are synced with MainForm
             if (styleManager != null)
             {
-                // Set the form's StyleManager to the passed-in one (replaces Designer's)
                 this.StyleManager = styleManager;
-                
-                // Set Owner to this form so StyleManager can propagate to all child controls
                 styleManager.Owner = this;
                 
-                // Sync the Designer's poisonStyleManager component with the passed-in one
-                // This ensures any Designer-bound properties still work
+                // Sync the Designer's poisonStyleManager component
                 if (poisonStyleManager != null)
                 {
                     poisonStyleManager.Theme = styleManager.Theme;
                     poisonStyleManager.Style = styleManager.Style;
                     poisonStyleManager.Owner = this;
                 }
-            }
-            
-            // Apply theme to menu strip with custom renderer (MenuStrip needs special handling)
-            if (styleManager != null && mainMenuStrip != null)
-            {
-                mainMenuStrip.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                mainMenuStrip.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
-                mainMenuStrip.Renderer = new PoisonMenuStripRenderer(styleManager);
-            }
-            
-            // Update form background color to match theme
-            if (styleManager != null)
-            {
-                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
                 
-                // Use StyleManager.Update() to automatically apply theme to all controls
-                // This is more efficient than manually setting each control
+                // Apply theme to menu strip with custom renderer (MenuStrip needs special handling)
+                if (mainMenuStrip != null)
+                {
+                    mainMenuStrip.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    mainMenuStrip.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                    mainMenuStrip.Renderer = new PoisonMenuStripRenderer(styleManager);
+                }
+                
+                // Apply theme to file buttons panel (FlowLayoutPanel doesn't support StyleManager)
+                if (fileButtonsPanel != null)
+                {
+                    fileButtonsPanel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                }
+                
+                // Use StyleManager.Update() to automatically apply theme to all Poison controls
                 styleManager.Update();
             }
             
-            // Setup main menu (menu items created at runtime due to dynamic behavior)
+            // Setup menus (menu items created at runtime due to dynamic behavior)
             SetupMainMenu();
-
             SetupGameMenu();
             SetupGameModeMenu();
             
-            // Apply Poison theme to all controls
-            ApplyPoisonThemeToControls();
+            // Hide scrollbar corner control using Windows API (runtime behavior, must stay in code)
+            SetupScrollbarCornerHiding();
+            
+            // Setup mouse scrolling for file list panel
+            SetupFileListMouseScrolling();
+            
+            // Setup context menu for editor panel and tab control
+            SetupEditorPanelContextMenu();
             
             PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
+            
+            // StyleManager.Update() already handles all control refreshes
+            // No need for explicit Refresh() call here - it causes unnecessary paint events
         }
         
-        private void ApplyPoisonThemeToControls()
+        private ReaLTaiizor.Controls.PoisonContextMenuStrip editorPanelContextMenu;
+        
+        private void SetupEditorPanelContextMenu()
         {
-            if (styleManager == null) return;
+            // Create context menu for editor panel
+            editorPanelContextMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             
-            // With StyleManager.Owner set, most controls are automatically updated via StyleManager.Update()
-            // Only need to manually handle controls that don't implement IPoisonControl/IPoisonComponent
-            
-            // Apply theme to file buttons panel (FlowLayoutPanel doesn't support StyleManager)
-            if (fileButtonsPanel != null)
+            // Set theme and style BEFORE StyleManager to ensure proper initialization
+            if (styleManager != null)
             {
-                fileButtonsPanel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                editorPanelContextMenu.Theme = styleManager.Theme;
+                editorPanelContextMenu.Style = styleManager.Style;
+                editorPanelContextMenu.UseStyleColors = true;
+                // Set StyleManager after theme/style to ensure it uses correct values
+                editorPanelContextMenu.StyleManager = styleManager;
+            }
+            else
+            {
+                editorPanelContextMenu.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Dark;
+                editorPanelContextMenu.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
+                editorPanelContextMenu.UseStyleColors = true;
             }
             
-            // StyleManager.Update() will handle all IPoisonControl and IPoisonComponent controls automatically
-            // All UseStyleColors, UseSelectable, and other static properties are already set in Designer
-            // StyleManager is set at runtime via Owner property, which propagates to all child controls
+            var goToLineItem = new System.Windows.Forms.ToolStripMenuItem("Go to Line...");
+            goToLineItem.Click += (s, e) => GoToLine();
+            editorPanelContextMenu.Items.Add(goToLineItem);
+            
+            editorPanelContextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            
+            var refreshItem = new System.Windows.Forms.ToolStripMenuItem("Refresh Files");
+            refreshItem.Click += (s, e) => RefreshItem_Click(s, e);
+            editorPanelContextMenu.Items.Add(refreshItem);
+            
+            // Assign to editor panel
+            if (editorPanel != null)
+            {
+                editorPanel.ContextMenuStrip = editorPanelContextMenu;
+            }
+            
+            // Also assign to tab control
+            if (tabControl != null)
+            {
+                tabControl.ContextMenuStrip = editorPanelContextMenu;
+            }
         }
+        
+        private void SetupScrollbarCornerHiding()
+        {
+            // Hide scrollbar corner for panels and tab control
+            Action<Control> setupCornerHiding = (control) =>
+            {
+                if (control == null) return;
+                control.HandleCreated += (s, e) => HideScrollbarCorner(control);
+                control.Layout += (s, e) =>
+                {
+                    if (control.IsHandleCreated)
+                        HideScrollbarCorner(control);
+                };
+            };
+            
+            setupCornerHiding(editorPanel);
+            setupCornerHiding(mainPanel);
+            setupCornerHiding(tabControl);
+        }
+        
+        private void SetupFileListMouseScrolling()
+        {
+            if (fileButtonsPanel == null) return;
+            
+            // AutoScroll is enabled in Designer, but we hide the scrollbars
+            // Hide scrollbars using Windows API and FlowLayoutPanel properties
+            fileButtonsPanel.HandleCreated += (s, e) =>
+            {
+                HideScrollbarCorner(fileButtonsPanel);
+                // Hide scrollbars but keep AutoScroll enabled for functionality
+                fileButtonsPanel.HorizontalScroll.Visible = false;
+                fileButtonsPanel.VerticalScroll.Visible = false;
+            };
+            
+            // Also hide scrollbars after layout changes
+            fileButtonsPanel.Layout += (s, e) =>
+            {
+                if (fileButtonsPanel.IsHandleCreated)
+                {
+                    HideScrollbarCorner(fileButtonsPanel);
+                    fileButtonsPanel.HorizontalScroll.Visible = false;
+                    fileButtonsPanel.VerticalScroll.Visible = false;
+                }
+            };
+            
+            // Mouse wheel scrolling is handled automatically by AutoScroll
+            // Just ensure scrollbars stay hidden
+            fileButtonsPanel.MouseWheel += (s, e) =>
+            {
+                if (fileButtonsPanel.IsHandleCreated)
+                {
+                    fileButtonsPanel.HorizontalScroll.Visible = false;
+                    fileButtonsPanel.VerticalScroll.Visible = false;
+                }
+            };
+            
+            // Enable middle mouse button drag scrolling
+            bool isMiddleMouseScrolling = false;
+            System.Drawing.Point scrollStartPoint = System.Drawing.Point.Empty;
+            int scrollStartY = 0;
+            
+            fileButtonsPanel.MouseDown += (s, e) =>
+            {
+                if (e.Button == MouseButtons.Middle)
+                {
+                    isMiddleMouseScrolling = true;
+                    scrollStartPoint = e.Location;
+                    scrollStartY = -fileButtonsPanel.AutoScrollPosition.Y;
+                    fileButtonsPanel.Cursor = Cursors.Hand;
+                }
+            };
+            
+            fileButtonsPanel.MouseMove += (s, e) =>
+            {
+                if (isMiddleMouseScrolling)
+                {
+                    int deltaY = scrollStartPoint.Y - e.Y;
+                    int newY = scrollStartY + deltaY;
+                    
+                    // Calculate max scroll position
+                    int maxScroll = Math.Max(0, fileButtonsPanel.PreferredSize.Height - fileButtonsPanel.Height);
+                    newY = Math.Max(0, Math.Min(newY, maxScroll));
+                    
+                    // Scroll by setting AutoScrollPosition (negative value)
+                    fileButtonsPanel.AutoScrollPosition = new System.Drawing.Point(0, newY);
+                }
+            };
+            
+            fileButtonsPanel.MouseUp += (s, e) =>
+            {
+                if (e.Button == MouseButtons.Middle && isMiddleMouseScrolling)
+                {
+                    isMiddleMouseScrolling = false;
+                    fileButtonsPanel.Cursor = Cursors.Default;
+                }
+            };
+            
+            fileButtonsPanel.MouseLeave += (s, e) =>
+            {
+                if (isMiddleMouseScrolling)
+                {
+                    isMiddleMouseScrolling = false;
+                    fileButtonsPanel.Cursor = Cursors.Default;
+                }
+            };
+        }
+        
+        // Windows API to hide scrollbar corner and control redraw
+        [DllImport("user32.dll")]
+        private static extern int ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
+        
+        [DllImport("user32.dll")]
+        private static extern int SendMessage(IntPtr hWnd, int wMsg, bool wParam, int lParam);
+        
+        private const int SB_HORZ = 0;
+        private const int SB_VERT = 1;
+        private const int SB_BOTH = 3;
+        private const int WM_SETREDRAW = 0x000B;
+        
+        private void HideScrollbarCorner(Control control)
+        {
+            if (control == null || !control.IsHandleCreated) return;
+            
+            try
+            {
+                // Hide both scrollbars to hide the corner
+                ShowScrollBar(control.Handle, SB_HORZ, false);
+                ShowScrollBar(control.Handle, SB_VERT, false);
+            }
+            catch
+            {
+                // Ignore errors
+            }
+        }
+        
 
         private void SetupTimers()
         {
@@ -591,22 +795,6 @@ namespace T7CompilerGUI.Forms
             // discordUpdateTimer.Start();
         }
 
-        private void SetupDiscordRichPresence()
-        {
-            // Discord Rich Presence disabled - not needed for this project
-            // If you want to enable it, uncomment the code below
-            /*
-            try
-            {
-                discordClient = new DiscordRpcClient(DISCORD_CLIENT_ID);
-                discordClient.Initialize();
-            }
-            catch
-            {
-                // Discord not available, continue without it
-            }
-            */
-        }
 
         private void SetupFileWatcher()
         {
@@ -1202,9 +1390,24 @@ namespace T7CompilerGUI.Forms
                 return;
             }
             
-            // Create context menu
-            ContextMenuStrip recentMenu = new ContextMenuStrip();
-            recentMenu.Renderer = new ToolStripProfessionalRenderer();
+            // Create context menu using PoisonContextMenuStrip
+            // Pass null for Container since we're creating it dynamically (constructor accepts null)
+            ReaLTaiizor.Controls.PoisonContextMenuStrip recentMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(null);
+            if (styleManager != null)
+            {
+                // Set Theme and Style first to match StyleManager
+                recentMenu.Theme = styleManager.Theme;
+                recentMenu.Style = styleManager.Style;
+                recentMenu.UseStyleColors = true;
+                // Set StyleManager last - this will call settheme() and apply the theme
+                recentMenu.StyleManager = styleManager;
+            }
+            else
+            {
+                // Fallback if no StyleManager
+                recentMenu.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Dark;
+                recentMenu.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
+            }
             
             foreach (string projectPath in recentProjects)
             {
@@ -1283,7 +1486,7 @@ namespace T7CompilerGUI.Forms
             }
             
             // Use NewFileDialog with proper validation (matches original T7-Compiler-UI)
-            if (NewFileDialog.ShowNewFileDialog(this, projectPath, out string fileName, out string fileExtension))
+            if (NewFileDialog.ShowNewFileDialog(this, projectPath, out string fileName, out string fileExtension, styleManager))
             {
                     RefreshFileList(false);
                     
@@ -2521,6 +2724,12 @@ namespace T7CompilerGUI.Forms
 
             // Set loading flag to prevent hasChanges during file loading
             isLoadingFiles = true;
+            
+            // Show loading status
+            if (statusLabel != null)
+            {
+                statusLabel.Text = "Loading files...";
+            }
 
             try
             {
@@ -2603,7 +2812,29 @@ namespace T7CompilerGUI.Forms
                 // Always clear the loading flag, even if an exception occurs
                 // This ensures user edits will properly set hasChanges
                 isLoadingFiles = false;
+                
+                // Update status to show completion
+                if (statusLabel != null)
+                {
+                    statusLabel.Text = GetDefaultStatusText();
+                }
             }
+            
+                    // Update theme for all file buttons (including close buttons) after loading
+                    // This ensures all buttons have proper theme applied
+                    if (styleManager != null)
+                    {
+                        UpdateAllFileButtonsTheme();
+                        
+                        // Also update editor panel context menu theme
+                        if (editorPanelContextMenu != null)
+                        {
+                            editorPanelContextMenu.Theme = styleManager.Theme;
+                            editorPanelContextMenu.Style = styleManager.Style;
+                            editorPanelContextMenu.UseStyleColors = true;
+                            editorPanelContextMenu.StyleManager = styleManager;
+                        }
+                    }
             
             // Ensure hasChanges is false after loading all files - use CheckForUnsavedChanges to verify
             CheckForUnsavedChanges();
@@ -2673,12 +2904,16 @@ namespace T7CompilerGUI.Forms
                 Size = new Size(CloseButtonWidth, CloseButtonHeight),
                 Dock = DockStyle.Right,
                 FlatStyle = FlatStyle.Flat,
-                UseVisualStyleBackColor = false
+                UseVisualStyleBackColor = false,
+                UseStyleColors = true
             };
             
-            // Set theme-aware colors
+            // Apply theme to close button
             if (styleManager != null)
             {
+                closeButton.StyleManager = styleManager;
+                closeButton.UseStyleColors = true;
+                // Set initial theme-aware colors
                 closeButton.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
                 closeButton.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
             }
@@ -2693,9 +2928,16 @@ namespace T7CompilerGUI.Forms
             };
             closeButton.MouseLeave += (s, e) => {
                 if (styleManager != null)
+                {
+                    // Use StyleManager to get current theme colors
                     closeButton.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
+                    closeButton.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
+                }
                 else
+                {
                     closeButton.BackColor = FallbackButtonBackColor;
+                    closeButton.ForeColor = FallbackButtonForeColor;
+                }
             };
             closeButton.Click += (s, e) => {
                 DeleteFile(filePath, index);
@@ -2749,7 +2991,7 @@ namespace T7CompilerGUI.Forms
         /// </summary>
         private ReaLTaiizor.Controls.PoisonTabPage CreateTabPage(string tabText, string tooltipText)
         {
-            return new ReaLTaiizor.Controls.PoisonTabPage
+            var tabPage = new ReaLTaiizor.Controls.PoisonTabPage
             {
                 Text = tabText,
                 ToolTipText = tooltipText, // Show full absolute path in tooltip
@@ -2759,6 +3001,23 @@ namespace T7CompilerGUI.Forms
                 VerticalScrollbar = false,
                 AutoScroll = false
             };
+            
+            // Ensure AutoScroll is disabled to prevent corner control from appearing
+            // This must be set after the object is created because AutoScroll property
+            // in PoisonTabPage sets scrollbars when enabled but doesn't clear them when disabled
+            tabPage.AutoScroll = false;
+            
+            // Hide scrollbar corner control using Windows API (similar to PoisonPanel)
+            tabPage.HandleCreated += (s, e) => {
+                if (tabPage.IsHandleCreated)
+                    HideScrollbarCorner(tabPage);
+            };
+            tabPage.Layout += (s, e) => {
+                if (tabPage.IsHandleCreated)
+                    HideScrollbarCorner(tabPage);
+            };
+            
+            return tabPage;
         }
 
         #endregion
@@ -3239,6 +3498,35 @@ namespace T7CompilerGUI.Forms
             // Create context menu with useful items
             var contextMenu = new System.Windows.Controls.ContextMenu();
             
+            // Apply Poison theme colors to WPF context menu
+            if (styleManager != null)
+            {
+                // Get theme colors from Poison
+                var backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                var foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                var borderColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
+                
+                // Convert to WPF colors
+                contextMenu.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(backColor.A, backColor.R, backColor.G, backColor.B));
+                contextMenu.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(foreColor.A, foreColor.R, foreColor.G, foreColor.B));
+                contextMenu.BorderBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(borderColor.A, borderColor.R, borderColor.G, borderColor.B));
+                contextMenu.BorderThickness = new System.Windows.Thickness(1);
+            }
+            else
+            {
+                // Fallback to dark theme colors
+                contextMenu.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(45, 45, 48));
+                contextMenu.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(200, 200, 200));
+                contextMenu.BorderBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(100, 100, 100));
+                contextMenu.BorderThickness = new System.Windows.Thickness(1);
+            }
+            
             // Go to Line
             var goToLineItem = new System.Windows.Controls.MenuItem
             {
@@ -3246,6 +3534,18 @@ namespace T7CompilerGUI.Forms
                 InputGestureText = "Ctrl+G"
             };
             goToLineItem.Click += (s, e) => GoToLine();
+            
+            // Style menu item
+            if (styleManager != null)
+            {
+                var itemBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                var itemForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                goToLineItem.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(itemBackColor.A, itemBackColor.R, itemBackColor.G, itemBackColor.B));
+                goToLineItem.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(itemForeColor.A, itemForeColor.R, itemForeColor.G, itemForeColor.B));
+            }
+            
             contextMenu.Items.Add(goToLineItem);
             
             contextMenu.Items.Add(new System.Windows.Controls.Separator());
@@ -3256,10 +3556,48 @@ namespace T7CompilerGUI.Forms
                 Header = "Toggle ifdef"
             };
             toggleIfdefItem.Click += (s, e) => ToggleIfdefAtCurrentLine(editor);
+            
+            // Style menu item
+            if (styleManager != null)
+            {
+                var itemBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                var itemForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                toggleIfdefItem.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(itemBackColor.A, itemBackColor.R, itemBackColor.G, itemBackColor.B));
+                toggleIfdefItem.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(itemForeColor.A, itemForeColor.R, itemForeColor.G, itemForeColor.B));
+            }
+            
             contextMenu.Items.Add(toggleIfdefItem);
             
             // Set context menu on the text editor
             editor.Editor.TextArea.ContextMenu = contextMenu;
+            
+            // Store reference to update theme later
+            editor.Editor.TextArea.ContextMenu.Tag = editor; // Store editor reference for theme updates
+            
+            // Also set context menu on the ElementHost to ensure right-click works everywhere
+            if (editor.Controls.Count > 0 && editor.Controls[0] is System.Windows.Forms.Integration.ElementHost elementHost)
+            {
+                // Create WinForms context menu for the ElementHost wrapper
+                var winFormsContextMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
+                winFormsContextMenu.StyleManager = styleManager;
+                winFormsContextMenu.Theme = styleManager?.Theme ?? ReaLTaiizor.Enum.Poison.ThemeStyle.Dark;
+                winFormsContextMenu.Style = styleManager?.Style ?? ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
+                winFormsContextMenu.UseStyleColors = true;
+                
+                var goToLineWinFormsItem = new System.Windows.Forms.ToolStripMenuItem("Go to Line...");
+                goToLineWinFormsItem.Click += (s, e) => GoToLine();
+                winFormsContextMenu.Items.Add(goToLineWinFormsItem);
+                
+                winFormsContextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+                
+                var toggleIfdefWinFormsItem = new System.Windows.Forms.ToolStripMenuItem("Toggle ifdef");
+                toggleIfdefWinFormsItem.Click += (s, e) => ToggleIfdefAtCurrentLine(editor);
+                winFormsContextMenu.Items.Add(toggleIfdefWinFormsItem);
+                
+                elementHost.ContextMenuStrip = winFormsContextMenu;
+            }
         }
         
         /// <summary>
@@ -3294,7 +3632,7 @@ namespace T7CompilerGUI.Forms
             
             if (string.IsNullOrEmpty(symbol))
             {
-                MessageBox.Show("No #ifdef or #ifndef found on this line.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "No #ifdef or #ifndef found on this line.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             
@@ -3305,7 +3643,7 @@ namespace T7CompilerGUI.Forms
             if (upperSymbol == "MP" || upperSymbol == "ZM" || upperSymbol == "SP" || 
                 upperSymbol == "BO3" || upperSymbol == "BO4" || upperSymbol == "SERIOUS")
             {
-                MessageBox.Show($"Cannot toggle system symbol: {symbol}", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Cannot toggle system symbol: {symbol}", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             
@@ -3321,7 +3659,7 @@ namespace T7CompilerGUI.Forms
             
             // Show feedback
             string status = !currentState ? "enabled" : "disabled";
-            MessageBox.Show($"Symbol '{symbol}' is now {status}.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Symbol '{symbol}' is now {status}.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // Store completion list as a field so it's accessible in the event handler
@@ -4214,22 +4552,29 @@ namespace T7CompilerGUI.Forms
             UpdateSelectedTabItem();
         }
 
-        private void TabControl_MouseWheel(object sender, MouseEventArgs e)
-        {
-            HandleTabControlMouseWheel(e);
-        }
 
         private void HandleTabControlMouseWheel(MouseEventArgs e)
         {
             if (tabControl == null || tabControl.TabPages.Count == 0)
                 return;
 
+            // Check if tabs are overflowing (selector would be visible)
+            // We can detect this by checking if all tabs fit in the visible area
+            bool tabsOverflowing = AreTabsOverflowing();
+            
+            if (tabsOverflowing)
+            {
+                // When tabs overflow, let the base TabControl handle scrolling
+                // Don't interfere - it will scroll tabs horizontally automatically
+                return;
+            }
+
             // Throttle tab scrolling to prevent rapid changes
             DateTime now = DateTime.Now;
             if ((now - lastTabScrollTime).TotalMilliseconds < TabScrollThrottleMs)
                 return; // Too soon since last change, ignore this scroll event
 
-            // Scroll through tabs with mouse wheel
+            // Scroll through tabs with mouse wheel (change selected tab)
             int currentIndex = tabControl.SelectedIndex;
             if (currentIndex < 0)
                 currentIndex = 0;
@@ -4271,6 +4616,110 @@ namespace T7CompilerGUI.Forms
                 lastTabScrollTime = now;
             }
         }
+        
+        // Check if tabs are overflowing (would show selector)
+        // This is a simple heuristic: if the total width of all tabs exceeds the control width
+        private bool AreTabsOverflowing()
+        {
+            if (tabControl == null || tabControl.TabPages.Count == 0 || !tabControl.IsHandleCreated)
+                return false;
+            
+            try
+            {
+                // Get the width of the tab control's display area
+                int controlWidth = tabControl.DisplayRectangle.Width;
+                
+                // Estimate total width of all tabs
+                int totalTabWidth = 0;
+                for (int i = 0; i < tabControl.TabPages.Count; i++)
+                {
+                    Rectangle tabRect = tabControl.GetTabRect(i);
+                    totalTabWidth += tabRect.Width;
+                }
+                
+                // If total width exceeds control width, tabs are likely overflowing
+                return totalTabWidth > controlWidth;
+            }
+            catch
+            {
+                // If we can't determine, assume not overflowing
+                return false;
+            }
+        }
+
+        private void TabControl_MouseWheel(object sender, MouseEventArgs e)
+        {
+            if (tabControl == null || tabControl.TabPages.Count == 0)
+                return;
+            
+            // Check if tabs are overflowing
+            if (AreTabsOverflowing())
+            {
+                // When tabs overflow, scroll tabs horizontally by changing selected index
+                // No throttling needed - allow continuous scrolling
+                int currentIndex = tabControl.SelectedIndex;
+                if (currentIndex < 0 && tabControl.TabPages.Count > 0)
+                    currentIndex = 0;
+                
+                int scrollDirection = e.Delta > 0 ? -1 : 1;
+                int newIndex = currentIndex + scrollDirection;
+                
+                if (newIndex >= 0 && newIndex < tabControl.TabPages.Count)
+                {
+                    tabControl.SelectedIndex = newIndex;
+                }
+                else if (newIndex < 0 && tabControl.TabPages.Count > 0)
+                {
+                    tabControl.SelectedIndex = tabControl.TabPages.Count - 1;
+                }
+                else if (newIndex >= tabControl.TabPages.Count && tabControl.TabPages.Count > 0)
+                {
+                    tabControl.SelectedIndex = 0;
+                }
+                return;
+            }
+            
+            // When tabs don't overflow, handle tab selection
+            // No throttling - allow continuous scrolling
+            int currentIdx = tabControl.SelectedIndex;
+            if (currentIdx < 0)
+                currentIdx = 0;
+            
+            int newIdx = currentIdx;
+            
+            if (e.Delta > 0)
+            {
+                // Scroll up - go to previous tab
+                if (currentIdx > 0)
+                {
+                    newIdx = currentIdx - 1;
+                }
+                else
+                {
+                    // Wrap to last tab
+                    newIdx = tabControl.TabPages.Count - 1;
+                }
+            }
+            else if (e.Delta < 0)
+            {
+                // Scroll down - go to next tab
+                if (currentIdx < tabControl.TabPages.Count - 1)
+                {
+                    newIdx = currentIdx + 1;
+                }
+                else
+                {
+                    // Wrap to first tab
+                    newIdx = 0;
+                }
+            }
+            
+            // Only change if index actually changed
+            if (newIdx != currentIdx)
+            {
+                tabControl.SelectedIndex = newIdx;
+            }
+        }
 
         protected override void OnMouseWheel(MouseEventArgs e)
         {
@@ -4288,8 +4737,10 @@ namespace T7CompilerGUI.Forms
                 
                 if (isOverTabArea || ctrlHeld)
                 {
-                    HandleTabControlMouseWheel(e);
-                    return; // Don't call base - we handled it
+                    // The TabControl_MouseWheel handler will handle it
+                    // Just let the event reach the TabControl
+                    base.OnMouseWheel(e);
+                    return;
                 }
             }
             
@@ -4647,7 +5098,8 @@ namespace T7CompilerGUI.Forms
                 string content = File.ReadAllText(mainGscPath);
                 string lowerContent = content.ToLower();
                 
-                // Step 3: Check namespace - if it's NOT "duplicate_render", it's an IL project
+                // Step 3: Check namespace (for informational purposes only - not used for detection)
+                // Namespace alone is not a reliable indicator - we require both system::register and #ifdef IL
                 bool foundNamespace = false;
                 string namespaceValue = string.Empty;
                 
@@ -4659,26 +5111,16 @@ namespace T7CompilerGUI.Forms
                     namespaceValue = namespaceMatch.Groups[1].Value;
                     foundNamespace = true;
                     errorInfo.AppendLine($"✓ Found namespace: {namespaceValue}");
-                    
-                    // If namespace is NOT "duplicate_render", it's an IL project
-                    if (!namespaceValue.Equals("duplicate_render", StringComparison.OrdinalIgnoreCase))
-                    {
-                        errorInfo.AppendLine($"✓ Namespace '{namespaceValue}' is not 'duplicate_render' - IL project detected");
-                        return true;
-                    }
-                    else
-                    {
-                        errorInfo.AppendLine($"  Namespace is 'duplicate_render' - checking for system::register...");
-                    }
                 }
                 else
                 {
                     errorInfo.AppendLine("✗ No #namespace directive found");
                 }
                 
-                // Step 4: Check for system::register("infinityloader" anywhere in the file (new IL syntax)
-                // The new syntax has system::register in the #else block (T7/BUILD MODE), not inside #ifdef IL
+                // Step 4: Check for BOTH system::register("infinityloader" AND #ifdef IL (both required)
+                // The new syntax requires both indicators to be present
                 bool foundSystemRegister = false;
+                bool foundIfdefIL = false;
                 
                 // Look for system::register("infinityloader" anywhere in the file
                 // Pattern: system::register("infinityloader" (with flexible spacing)
@@ -4690,31 +5132,49 @@ namespace T7CompilerGUI.Forms
                 {
                     foundSystemRegister = true;
                     errorInfo.AppendLine("✓ Found system::register(\"infinityloader\" in file");
-                    return true;
                 }
                 else
                 {
                     errorInfo.AppendLine("✗ system::register(\"infinityloader\" not found in file");
                 }
                 
-                // Step 5: Check for #ifdef IL directives (new IL syntax indicator)
-                bool foundIfdefIL = lowerContent.Contains("#ifdef il") || lowerContent.Contains("#ifdef\til");
-                if (foundIfdefIL)
+                // Check for #ifdef IL directives (new IL syntax indicator)
+                // Check for both "#ifdef IL" and "#ifdef\tIL" (with tab)
+                if (lowerContent.IndexOf("#ifdef il", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                    lowerContent.IndexOf("#ifdef\til", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
+                    foundIfdefIL = true;
                     errorInfo.AppendLine("✓ Found #ifdef IL directive in file");
-                    return true;
                 }
                 else
                 {
                     errorInfo.AppendLine("✗ #ifdef IL directive not found in file");
                 }
                 
-                // If we didn't find either indicator, it's not an IL project
-                if (!foundSystemRegister && !foundIfdefIL)
+                // BOTH indicators must be present for it to be an IL project
+                if (foundSystemRegister && foundIfdefIL)
                 {
+                    errorInfo.AppendLine("✓ Both IL indicators found - IL project detected");
+                    return true;
+                }
+                else
+                {
+                    if (!foundSystemRegister && !foundIfdefIL)
+                    {
+                        errorInfo.AppendLine("✗ Neither IL indicator found - not an IL project");
+                    }
+                    else if (!foundSystemRegister)
+                    {
+                        errorInfo.AppendLine("✗ system::register(\"infinityloader\" not found - not an IL project");
+                    }
+                    else if (!foundIfdefIL)
+                    {
+                        errorInfo.AppendLine("✗ #ifdef IL directive not found - not an IL project");
+                    }
+                    
                     if (foundNamespace && namespaceValue.Equals("duplicate_render", StringComparison.OrdinalIgnoreCase))
                     {
-                        errorInfo.AppendLine("✗ Namespace is 'duplicate_render' and no IL indicators found - not an IL project");
+                        errorInfo.AppendLine("✗ Namespace is 'duplicate_render' and IL indicators not found - not an IL project");
                     }
                 }
             }
@@ -4733,88 +5193,115 @@ namespace T7CompilerGUI.Forms
         /// <summary>
         /// Converts IL syntax to T7 syntax in a GSC file
         /// Handles new nested IL syntax:
+        /// - #namespace infinityloader; -> #namespace duplicate_render;
+        /// - #ifdef RELEASE ... #else ... #ifndef DEBUG ... #else ... #endif ... #endif
+        ///   -> autoexec __init__system__() { system::register("duplicate_render", ::__init__, undefined, undefined); }
         /// - #ifdef T7 ... #else ... #ifdef IL ... #else ... #endif ... #endif
-        /// - Keeps T7 parts, removes IL parts
+        ///   -> Keep #ifdef T7 block, remove entire #else block (which contains IL code)
+        /// - #ifdef IL ... #else ... #endif
+        ///   -> Keep #else part (T7 code), remove #ifdef IL part
         /// - Removes system::register("infinityloader" calls
         /// - Removes autoexec __init__system__() functions
         /// </summary>
         private string ConvertILToT7(string content)
         {
-            // Step 1: Handle nested #ifdef T7 ... #else ... #ifdef IL ... #else ... #endif ... #endif
-            // We want to keep the outer #ifdef T7 block and remove the inner #ifdef IL block
-            // Pattern: #ifdef T7 ... #else ... #ifdef IL ... #else ... #endif ... #endif
-            // Replace with: #ifdef T7 ... (keep T7 content, remove IL content) ... #endif
-            // This is complex, so we'll handle it in multiple passes
-            
-            // First, handle the nested structure: #ifdef T7 ... #else ... #ifdef IL ... #else ... #endif ... #endif
-            // We want to keep the T7 part (outer #ifdef T7) and remove the IL part (inner #ifdef IL)
-            // Strategy: Find #ifdef T7 blocks, and within their #else sections, remove #ifdef IL blocks
+            // Step 0: Replace #namespace infinityloader; with #namespace duplicate_render;
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
-                @"(#ifdef\s+T7\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*)(?:[^#]|#(?!ifdef\s+IL|endif))*?#ifdef\s+IL\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*((?:[^#]|#(?!endif))*?)[\r\n]*?#endif\s*[\r\n]*([\r\n]*#endif)",
-                "$1$2$3",
+                @"#namespace\s+infinityloader\s*;",
+                "#namespace duplicate_render;",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            
+            // Step 1: Convert #ifdef RELEASE ... #else ... #ifndef DEBUG ... #else ... #endif ... #endif
+            // to: autoexec __init__system__() { system::register("duplicate_render", ::__init__, undefined, undefined); }
+            // Only match if it contains BUILD definition (to avoid false matches)
+            // This pattern matches the nested RELEASE/DEBUG structure with BUILD definition
+            content = System.Text.RegularExpressions.Regex.Replace(
+                content,
+                @"#ifdef\s+RELEASE\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#define\s+BUILD[^\r\n]*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*(?:[^#]|#(?!ifndef|endif))*?#ifndef\s+DEBUG\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#define\s+BUILD[^\r\n]*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*(?:[^#]|#(?!endif))*?#define\s+BUILD[^\r\n]*[\r\n]*(?:[^#]|#(?!endif))*?[\r\n]*?#endif\s*[\r\n]*#endif",
+                "autoexec __init__system__()\r\n{\r\n    system::register(\"duplicate_render\", ::__init__, undefined, undefined);\r\n}",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
             
-            // Step 2: Handle standalone #ifdef IL ... #else ... #endif blocks (keep #else part)
+            // Step 2: Handle nested #ifdef T7 ... #else ... #ifdef IL ... #else ... #endif ... #endif
+            // We want to keep the #ifdef T7 block and remove the entire #else block (which contains the IL code)
+            // Pattern: #ifdef T7 (keep this) ... #else (remove everything from here) ... #ifdef IL ... #else ... #endif ... #endif
+            // Replace with: #ifdef T7 (keep content) ... (remove #else and everything after until matching #endif)
+            content = System.Text.RegularExpressions.Regex.Replace(
+                content,
+                @"(#ifdef\s+T7\s*[\r\n]*(?:[^#]|#(?!else|endif))*?)(#else\s*[\r\n]*(?:[^#]|#(?!endif))*?#ifdef\s+IL\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*(?:[^#]|#(?!endif))*?[\r\n]*?#endif\s*[\r\n]*#endif)",
+                "$1",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+            
+            // Also handle simpler case: #ifdef T7 ... #else ... #endif (remove #else part if it contains IL indicators)
+            // But only if the #else doesn't have nested #ifdef IL (already handled above)
+            content = System.Text.RegularExpressions.Regex.Replace(
+                content,
+                @"(#ifdef\s+T7\s*[\r\n]*(?:[^#]|#(?!else|endif))*?)#else\s*[\r\n]*(?:[^#]|#(?!endif))*?(system\s*::\s*register\s*\(\s*[""']infinityloader[""']|#ifdef\s+IL)(?:[^#]|#(?!endif))*?#endif",
+                "$1",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+            
+            // Step 3: Handle standalone #ifdef IL ... #else ... #endif blocks (keep #else part, remove IL part)
             // This regex matches: #ifdef IL ... #else (T7 code) ... #endif
-            // and replaces it with just the T7 code
+            // and replaces it with just the T7 code from #else
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"#ifdef\s+IL\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*(?:[\r\n]|//[^\r\n]*[\r\n])*((?:[^#]|#(?!endif))*?)[\r\n]*?#endif",
                 "$1",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
             
-            // Step 3: Handle #ifdef IL blocks without #else (remove entire block)
+            // Step 4: Handle #ifdef IL blocks without #else (remove entire block)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"#ifdef\s+IL\s*[\r\n]*(?:[^#]|#(?!endif))*?[\r\n]*?#endif",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
             
-            // Step 4: Remove autoexec __init__system__() functions (IL-specific, now in #else blocks)
-            // This needs to match multiline functions
+            // Step 5: Remove autoexec __init__system__() functions that register infinityloader (IL-specific)
+            // This needs to match multiline functions - match from autoexec to closing brace
+            // But keep the ones that register "duplicate_render" (we just added those)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
-                @"autoexec\s+__init__system__\s*\([^)]*\)\s*\{[^\}]*\}",
+                @"autoexec\s+__init__system__\s*\([^)]*\)\s*\{[^\}]*system\s*::\s*register\s*\(\s*[""']infinityloader[""'][^\}]*\}",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
             
-            // Step 5: Remove system::register("infinityloader" calls (can be multiline, now in #else blocks)
+            // Step 6: Remove system::register("infinityloader" calls (can be multiline, now in #else blocks)
+            // Match the entire call including any whitespace before it
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
-                @"\s*system::register\s*\(\s*[""']infinityloader[""'][^;]*;\s*",
+                @"\s*system\s*::\s*register\s*\(\s*[""']infinityloader[""'][^;]*;\s*",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
             
-            // Step 6: Remove standalone #ifdef IL lines (if any remain)
+            // Step 7: Remove standalone #ifdef IL lines (if any remain)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"#ifdef\s+IL\s*[\r\n]+",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             
-            // Step 7: Remove #else comments that were part of IL blocks (e.g., "// ---------------- T7 / BUILD MODE ----------------")
+            // Step 8: Remove #else comments that were part of IL blocks (e.g., "// ---------------- T7 / BUILD MODE ----------------")
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
-                @"#else\s*//\s*[^\r\n]*T7[^\r\n]*[\r\n]+",
+                @"#else\s*//\s*[^\r\n]*(?:T7|BUILD\s+MODE)[^\r\n]*[\r\n]+",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Multiline);
             
-            // Step 8: Replace enableonlinematch with getplayers (old IL syntax compatibility)
+            // Step 9: Replace enableonlinematch with getplayers (old IL syntax compatibility)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"enableonlinematch",
                 "getplayers",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             
-            // Step 9: Clean up excessive blank lines (more than 2 consecutive)
+            // Step 10: Clean up excessive blank lines (more than 2 consecutive)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"[\r\n]{3,}",
                 "\r\n\r\n",
                 System.Text.RegularExpressions.RegexOptions.Multiline);
             
-            // Step 10: Clean up trailing whitespace on lines
+            // Step 11: Clean up trailing whitespace on lines
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"[ \t]+[\r\n]",
@@ -4988,16 +5475,6 @@ namespace T7CompilerGUI.Forms
 
         #endregion
 
-        #region Discord Rich Presence
-
-        private void UpdateDiscordPresence()
-        {
-            // Discord Rich Presence disabled - not needed for this project
-            // This method is kept for compatibility but does nothing
-                return;
-        }
-
-        #endregion
 
         #region Status Bar
 

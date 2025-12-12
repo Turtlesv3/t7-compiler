@@ -94,7 +94,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             this.lblModes.AutoSize = true;
             this.lblModes.FontWeight = ReaLTaiizor.Extension.Poison.PoisonLabelWeight.Bold;
-            this.lblModes.Location = new System.Drawing.Point(23, 25);
+            this.lblModes.Location = new System.Drawing.Point(23, 28);
             this.lblModes.Name = "lblModes";
             this.lblModes.Size = new System.Drawing.Size(180, 19);
             this.lblModes.TabIndex = 3;
@@ -104,7 +104,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // rdoMP
             // 
             this.rdoMP.AutoSize = true;
-            this.rdoMP.Location = new System.Drawing.Point(23, 50);
+            this.rdoMP.Location = new System.Drawing.Point(40, 50);
             this.rdoMP.Name = "rdoMP";
             this.rdoMP.Size = new System.Drawing.Size(112, 15);
             this.rdoMP.TabIndex = 4;
@@ -114,7 +114,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // rdoZM
             // 
             this.rdoZM.AutoSize = true;
-            this.rdoZM.Location = new System.Drawing.Point(23, 71);
+            this.rdoZM.Location = new System.Drawing.Point(40, 71);
             this.rdoZM.Name = "rdoZM";
             this.rdoZM.Size = new System.Drawing.Size(98, 15);
             this.rdoZM.TabIndex = 5;
@@ -124,7 +124,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // rdoSP
             // 
             this.rdoSP.AutoSize = true;
-            this.rdoSP.Location = new System.Drawing.Point(23, 92);
+            this.rdoSP.Location = new System.Drawing.Point(40, 92);
             this.rdoSP.Name = "rdoSP";
             this.rdoSP.Size = new System.Drawing.Size(180, 15);
             this.rdoSP.TabIndex = 6;
@@ -135,7 +135,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             this.lblOtherSymbols.AutoSize = true;
             this.lblOtherSymbols.FontWeight = ReaLTaiizor.Extension.Poison.PoisonLabelWeight.Bold;
-            this.lblOtherSymbols.Location = new System.Drawing.Point(3, 110);
+            this.lblOtherSymbols.Location = new System.Drawing.Point(23, 110);
             this.lblOtherSymbols.Name = "lblOtherSymbols";
             this.lblOtherSymbols.Size = new System.Drawing.Size(144, 19);
             this.lblOtherSymbols.TabIndex = 7;

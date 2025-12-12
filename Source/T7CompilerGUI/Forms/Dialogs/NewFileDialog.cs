@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Forms;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Controls;
+using ReaLTaiizor.Manager;
 
 namespace T7CompilerGUI.Forms.Dialogs
 {
@@ -12,9 +13,51 @@ namespace T7CompilerGUI.Forms.Dialogs
         public string FileExtension { get; private set; }
         public string ProjectPath { get; set; }
         
-        public NewFileDialog()
+        private PoisonStyleManager styleManager;
+        
+        public NewFileDialog(PoisonStyleManager styleManager = null)
         {
+            this.styleManager = styleManager;
             InitializeComponent();
+            
+            // Set StyleManager if provided
+            if (styleManager != null)
+            {
+                this.StyleManager = styleManager;
+                
+                // Apply StyleManager to all Poison controls
+                if (lblFileName != null)
+                {
+                    lblFileName.StyleManager = styleManager;
+                    lblFileName.UseStyleColors = true;
+                }
+                if (txtFileName != null)
+                {
+                    txtFileName.StyleManager = styleManager;
+                    txtFileName.UseStyleColors = true;
+                }
+                if (lblFileType != null)
+                {
+                    lblFileType.StyleManager = styleManager;
+                    lblFileType.UseStyleColors = true;
+                }
+                if (cmbFileType != null)
+                {
+                    cmbFileType.StyleManager = styleManager;
+                    cmbFileType.UseStyleColors = true;
+                }
+                if (btnCreate != null)
+                {
+                    btnCreate.StyleManager = styleManager;
+                    btnCreate.UseStyleColors = true;
+                }
+                if (btnCancel != null)
+                {
+                    btnCancel.StyleManager = styleManager;
+                    btnCancel.UseStyleColors = true;
+                }
+            }
+            
             // Set default selection after InitializeComponent
             if (cmbFileType != null)
             {
@@ -85,12 +128,12 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.Close();
         }
         
-        public static bool ShowNewFileDialog(Form parent, string projectPath, out string fileName, out string fileExtension)
+        public static bool ShowNewFileDialog(Form parent, string projectPath, out string fileName, out string fileExtension, ReaLTaiizor.Manager.PoisonStyleManager styleManager = null)
         {
             fileName = null;
             fileExtension = null;
             
-            using (var dialog = new NewFileDialog())
+            using (var dialog = new NewFileDialog(styleManager))
             {
                 dialog.ProjectPath = projectPath;
                 if (dialog.ShowDialog(parent) == DialogResult.OK)

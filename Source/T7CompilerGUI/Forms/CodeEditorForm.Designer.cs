@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using ReaLTaiizor.Controls;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Manager;
+using ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms
 {
@@ -158,10 +159,10 @@ namespace T7CompilerGUI.Forms
             this.mainPanel.HorizontalScrollbarBarColor = true;
             this.mainPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.mainPanel.HorizontalScrollbarSize = 10;
-            this.mainPanel.Location = new System.Drawing.Point(20, 54);
+            this.mainPanel.Location = new System.Drawing.Point(20, 84);
             this.mainPanel.Name = "mainPanel";
             this.mainPanel.Padding = new System.Windows.Forms.Padding(10);
-            this.mainPanel.Size = new System.Drawing.Size(1217, 753);
+            this.mainPanel.Size = new System.Drawing.Size(1217, 723);
             this.mainPanel.TabIndex = 0;
             this.mainPanel.UseStyleColors = true;
             this.mainPanel.VerticalScrollbarBarColor = true;
@@ -177,8 +178,8 @@ namespace T7CompilerGUI.Forms
             this.editorPanel.HorizontalScrollbarSize = 10;
             this.editorPanel.Location = new System.Drawing.Point(293, 10);
             this.editorPanel.Name = "editorPanel";
-            this.editorPanel.Padding = new System.Windows.Forms.Padding(5);
-            this.editorPanel.Size = new System.Drawing.Size(914, 683);
+            this.editorPanel.Padding = new System.Windows.Forms.Padding(5, 10, 5, 5);
+            this.editorPanel.Size = new System.Drawing.Size(914, 653);
             this.editorPanel.TabIndex = 2;
             this.editorPanel.UseStyleColors = true;
             this.editorPanel.VerticalScrollbarBarColor = true;
@@ -188,9 +189,10 @@ namespace T7CompilerGUI.Forms
             // tabControl
             // 
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tabControl.HotTrack = true;
             this.tabControl.Location = new System.Drawing.Point(5, 5);
             this.tabControl.Name = "tabControl";
-            this.tabControl.Size = new System.Drawing.Size(904, 673);
+            this.tabControl.Size = new System.Drawing.Size(904, 643);
             this.tabControl.TabIndex = 2;
             this.tabControl.UseSelectable = true;
             this.tabControl.UseStyleColors = true;
@@ -210,7 +212,7 @@ namespace T7CompilerGUI.Forms
             this.fileListPanel.Location = new System.Drawing.Point(10, 10);
             this.fileListPanel.Name = "fileListPanel";
             this.fileListPanel.Padding = new System.Windows.Forms.Padding(5);
-            this.fileListPanel.Size = new System.Drawing.Size(283, 683);
+            this.fileListPanel.Size = new System.Drawing.Size(283, 653);
             this.fileListPanel.TabIndex = 3;
             this.fileListPanel.UseStyleColors = true;
             this.fileListPanel.VerticalScrollbarBarColor = true;
@@ -226,7 +228,7 @@ namespace T7CompilerGUI.Forms
             this.fileButtonsPanel.Location = new System.Drawing.Point(5, 90);
             this.fileButtonsPanel.Margin = new System.Windows.Forms.Padding(0);
             this.fileButtonsPanel.Name = "fileButtonsPanel";
-            this.fileButtonsPanel.Size = new System.Drawing.Size(273, 588);
+            this.fileButtonsPanel.Size = new System.Drawing.Size(273, 558);
             this.fileButtonsPanel.TabIndex = 2;
             this.fileButtonsPanel.WrapContents = false;
             // 
@@ -274,7 +276,7 @@ namespace T7CompilerGUI.Forms
             this.buttonPanel.HorizontalScrollbarBarColor = true;
             this.buttonPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.buttonPanel.HorizontalScrollbarSize = 10;
-            this.buttonPanel.Location = new System.Drawing.Point(10, 693);
+            this.buttonPanel.Location = new System.Drawing.Point(10, 663);
             this.buttonPanel.Name = "buttonPanel";
             this.buttonPanel.Padding = new System.Windows.Forms.Padding(10, 0, 0, 10);
             this.buttonPanel.Size = new System.Drawing.Size(1197, 50);
@@ -356,7 +358,7 @@ namespace T7CompilerGUI.Forms
             this.modeMenu,
             this.injectPrecompiledMenu,
             this.processesMenu});
-            this.mainMenuStrip.Location = new System.Drawing.Point(20, 30);
+            this.mainMenuStrip.Location = new System.Drawing.Point(20, 60);
             this.mainMenuStrip.Name = "mainMenuStrip";
             this.mainMenuStrip.RenderMode = System.Windows.Forms.ToolStripRenderMode.Professional;
             this.mainMenuStrip.Size = new System.Drawing.Size(1217, 24);
@@ -562,6 +564,7 @@ namespace T7CompilerGUI.Forms
             // 
             this.t7GameItem.Checked = true;
             this.t7GameItem.CheckOnClick = true;
+            this.t7GameItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.t7GameItem.Name = "t7GameItem";
             this.t7GameItem.Size = new System.Drawing.Size(135, 22);
             this.t7GameItem.Text = "Black Ops 3";
@@ -605,6 +608,7 @@ namespace T7CompilerGUI.Forms
             // 
             this.zombiesModeItem.Checked = true;
             this.zombiesModeItem.CheckOnClick = true;
+            this.zombiesModeItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.zombiesModeItem.Name = "zombiesModeItem";
             this.zombiesModeItem.Size = new System.Drawing.Size(134, 22);
             this.zombiesModeItem.Text = "Zombies";
@@ -692,12 +696,12 @@ namespace T7CompilerGUI.Forms
             this.Controls.Add(this.mainPanel);
             this.Controls.Add(this.mainMenuStrip);
             this.Controls.Add(this.statusPanel);
-            this.DisplayHeader = false;
+            this.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.KeyPreview = true;
             this.MainMenuStrip = this.mainMenuStrip;
             this.MinimumSize = new System.Drawing.Size(800, 600);
             this.Name = "CodeEditorForm";
-            this.Padding = new System.Windows.Forms.Padding(20, 30, 20, 20);
             this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.AeroShadow;
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Show;
@@ -719,4 +723,3 @@ namespace T7CompilerGUI.Forms
         }
     }
 }
-

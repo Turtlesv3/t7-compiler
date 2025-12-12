@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -17,7 +18,13 @@ using ICSharpCode.AvalonEdit.Indentation;
 using ICSharpCode.AvalonEdit.Indentation.CSharp;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
+using System.Windows.Shapes;
 using System.Drawing;
+using ScrollViewer = System.Windows.Controls.ScrollViewer;
+using Border = System.Windows.Controls.Border;
+using Grid = System.Windows.Controls.Grid;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace T7CompilerGUI.Controls
 {
@@ -25,7 +32,7 @@ namespace T7CompilerGUI.Controls
     /// Wraps AvalonEdit TextEditor in an ElementHost for use in WinForms
     /// Provides a similar interface to ScintillaNET for easier migration
     /// </summary>
-    public class AvalonEditWrapper : UserControl
+    public class AvalonEditWrapper : System.Windows.Forms.UserControl
     {
         private System.Windows.Forms.Integration.ElementHost elementHost;
         private TextEditor textEditor;
@@ -214,6 +221,8 @@ namespace T7CompilerGUI.Controls
                 FontFamily = new System.Windows.Media.FontFamily("Consolas"),
                 FontSize = 12,
                 WordWrap = false,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Hidden,
+                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Hidden,
                 Options = {
                     EnableEmailHyperlinks = false,
                     EnableHyperlinks = false,
@@ -221,7 +230,66 @@ namespace T7CompilerGUI.Controls
                     AllowScrollBelowDocument = false,
                     CutCopyWholeLine = true,
                     IndentationSize = 4,
-                    ConvertTabsToSpaces = false
+                    ConvertTabsToSpaces = false,
+                    EnableRectangularSelection = true,
+                    EnableVirtualSpace = false
+                }
+            };
+            
+            // Enable mouse auto-scroll (middle mouse button drag scrolling)
+            textEditor.TextArea.MouseWheel += (s, e) =>
+            {
+                if (e.Delta != 0)
+                {
+                    textEditor.ScrollToVerticalOffset(textEditor.VerticalOffset - (e.Delta / 3.0));
+                    e.Handled = true;
+                }
+            };
+            
+            // Enable middle mouse button auto-scroll
+            bool isMiddleMouseScrolling = false;
+            System.Windows.Point scrollStartPoint = new System.Windows.Point();
+            double scrollStartOffset = 0;
+            
+            textEditor.TextArea.MouseDown += (s, e) =>
+            {
+                if (e.MiddleButton == System.Windows.Input.MouseButtonState.Pressed)
+                {
+                    isMiddleMouseScrolling = true;
+                    scrollStartPoint = e.GetPosition(textEditor.TextArea);
+                    scrollStartOffset = textEditor.VerticalOffset;
+                    textEditor.Cursor = System.Windows.Input.Cursors.ScrollAll;
+                    e.Handled = true;
+                }
+            };
+            
+            textEditor.TextArea.MouseMove += (s, e) =>
+            {
+                if (isMiddleMouseScrolling)
+                {
+                    System.Windows.Point currentPoint = e.GetPosition(textEditor.TextArea);
+                    double deltaY = scrollStartPoint.Y - currentPoint.Y;
+                    textEditor.ScrollToVerticalOffset(scrollStartOffset + deltaY);
+                    e.Handled = true;
+                }
+            };
+            
+            textEditor.TextArea.MouseUp += (s, e) =>
+            {
+                if (e.MiddleButton == System.Windows.Input.MouseButtonState.Released && isMiddleMouseScrolling)
+                {
+                    isMiddleMouseScrolling = false;
+                    textEditor.Cursor = System.Windows.Input.Cursors.IBeam;
+                    e.Handled = true;
+                }
+            };
+            
+            textEditor.TextArea.MouseLeave += (s, e) =>
+            {
+                if (isMiddleMouseScrolling)
+                {
+                    isMiddleMouseScrolling = false;
+                    textEditor.Cursor = System.Windows.Input.Cursors.IBeam;
                 }
             };
 
@@ -229,6 +297,51 @@ namespace T7CompilerGUI.Controls
             textMarkerService = new TextMarkerService();
             textEditor.TextArea.TextView.BackgroundRenderers.Add(textMarkerService);
             textEditor.TextArea.TextView.LineTransformers.Add(textMarkerService);
+
+            // Configure line number margin and hide corner control
+            // The corner control appears at the intersection of line number margin and scrollbar area
+            // Hide it using multiple approaches to ensure it's caught
+            
+            // Approach 1: Hide when TextArea is loaded
+            textEditor.TextArea.Loaded += (s, e) =>
+            {
+                HideCornerControl();
+            };
+            
+            // Approach 2: Also hide after layout is updated (in case it appears later)
+            textEditor.TextArea.LayoutUpdated += (s, e) =>
+            {
+                HideCornerControl();
+            };
+            
+            // Approach 3: Hide when the editor is fully rendered
+            textEditor.Loaded += (s, e) =>
+            {
+                HideCornerControl();
+            };
+            
+            // Approach 4: Hide using Dispatcher to ensure visual tree is fully built
+            textEditor.Loaded += (s, e) =>
+            {
+                // Use Dispatcher to ensure visual tree is fully built
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Loaded,
+                    new Action(() => {
+                        HideCornerControl();
+                        // Also try again after a short delay to catch late-rendered elements
+                        System.Windows.Application.Current?.Dispatcher.BeginInvoke(
+                            System.Windows.Threading.DispatcherPriority.Background,
+                            new Action(() => {
+                                HideCornerControl();
+                            }));
+                    }));
+            };
+            
+            // Approach 5: Hide on every layout update to catch it if it reappears
+            textEditor.LayoutUpdated += (s, e) =>
+            {
+                HideCornerControl();
+            };
 
             // Initialize code folding
             foldingStrategy = new BraceFoldingStrategy();
@@ -454,6 +567,201 @@ namespace T7CompilerGUI.Controls
                 foregroundColor.A, foregroundColor.R, foregroundColor.G, foregroundColor.B));
             }
         }
+        
+        // Helper methods to find visual children in WPF
+        private static T FindVisualChild<T>(System.Windows.DependencyObject parent, Func<T, bool> predicate = null) where T : System.Windows.DependencyObject
+        {
+            if (parent == null) return null;
+            
+            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is T t && (predicate == null || predicate(t)))
+                    return t;
+                
+                var childOfChild = FindVisualChild<T>(child, predicate);
+                if (childOfChild != null)
+                    return childOfChild;
+            }
+            return null;
+        }
+        
+        private static IEnumerable<T> FindVisualChildren<T>(System.Windows.DependencyObject parent) where T : System.Windows.DependencyObject
+        {
+            if (parent == null) yield break;
+            
+            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is T t)
+                    yield return t;
+                
+                foreach (var childOfChild in FindVisualChildren<T>(child))
+                    yield return childOfChild;
+            }
+        }
+        
+        // Helper method to hide the corner control (white L bracket)
+        private void HideCornerControl()
+        {
+            if (textEditor == null) return;
+            
+            try
+            {
+                // Search the entire visual tree starting from textEditor (not just TextArea)
+                // The corner control is in the ScrollViewer, which is a parent of TextArea
+                var allBorders = FindVisualChildren<System.Windows.Controls.Border>(textEditor).ToList();
+                
+                // Also search in TextArea specifically
+                if (textEditor.TextArea != null)
+                {
+                    allBorders.AddRange(FindVisualChildren<Border>(textEditor.TextArea).ToList());
+                }
+                
+                foreach (var border in allBorders)
+                {
+                    // Hide any border that could be the corner control
+                    // Check by size (small borders at corners), name, or position
+                    bool isCornerControl = false;
+                    
+                    // Check by name first (most reliable)
+                    if (border.Name != null)
+                    {
+                        string name = border.Name.ToLowerInvariant();
+                        if (name.Contains("corner") || name == "part_cornercontrol" || name.Contains("part_"))
+                        {
+                            isCornerControl = true;
+                        }
+                    }
+                    
+                    // Check by size (corner controls are typically small)
+                    if (!isCornerControl && (border.Width < 30 && border.Height < 30))
+                    {
+                        // Check if it's positioned at a corner (top-right area where line numbers end)
+                        try
+                        {
+                            if (textEditor.TextArea != null)
+                            {
+                                var position = border.TransformToAncestor(textEditor.TextArea).Transform(new System.Windows.Point(0, 0));
+                                
+                                // Line number margin is typically 40-60 pixels wide
+                                // Corner control appears at top-right of line number area (around X=40-70, Y=0-30)
+                                if (position.X >= 30 && position.X <= 80 && position.Y >= 0 && position.Y <= 30)
+                                {
+                                    isCornerControl = true;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // If we can't determine position, check if it's a small border with no name
+                            // (corner controls often have no explicit name)
+                            if (string.IsNullOrEmpty(border.Name) && border.Width < 20 && border.Height < 20)
+                            {
+                                isCornerControl = true;
+                            }
+                        }
+                    }
+                    
+                    if (isCornerControl)
+                    {
+                        border.Visibility = System.Windows.Visibility.Collapsed;
+                        border.IsHitTestVisible = false;
+                        border.Opacity = 0;
+                        border.Width = 0;
+                        border.Height = 0;
+                        border.Margin = new System.Windows.Thickness(0);
+                    }
+                }
+                
+                // Also search for ScrollViewer and hide its corner control directly
+                var scrollViewer = FindVisualChild<ScrollViewer>(textEditor);
+                if (scrollViewer != null)
+                {
+                    // Search for any small controls in the ScrollViewer (corner control could be various types)
+                    var scrollViewerChildren = FindVisualChildren<System.Windows.FrameworkElement>(scrollViewer).ToList();
+                    foreach (var child in scrollViewerChildren)
+                    {
+                        // Hide small elements that could be the corner control
+                        if (child.Width < 30 && child.Height < 30 && child.Width > 0 && child.Height > 0)
+                        {
+                            // Check if it's positioned at the corner
+                            try
+                            {
+                                var position = child.TransformToAncestor(scrollViewer).Transform(new System.Windows.Point(0, 0));
+                                // Corner is typically at top-right
+                                if (position.X > scrollViewer.ActualWidth - 50 && position.Y < 50)
+                                {
+                                    child.Visibility = System.Windows.Visibility.Collapsed;
+                                    child.IsHitTestVisible = false;
+                                    child.Opacity = 0;
+                                }
+                            }
+                            catch
+                            {
+                                // If we can't determine position, hide small unnamed elements
+                                if (string.IsNullOrEmpty(child.Name) || child.Name.Contains("Corner") || child.Name.Contains("PART_"))
+                                {
+                                    child.Visibility = System.Windows.Visibility.Collapsed;
+                                    child.IsHitTestVisible = false;
+                                    child.Opacity = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Also search for Rectangle shapes (corner control might be a Rectangle)
+                var allRectangles = FindVisualChildren<Rectangle>(textEditor).ToList();
+                foreach (var rect in allRectangles)
+                {
+                    if (rect.Width < 30 && rect.Height < 30 && rect.Width > 0 && rect.Height > 0)
+                    {
+                        rect.Visibility = System.Windows.Visibility.Collapsed;
+                        rect.IsHitTestVisible = false;
+                        rect.Opacity = 0;
+                    }
+                }
+                
+                // Search for Grid controls that might contain the corner (corner is often in a Grid)
+                var allGrids = FindVisualChildren<System.Windows.Controls.Grid>(textEditor).ToList();
+                foreach (var grid in allGrids)
+                {
+                    // Look for small grids that might be the corner container
+                    if (grid.Width < 30 && grid.Height < 30 && grid.Width > 0 && grid.Height > 0)
+                    {
+                        // Hide the entire grid if it's at the corner position
+                        try
+                        {
+                            if (textEditor.TextArea != null)
+                            {
+                                var position = grid.TransformToAncestor(textEditor.TextArea).Transform(new System.Windows.Point(0, 0));
+                                if (position.X >= 30 && position.X <= 80 && position.Y >= 0 && position.Y <= 30)
+                                {
+                                    grid.Visibility = System.Windows.Visibility.Collapsed;
+                                    grid.IsHitTestVisible = false;
+                                    grid.Opacity = 0;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // If we can't determine position, hide small unnamed grids
+                            if (string.IsNullOrEmpty(grid.Name))
+                            {
+                                grid.Visibility = System.Windows.Visibility.Collapsed;
+                                grid.IsHitTestVisible = false;
+                                grid.Opacity = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore errors
+            }
+        }
 
         /// <summary>
         /// Applies Poison theme colors to the editor and SearchPanel
@@ -482,7 +790,7 @@ namespace T7CompilerGUI.Controls
             // Update line number margin colors
             UpdateLineNumberMarginColors();
         }
-
+        
         /// <summary>
         /// Updates the line number margin colors to match Poison theme
         /// </summary>

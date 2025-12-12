@@ -6276,57 +6276,87 @@ namespace T7CompilerGUI.Forms
         {
             if (poisonStyleManager == null) return;
             
-            // Match demo approach: Just set StyleManager.Theme and let it propagate automatically
-            // All controls connected to StyleManager will update instantly
-            poisonStyleManager.Theme = theme;
+            // Suspend layout to prevent incremental updates
+            this.SuspendLayout();
             
-            // Set form background color based on theme
-            this.BackColor = PoisonPaint.BackColor.Form(theme);
-            
-            // Update PoisonStyleExtender theme (needed for non-Poison controls like RichTextBox)
+            try
+            {
+                // Match demo approach: Just set StyleManager.Theme and let it propagate automatically
+                // All controls connected to StyleManager will update instantly
+                poisonStyleManager.Theme = theme;
+                
+                // Explicitly call Update() to ensure all controls refresh immediately
+                // (Setting Theme property calls Update() automatically, but we ensure it here)
+                poisonStyleManager.Update();
+                
+                // Set form background color based on theme
+                this.BackColor = PoisonPaint.BackColor.Form(theme);
+                
+                // Update PoisonStyleExtender theme (needed for non-Poison controls like RichTextBox)
                 if (poisonStyleExtender != null)
                 {
-                poisonStyleExtender.Theme = theme;
+                    poisonStyleExtender.Theme = theme;
                     poisonStyleExtender.StyleManager = poisonStyleManager;
                 }
+                    
+                // Update RichTextBox colors based on theme
+                if (txtLog != null)
+                {
+                    bool isDark = theme == ThemeStyle.Dark;
+                    if (isDark)
+                    {
+                        txtLog.BackColor = Color.FromArgb(30, 30, 30);
+                        txtLog.ForeColor = Color.FromArgb(224, 224, 224);
+                    }
+                    else
+                    {
+                        txtLog.BackColor = Color.FromArgb(255, 255, 255);
+                        txtLog.ForeColor = Color.FromArgb(30, 30, 30);
+                    }
+                }
                 
-            // Update RichTextBox colors based on theme
-            if (txtLog != null)
-            {
-                bool isDark = theme == ThemeStyle.Dark;
-                if (isDark)
-                {
-                    txtLog.BackColor = Color.FromArgb(30, 30, 30);
-                    txtLog.ForeColor = Color.FromArgb(224, 224, 224);
-                }
-                else
-                {
-                    txtLog.BackColor = Color.FromArgb(255, 255, 255);
-                    txtLog.ForeColor = Color.FromArgb(30, 30, 30);
-                }
-            }
-            
-            // Update tooltip theme
+                // Update tooltip theme
                 if (poisonToolTip != null)
                 {
-                poisonToolTip.Theme = theme;
+                    poisonToolTip.Theme = theme;
                     poisonToolTip.StyleManager = poisonStyleManager;
+                }
+                
+                // Update all controls that might not be connected to StyleManager
+                UpdateControlStyle(this, poisonStyleManager.Style, theme, forceUpdate: true);
+                
+                // Update tab panels background
+                UpdateTabPanelsBackground();
+                
+                // Update all dropdown menus immediately
+                UpdateAllMenusTheme(theme);
+                
+                // Update Settings tab theme toggle
+                if (toggleSettingsTheme != null)
+                {
+                    toggleSettingsTheme.Checked = (theme == ThemeStyle.Light);
+                    toggleSettingsTheme.Text = toggleSettingsTheme.Checked ? "Light" : "Dark";
+                }
+                
+                // Resume layout
+                this.ResumeLayout(false);
+                
+                // Force refresh of entire form
+                this.Invalidate(true);
+                this.Update();
+                this.Refresh();
             }
-            
-            // Update all controls that might not be connected to StyleManager
-            UpdateControlStyle(this, poisonStyleManager.Style, theme, forceUpdate: true);
-            
-            // Update tab panels background
-            UpdateTabPanelsBackground();
-            
-            // Update all dropdown menus immediately
-            UpdateAllMenusTheme(theme);
-            
-            // Update Settings tab theme toggle
-            if (toggleSettingsTheme != null)
+            catch
             {
-                toggleSettingsTheme.Checked = (theme == ThemeStyle.Light);
-                toggleSettingsTheme.Text = toggleSettingsTheme.Checked ? "Light" : "Dark";
+                // Ensure layout is resumed even if an error occurs
+                try
+                {
+                    this.ResumeLayout(false);
+                }
+                catch
+                {
+                    // Ignore if form is disposed
+                }
             }
             
             // Save settings (only if not loading)
