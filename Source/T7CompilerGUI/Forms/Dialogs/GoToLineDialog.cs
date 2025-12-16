@@ -5,6 +5,8 @@ using System.Windows.Forms;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Manager;
 using ReaLTaiizor.Drawing.Poison;
+using ReaLTaiizor.Extension.Poison;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms.Dialogs
 {
@@ -40,12 +42,14 @@ namespace T7CompilerGUI.Forms.Dialogs
             
             InitializeComponent();
             
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
             if (styleManager != null)
             {
-                this.StyleManager = styleManager;
-                
-                // Apply styling to all controls
-                ApplyPoisonStyling();
+                // Use PoisonFormHelper for standardized form initialization
+                // This handles StyleManager application, button effects, and form icon loading
+                ReaLTaiizor.Extension.Poison.PoisonFormHelper.InitializeForm(this, styleManager);
             }
             
             // Populate combo box
@@ -75,7 +79,6 @@ namespace T7CompilerGUI.Forms.Dialogs
 
         private void BtnOK_Click(object sender, EventArgs e)
         {
-            // Check if navigation item was selected
             if (comboNavigate.SelectedItem != null)
             {
                 SelectedNavigationItem = (NavigationItem)comboNavigate.SelectedItem;
@@ -100,49 +103,10 @@ namespace T7CompilerGUI.Forms.Dialogs
             }
         }
         
-        private void ApplyPoisonStyling()
+        private void BtnCancel_Click(object sender, EventArgs e)
         {
-            if (styleManager == null) return;
-            
-            // Apply to labels
-            if (lblPrompt != null)
-            {
-                lblPrompt.StyleManager = styleManager;
-                lblPrompt.UseStyleColors = true;
-            }
-            if (lblLineNumber != null)
-            {
-                lblLineNumber.StyleManager = styleManager;
-                lblLineNumber.UseStyleColors = true;
-            }
-            
-            // Apply to text box
-            if (txtLineNumber != null)
-            {
-                txtLineNumber.StyleManager = styleManager;
-                txtLineNumber.UseStyleColors = true;
-            }
-            
-            // Apply to buttons
-            if (btnOK != null)
-            {
-                btnOK.StyleManager = styleManager;
-                btnOK.UseStyleColors = true;
-            }
-            if (btnCancel != null)
-            {
-                btnCancel.StyleManager = styleManager;
-                btnCancel.UseStyleColors = true;
-            }
-            
-            // Style ComboBox to match Poison theme
-            if (comboNavigate != null)
-            {
-                comboNavigate.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                comboNavigate.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
-                comboNavigate.FlatStyle = FlatStyle.Flat;
-            }
         }
+        
     }
 }
 

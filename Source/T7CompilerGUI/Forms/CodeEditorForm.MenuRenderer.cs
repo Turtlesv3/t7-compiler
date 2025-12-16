@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using ReaLTaiizor.Enum.Poison;
 using ReaLTaiizor.Manager;
+using ReaLTaiizor.Drawing.Poison;
 
 namespace T7CompilerGUI.Forms
 {
@@ -26,8 +27,8 @@ namespace T7CompilerGUI.Forms
                 ThemeStyle theme = styleManager.Theme;
                 ColorStyle style = styleManager.Style;
                 
-                Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(theme);
-                Color hoverColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(style);
+                Color backColor = PoisonPaint.BackColor.Form(theme);
+                Color hoverColor = PoisonPaint.GetStyleColor(style);
                 
                 if (menuItem.Selected)
                 {
@@ -55,7 +56,7 @@ namespace T7CompilerGUI.Forms
             if (styleManager != null)
             {
                 ThemeStyle theme = styleManager.Theme;
-                Color foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(theme);
+                Color foreColor = PoisonPaint.ForeColor.Label.Normal(theme);
                 
                 TextRenderer.DrawText(e.Graphics, e.Text, e.TextFont, e.TextRectangle, foreColor,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.HidePrefix);
@@ -84,7 +85,7 @@ namespace T7CompilerGUI.Forms
             get
             {
                 if (styleManager != null)
-                    return ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    return PoisonPaint.BackColor.Form(styleManager.Theme);
                 return base.MenuStripGradientBegin;
             }
         }
@@ -94,7 +95,7 @@ namespace T7CompilerGUI.Forms
             get
             {
                 if (styleManager != null)
-                    return ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    return PoisonPaint.BackColor.Form(styleManager.Theme);
                 return base.MenuStripGradientEnd;
             }
         }
@@ -105,7 +106,7 @@ namespace T7CompilerGUI.Forms
             {
                 if (styleManager != null)
                 {
-                    Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
+                    Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
                     return Color.FromArgb(150, styleColor);
                 }
                 return base.MenuItemSelected;
@@ -118,7 +119,7 @@ namespace T7CompilerGUI.Forms
             {
                 if (styleManager != null)
                 {
-                    Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
+                    Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
                     return styleColor;
                 }
                 return base.MenuItemBorder;
@@ -131,7 +132,7 @@ namespace T7CompilerGUI.Forms
             {
                 if (styleManager != null)
                 {
-                    Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
+                    Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
                     return Color.FromArgb(200, styleColor);
                 }
                 return base.MenuItemPressedGradientBegin;
@@ -144,7 +145,7 @@ namespace T7CompilerGUI.Forms
             {
                 if (styleManager != null)
                 {
-                    Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
+                    Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
                     return Color.FromArgb(200, styleColor);
                 }
                 return base.MenuItemPressedGradientEnd;
@@ -157,7 +158,7 @@ namespace T7CompilerGUI.Forms
             {
                 if (styleManager != null)
                 {
-                    Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
+                    Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
                     return Color.FromArgb(150, styleColor);
                 }
                 return base.MenuItemSelectedGradientBegin;
@@ -170,7 +171,7 @@ namespace T7CompilerGUI.Forms
             {
                 if (styleManager != null)
                 {
-                    Color styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
+                    Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
                     return Color.FromArgb(150, styleColor);
                 }
                 return base.MenuItemSelectedGradientEnd;
@@ -182,7 +183,7 @@ namespace T7CompilerGUI.Forms
             get
             {
                 if (styleManager != null)
-                    return ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    return PoisonPaint.BackColor.Form(styleManager.Theme);
                 return base.ToolStripDropDownBackground;
             }
         }
@@ -192,7 +193,7 @@ namespace T7CompilerGUI.Forms
             get
             {
                 if (styleManager != null)
-                    return ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    return PoisonPaint.BackColor.Form(styleManager.Theme);
                 return base.ImageMarginGradientBegin;
             }
         }
@@ -202,7 +203,7 @@ namespace T7CompilerGUI.Forms
             get
             {
                 if (styleManager != null)
-                    return ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    return PoisonPaint.BackColor.Form(styleManager.Theme);
                 return base.ImageMarginGradientEnd;
             }
         }
@@ -212,7 +213,7 @@ namespace T7CompilerGUI.Forms
             get
             {
                 if (styleManager != null)
-                    return ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    return PoisonPaint.BackColor.Form(styleManager.Theme);
                 return base.ImageMarginGradientMiddle;
             }
         }

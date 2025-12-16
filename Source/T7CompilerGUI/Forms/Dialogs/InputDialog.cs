@@ -2,6 +2,9 @@ using System;
 using System.Windows.Forms;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Manager;
+using ReaLTaiizor.Extension.Poison;
+using ReaLTaiizor.Drawing.Poison;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms.Dialogs
 {
@@ -16,15 +19,28 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.styleManager = styleManager;
             InitializeComponent();
             
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
             this.Text = title;
             lblPrompt.Text = prompt;
             
             if (styleManager != null)
             {
-                this.StyleManager = styleManager;
+                // Use PoisonFormHelper for standardized form initialization
+                // This handles StyleManager application, button effects, and form icon loading
+                ReaLTaiizor.Extension.Poison.PoisonFormHelper.InitializeForm(this, styleManager);
             }
             
             txtInput.Focus();
+        }
+        
+        private void BtnOK_Click(object sender, EventArgs e)
+        {
+        }
+        
+        private void BtnCancel_Click(object sender, EventArgs e)
+        {
         }
     }
 }

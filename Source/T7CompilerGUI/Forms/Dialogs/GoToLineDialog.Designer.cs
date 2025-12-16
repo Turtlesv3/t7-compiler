@@ -12,7 +12,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         private System.ComponentModel.IContainer components = null;
 
         private PoisonLabel lblPrompt;
-        private System.Windows.Forms.ComboBox comboNavigate;
+        private PoisonComboBox comboNavigate;
         private PoisonLabel lblLineNumber;
         private PoisonTextBox txtLineNumber;
         private PoisonButton btnOK;
@@ -30,7 +30,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         private void InitializeComponent()
         {
             this.lblPrompt = new ReaLTaiizor.Controls.PoisonLabel();
-            this.comboNavigate = new System.Windows.Forms.ComboBox();
+            this.comboNavigate = new ReaLTaiizor.Controls.PoisonComboBox();
             this.lblLineNumber = new ReaLTaiizor.Controls.PoisonLabel();
             this.txtLineNumber = new ReaLTaiizor.Controls.PoisonTextBox();
             this.btnOK = new ReaLTaiizor.Controls.PoisonButton();
@@ -39,7 +39,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // lblPrompt
             // 
-            this.lblPrompt.Location = new System.Drawing.Point(23, 49);
+            this.lblPrompt.Location = new System.Drawing.Point(23, 59);
             this.lblPrompt.Name = "lblPrompt";
             this.lblPrompt.Size = new System.Drawing.Size(85, 20);
             this.lblPrompt.TabIndex = 0;
@@ -48,16 +48,18 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // comboNavigate
             // 
-            this.comboNavigate.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboNavigate.FormattingEnabled = true;
-            this.comboNavigate.Location = new System.Drawing.Point(23, 72);
+            this.comboNavigate.ItemHeight = 23;
+            this.comboNavigate.Location = new System.Drawing.Point(23, 82);
             this.comboNavigate.Name = "comboNavigate";
-            this.comboNavigate.Size = new System.Drawing.Size(400, 21);
+            this.comboNavigate.Size = new System.Drawing.Size(394, 29);
             this.comboNavigate.TabIndex = 1;
+            this.comboNavigate.UseSelectable = true;
+            this.comboNavigate.UseStyleColors = true;
             // 
             // lblLineNumber
             // 
-            this.lblLineNumber.Location = new System.Drawing.Point(23, 96);
+            this.lblLineNumber.Location = new System.Drawing.Point(23, 106);
             this.lblLineNumber.Name = "lblLineNumber";
             this.lblLineNumber.Size = new System.Drawing.Size(142, 20);
             this.lblLineNumber.TabIndex = 2;
@@ -70,7 +72,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // 
             this.txtLineNumber.CustomButton.Image = null;
-            this.txtLineNumber.CustomButton.Location = new System.Drawing.Point(378, 1);
+            this.txtLineNumber.CustomButton.Location = new System.Drawing.Point(372, 1);
             this.txtLineNumber.CustomButton.Name = "";
             this.txtLineNumber.CustomButton.Size = new System.Drawing.Size(21, 21);
             this.txtLineNumber.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -79,7 +81,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtLineNumber.CustomButton.UseSelectable = true;
             this.txtLineNumber.CustomButton.Visible = false;
             this.txtLineNumber.Lines = new string[0];
-            this.txtLineNumber.Location = new System.Drawing.Point(23, 119);
+            this.txtLineNumber.Location = new System.Drawing.Point(23, 129);
             this.txtLineNumber.MaxLength = 32767;
             this.txtLineNumber.Name = "txtLineNumber";
             this.txtLineNumber.PasswordChar = '\0';
@@ -88,7 +90,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtLineNumber.SelectionLength = 0;
             this.txtLineNumber.SelectionStart = 0;
             this.txtLineNumber.ShortcutsEnabled = true;
-            this.txtLineNumber.Size = new System.Drawing.Size(400, 23);
+            this.txtLineNumber.Size = new System.Drawing.Size(394, 23);
             this.txtLineNumber.TabIndex = 3;
             this.txtLineNumber.UseSelectable = true;
             this.txtLineNumber.UseStyleColors = true;
@@ -97,7 +99,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // btnOK
             // 
-            this.btnOK.Location = new System.Drawing.Point(267, 148);
+            this.btnOK.Location = new System.Drawing.Point(261, 158);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(75, 30);
             this.btnOK.TabIndex = 4;
@@ -109,13 +111,14 @@ namespace T7CompilerGUI.Forms.Dialogs
             // btnCancel
             // 
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(348, 148);
+            this.btnCancel.Location = new System.Drawing.Point(342, 158);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 30);
             this.btnCancel.TabIndex = 5;
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseSelectable = true;
             this.btnCancel.UseStyleColors = true;
+            this.btnCancel.Click += new System.EventHandler(this.BtnCancel_Click);
             // 
             // GoToLineDialog
             // 

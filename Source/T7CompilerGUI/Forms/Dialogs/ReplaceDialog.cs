@@ -2,6 +2,9 @@ using System;
 using System.Windows.Forms;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Manager;
+using ReaLTaiizor.Extension.Poison;
+using ReaLTaiizor.Drawing.Poison;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms.Dialogs
 {
@@ -20,73 +23,25 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.styleManager = styleManager;
             InitializeComponent();
             
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
             if (styleManager != null)
             {
-                this.StyleManager = styleManager;
-                
-                // Apply styling to all controls
-                ApplyPoisonStyling();
+                // Use PoisonFormHelper for standardized form initialization
+                // This handles StyleManager application, button effects, and form icon loading
+                ReaLTaiizor.Extension.Poison.PoisonFormHelper.InitializeForm(this, styleManager);
             }
             
             txtSearch.Focus();
         }
         
-        private void ApplyPoisonStyling()
+        private void BtnReplace_Click(object sender, EventArgs e)
         {
-            if (styleManager == null) return;
-            
-            // Apply to labels
-            if (lblSearch != null)
-            {
-                lblSearch.StyleManager = styleManager;
-                lblSearch.UseStyleColors = true;
-            }
-            if (lblReplace != null)
-            {
-                lblReplace.StyleManager = styleManager;
-                lblReplace.UseStyleColors = true;
-            }
-            
-            // Apply to text boxes
-            if (txtSearch != null)
-            {
-                txtSearch.StyleManager = styleManager;
-                txtSearch.UseStyleColors = true;
-            }
-            if (txtReplace != null)
-            {
-                txtReplace.StyleManager = styleManager;
-                txtReplace.UseStyleColors = true;
-            }
-            
-            // Apply to checkboxes
-            if (chkMatchCase != null)
-            {
-                chkMatchCase.StyleManager = styleManager;
-                chkMatchCase.UseStyleColors = true;
-            }
-            if (chkWholeWord != null)
-            {
-                chkWholeWord.StyleManager = styleManager;
-                chkWholeWord.UseStyleColors = true;
-            }
-            if (chkReplaceAll != null)
-            {
-                chkReplaceAll.StyleManager = styleManager;
-                chkReplaceAll.UseStyleColors = true;
-            }
-            
-            // Apply to buttons
-            if (btnReplace != null)
-            {
-                btnReplace.StyleManager = styleManager;
-                btnReplace.UseStyleColors = true;
-            }
-            if (btnCancel != null)
-            {
-                btnCancel.StyleManager = styleManager;
-                btnCancel.UseStyleColors = true;
-            }
+        }
+        
+        private void BtnCancel_Click(object sender, EventArgs e)
+        {
         }
     }
 }

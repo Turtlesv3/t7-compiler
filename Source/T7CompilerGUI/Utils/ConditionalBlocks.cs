@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace T7CompilerGUI.Utils
 {
-    internal sealed class CBSyntaxException : Exception
+    public sealed class CBSyntaxException : Exception
     {
         public readonly int ErrorPosition;
         public CBSyntaxException(string message, int spos) : base(message)

@@ -19,7 +19,7 @@ namespace T7CompilerGUI.Forms
         private PoisonPanel fileListPanel;
         private PoisonPanel editorPanel;
         private PoisonPanel buttonPanel;
-        private FlowLayoutPanel fileButtonsPanel;
+        private ReaLTaiizor.Controls.PoisonPanel fileButtonsPanel;
         private ReaLTaiizor.Controls.PoisonTabControl tabControl;
         private PoisonLabel lblProjectPath;
         private PoisonButton btnOpenFolder;
@@ -55,10 +55,6 @@ namespace T7CompilerGUI.Forms
         private ToolStripMenuItem forceHostItem;
         private ToolStripMenuItem resetHostItem;
         private ToolStripSeparator separator7;
-        private ToolStripMenuItem updateItem;
-        private ToolStripSeparator separator8;
-        private ToolStripMenuItem aboutItem;
-        private ToolStripSeparator separator9;
         private ToolStripMenuItem exitItem;
         // Inject Precompiled Script menu items
         private ToolStripMenuItem injectBO3Item;
@@ -72,14 +68,7 @@ namespace T7CompilerGUI.Forms
         private PoisonPanel statusPanel;
         private PoisonLabel statusLabel;
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
-        }
+        // Dispose is handled in CodeEditorForm.cs with comprehensive cleanup including components
 
         private void InitializeComponent()
         {
@@ -89,7 +78,7 @@ namespace T7CompilerGUI.Forms
             this.editorPanel = new ReaLTaiizor.Controls.PoisonPanel();
             this.tabControl = new ReaLTaiizor.Controls.PoisonTabControl();
             this.fileListPanel = new ReaLTaiizor.Controls.PoisonPanel();
-            this.fileButtonsPanel = new System.Windows.Forms.FlowLayoutPanel();
+            this.fileButtonsPanel = new ReaLTaiizor.Controls.PoisonPanel();
             this.lblProjectPath = new ReaLTaiizor.Controls.PoisonLabel();
             this.btnOpenFolder = new ReaLTaiizor.Controls.PoisonButton();
             this.btnRecentProjects = new ReaLTaiizor.Controls.PoisonButton();
@@ -117,10 +106,6 @@ namespace T7CompilerGUI.Forms
             this.forceHostItem = new System.Windows.Forms.ToolStripMenuItem();
             this.resetHostItem = new System.Windows.Forms.ToolStripMenuItem();
             this.separator7 = new System.Windows.Forms.ToolStripSeparator();
-            this.updateItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.separator8 = new System.Windows.Forms.ToolStripSeparator();
-            this.aboutItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.separator9 = new System.Windows.Forms.ToolStripSeparator();
             this.exitItem = new System.Windows.Forms.ToolStripMenuItem();
             this.gameMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.t7GameItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -190,9 +175,9 @@ namespace T7CompilerGUI.Forms
             // 
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl.HotTrack = true;
-            this.tabControl.Location = new System.Drawing.Point(5, 5);
+            this.tabControl.Location = new System.Drawing.Point(5, 10);
             this.tabControl.Name = "tabControl";
-            this.tabControl.Size = new System.Drawing.Size(904, 643);
+            this.tabControl.Size = new System.Drawing.Size(904, 638);
             this.tabControl.TabIndex = 2;
             this.tabControl.UseSelectable = true;
             this.tabControl.UseStyleColors = true;
@@ -224,13 +209,21 @@ namespace T7CompilerGUI.Forms
             this.fileButtonsPanel.AutoScroll = true;
             this.fileButtonsPanel.BackColor = System.Drawing.Color.Transparent;
             this.fileButtonsPanel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.fileButtonsPanel.FlowDirection = System.Windows.Forms.FlowDirection.TopDown;
+            this.fileButtonsPanel.HorizontalScrollbar = true;
+            this.fileButtonsPanel.HorizontalScrollbarBarColor = true;
+            this.fileButtonsPanel.HorizontalScrollbarHighlightOnWheel = false;
+            this.fileButtonsPanel.HorizontalScrollbarSize = 10;
+            this.fileButtonsPanel.HorizontalScrollbarInvisible = true;
             this.fileButtonsPanel.Location = new System.Drawing.Point(5, 90);
-            this.fileButtonsPanel.Margin = new System.Windows.Forms.Padding(0);
             this.fileButtonsPanel.Name = "fileButtonsPanel";
             this.fileButtonsPanel.Size = new System.Drawing.Size(273, 558);
             this.fileButtonsPanel.TabIndex = 2;
-            this.fileButtonsPanel.WrapContents = false;
+            this.fileButtonsPanel.UseStyleColors = true;
+            this.fileButtonsPanel.VerticalScrollbar = true;
+            this.fileButtonsPanel.VerticalScrollbarBarColor = true;
+            this.fileButtonsPanel.VerticalScrollbarHighlightOnWheel = false;
+            this.fileButtonsPanel.VerticalScrollbarSize = 10;
+            this.fileButtonsPanel.VerticalScrollbarInvisible = true;
             // 
             // lblProjectPath
             // 
@@ -384,10 +377,6 @@ namespace T7CompilerGUI.Forms
             this.forceHostItem,
             this.resetHostItem,
             this.separator7,
-            this.updateItem,
-            this.separator8,
-            this.aboutItem,
-            this.separator9,
             this.exitItem});
             this.fileMenu.Name = "fileMenu";
             this.fileMenu.Size = new System.Drawing.Size(37, 20);
@@ -518,31 +507,6 @@ namespace T7CompilerGUI.Forms
             // 
             this.separator7.Name = "separator7";
             this.separator7.Size = new System.Drawing.Size(170, 6);
-            // 
-            // updateItem
-            // 
-            this.updateItem.Name = "updateItem";
-            this.updateItem.Size = new System.Drawing.Size(173, 22);
-            this.updateItem.Text = "Check For Updates";
-            this.updateItem.ToolTipText = "Check For Updates";
-            this.updateItem.Click += new System.EventHandler(this.UpdateItem_Click);
-            // 
-            // separator8
-            // 
-            this.separator8.Name = "separator8";
-            this.separator8.Size = new System.Drawing.Size(170, 6);
-            // 
-            // aboutItem
-            // 
-            this.aboutItem.Name = "aboutItem";
-            this.aboutItem.Size = new System.Drawing.Size(173, 22);
-            this.aboutItem.Text = "About";
-            this.aboutItem.Click += new System.EventHandler(this.AboutItem_Click);
-            // 
-            // separator9
-            // 
-            this.separator9.Name = "separator9";
-            this.separator9.Size = new System.Drawing.Size(170, 6);
             // 
             // exitItem
             // 

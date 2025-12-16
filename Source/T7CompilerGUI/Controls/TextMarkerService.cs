@@ -118,6 +118,17 @@ namespace T7CompilerGUI.Controls
                 CurrentContext.TextView.Redraw(segment);
             }
         }
+
+        /// <summary>
+        /// Clears all markers to free memory
+        /// </summary>
+        public void Clear()
+        {
+            lock (lockObject)
+            {
+                markers.Clear();
+            }
+        }
     }
 
     public class TextMarker : ISegment

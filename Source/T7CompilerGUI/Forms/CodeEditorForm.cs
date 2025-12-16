@@ -1,38 +1,33 @@
+using ReaLTaiizor.Controls;
+using ReaLTaiizor.Drawing.Poison;
+using ReaLTaiizor.Enum.Poison;
+using ReaLTaiizor.Forms;
+using ReaLTaiizor.Manager;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using System.Xml.Linq;
-using ReaLTaiizor.Forms;
-using ReaLTaiizor.Controls;
-using ReaLTaiizor.Enum.Poison;
-using ReaLTaiizor.Manager;
-using T7CompilerGUI.Helpers;
-using T7CompilerGUI.Games;
 using T7CompilerGUI.Controls;
-using T7CompilerGUI.Actions;
 using T7CompilerGUI.Forms.Dialogs;
-using static T7CompilerGUI.Helpers.ModernFolderDialog;
-using TreyarchCompiler;
-using TreyarchCompiler.Enums;
-using System.Diagnostics;
-using System.Threading;
+using T7CompilerGUI.Games;
+using T7CompilerGUI.Helpers;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms
 {
     public partial class CodeEditorForm : PoisonForm
     {
         #region Constants
-        
+
         // UI Constants for dynamically created controls
         private const int FileButtonHeight = 23;
         private const int CloseButtonWidth = 20;
@@ -40,17 +35,20 @@ namespace T7CompilerGUI.Forms
         private const int MaxTabTextLength = 18;
         private const int FileButtonMargin = 2;
         private const int FileButtonPanelPadding = 10;
-        
-        // Fallback colors (used when StyleManager is null)
-        private static readonly Color FallbackButtonBackColor = Color.FromArgb(45, 45, 45);
-        private static readonly Color FallbackButtonForeColor = Color.White;
-        private static readonly Color CloseButtonHoverColor = Color.Red;
-        
+
+        // Fallback colors (used when StyleManager is null) - use PoisonPaint for consistency
+        private static Color FallbackButtonBackColor(ThemeStyle theme) =>
+            PoisonPaint.BackColor.Button.Normal(theme);
+        private static Color FallbackButtonForeColor(ThemeStyle theme) =>
+            PoisonPaint.ForeColor.Button.Normal(theme);
+        private static Color CloseButtonHoverColor(ThemeStyle theme) => PoisonPaint.GetStyleColor(ColorStyle.Red); // Red is universal for close buttons
+
         #endregion
-        
+
         #region Fields and Properties
-        
+
         private PoisonStyleManager styleManager;
+        private System.Windows.Forms.Timer rainbowTimer; // Timer to update UI when rainbow is active
         private string projectPath = string.Empty;
         private bool folderOpened = false;
         private bool hasChanges = false;
@@ -59,26 +57,21 @@ namespace T7CompilerGUI.Forms
         private string currentFileName = string.Empty;
         private TreyarchCompiler.Enums.Games currentGame = TreyarchCompiler.Enums.Games.T7;
         private string currentGameModeStr = "ZM"; // Default to ZM like original
-            private string executingDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-        
+        private string projectNamespace = string.Empty; // Namespace read from source files (e.g., "serious")
+        private string executingDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+
         // Tab scrolling debounce
         private DateTime lastTabScrollTime = DateTime.MinValue;
         private const int TabScrollThrottleMs = 10; // Minimum milliseconds between tab changes
-        
+
         /// <summary>
-        /// Gets the GUI installation path. Checks T7GUI_PATH environment variable first, then uses the executable directory
+        /// Gets the GUI installation path. Uses MainForm's method for consistency
         /// </summary>
         private string GetGuiPath()
         {
-            string envPath = Environment.GetEnvironmentVariable("T7GUI_PATH");
-            if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
-            {
-                return envPath;
-            }
-            // Default to executable directory
-            return executingDir;
+            return MainForm.GetGuiPath();
         }
-        
+
         private string GetResourcesPath()
         {
             // First, check in the executable directory (for installed/built versions)
@@ -88,7 +81,7 @@ namespace T7CompilerGUI.Forms
             {
                 return resourcesPath;
             }
-            
+
             // Try to find Resources folder relative to solution directory (for development)
             // Solution is typically at: My T7\TreyarchCompiler.sln
             // Resources is at: My T7\Resources
@@ -100,14 +93,14 @@ namespace T7CompilerGUI.Forms
                 {
                     return resourcesPath;
                 }
-                
+
                 // Check parent directory
                 string parentDir = Path.GetDirectoryName(currentDir);
                 if (string.IsNullOrEmpty(parentDir) || parentDir == currentDir)
                     break;
                 currentDir = parentDir;
             }
-            
+
             // Fallback: return executable directory (will create Resources there if needed)
             return Path.Combine(executingDir, "Resources");
         }
@@ -123,7 +116,7 @@ namespace T7CompilerGUI.Forms
             {
                 return defaultsPath;
             }
-            
+
             // Try to find Defaults folder relative to solution directory
             // Defaults is at: Source\T7CompilerGUI\Defaults
             string currentDir = executingDir;
@@ -140,67 +133,70 @@ namespace T7CompilerGUI.Forms
                         return sourcePath;
                     }
                 }
-                
+
                 // Check current directory
                 defaultsPath = Path.Combine(currentDir, "Defaults");
                 if (Directory.Exists(defaultsPath))
                 {
                     return defaultsPath;
                 }
-                
+
                 // Check Source\T7CompilerGUI\Defaults
                 defaultsPath = Path.Combine(currentDir, "Source", "T7CompilerGUI", "Defaults");
                 if (Directory.Exists(defaultsPath))
                 {
                     return defaultsPath;
                 }
-                
+
                 // Check parent directory
                 string parentDir = Path.GetDirectoryName(currentDir);
                 if (string.IsNullOrEmpty(parentDir) || parentDir == currentDir)
                     break;
                 currentDir = parentDir;
             }
-            
+
             // Fallback: try relative to executable
             return Path.Combine(executingDir, "Defaults");
         }
-        
+
         // Timers
         private System.Windows.Forms.Timer themeCheckTimer;
         private System.Windows.Forms.Timer tabUpdateTimer;
-        
+
         // File Watcher
         private FileSystemWatcher fileWatcher;
-        
+
         // Editor Management
         private Dictionary<string, AvalonEditWrapper> openEditors = new Dictionary<string, AvalonEditWrapper>();
         private Dictionary<string, ReaLTaiizor.Controls.PoisonTabPage> editorTabs = new Dictionary<string, ReaLTaiizor.Controls.PoisonTabPage>();
         private Dictionary<string, string> fileContents = new Dictionary<string, string>();
-        
+
         // Hash Checker
         private Dictionary<string, string> hashToFunctionMap = new Dictionary<string, string>(); // Hash -> Function name
-        
+
         // Keyboard Shortcuts
         private Dictionary<string, Dialogs.KeybindDialog.KeybindInfo> codeEditorKeybinds = null;
-        
+
         // UI Controls and menu items (declared in Designer.cs)
-        
+
         #endregion
 
         #region Constructor and Initialization
-        
+
         public CodeEditorForm(PoisonStyleManager styleManager)
         {
             this.styleManager = styleManager;
             InitializeComponent();
-            
+
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+
             // PoisonForm already has double buffering enabled via ControlStyles
             // No need to enable it manually
-            
+
             // Load GSC syntax data from GSC.xshd early (before SetupControls)
             LoadGscSyntaxData();
-            
+
             SetupControls();
             SetupKeyboardShortcuts();
             SetupTimers();
@@ -208,24 +204,38 @@ namespace T7CompilerGUI.Forms
             SetupThemeChangeHandling();
             // Initialize code editor keybinds
             codeEditorKeybinds = GetDefaultCodeEditorKeybinds();
-            
+
+            // Configure scrollbars for panels and controls
+            SetupScrollbarSettings();
+
             // Check if compiler is installed, if not install it
-            if (!CompilerActions.IsCompilerInstalled())
+            if (!MainForm.IsCompilerInstalled())
             {
-                CompilerActions.InstallCompiler(@"https://gsc.dev/t7c_package");
+                MainForm.InstallCompiler(@"https://gsc.dev/t7c_package");
             }
-            
+
             // Defer default project creation until after form is shown
             // This ensures the form displays even if project creation fails
-            this.Shown += (s, e) => {
+            this.Shown += (s, e) =>
+            {
                 try
                 {
-                    CreateDefaultProjectOnStartup();
+                    // Check for last project and ask to load it
+                    CheckAndLoadLastProject();
                 }
                 catch (Exception ex)
                 {
                     // Log error but don't prevent form from showing
-                    System.Diagnostics.Debug.WriteLine($"Failed to create default project: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Failed to check last project: {ex.Message}");
+                    // Fallback to default project creation
+                    try
+                    {
+                        CreateDefaultProjectOnStartup();
+                    }
+                    catch (Exception ex2)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to create default project: {ex2.Message}");
+                    }
                 }
             };
         }
@@ -233,104 +243,80 @@ namespace T7CompilerGUI.Forms
         private void SetupThemeChangeHandling()
         {
             if (styleManager == null) return;
-            
-            // Create a timer to periodically check for theme/style changes
-            themeCheckTimer = new System.Windows.Forms.Timer
-            {
-                Interval = 100 // Check every 100ms
-            };
-            
+
             ThemeStyle lastTheme = styleManager.Theme;
             ColorStyle lastStyle = styleManager.Style;
-            
-            themeCheckTimer.Tick += (s, e) => {
+
+            // Create a tracked timer to periodically check for theme/style changes
+            themeCheckTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 100, (s, e) =>
+            {
                 // Check if form is disposed or disposing
                 if (this.IsDisposed || this.Disposing || styleManager == null)
                 {
                     if (themeCheckTimer != null)
                     {
                         themeCheckTimer.Stop();
-                        themeCheckTimer.Dispose();
-                        themeCheckTimer = null;
                     }
                     return;
                 }
-                
+
                 // Check if theme or style has changed
                 if (styleManager.Theme != lastTheme || styleManager.Style != lastStyle)
                 {
                     lastTheme = styleManager.Theme;
                     lastStyle = styleManager.Style;
-                    
+
                     // Update theme and style immediately on UI thread
-                    if (this.InvokeRequired)
-                    {
-                        try
-                        {
-                            // Check if form handle is valid before invoking
-                            if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
-                            {
-                                // Use Invoke instead of BeginInvoke for immediate execution
-                                this.Invoke(new Action(() => {
-                                    if (!this.IsDisposed && !this.Disposing)
-                                    {
-                                        UpdateThemeAndStyle();
-                                    }
-                                }));
-                            }
-                        }
-                        catch (ObjectDisposedException)
-                        {
-                            // Form is disposed, stop timer
-                            if (themeCheckTimer != null)
-                            {
-                                themeCheckTimer.Stop();
-                                themeCheckTimer.Dispose();
-                                themeCheckTimer = null;
-                            }
-                        }
-                        catch (InvalidOperationException)
-                        {
-                            // Handle is invalid or form is being disposed
-                            if (themeCheckTimer != null)
-                            {
-                                themeCheckTimer.Stop();
-                                themeCheckTimer.Dispose();
-                                themeCheckTimer = null;
-                            }
-                        }
-                        catch (ArgumentException)
-                        {
-                            // Handle is invalid
-                            if (themeCheckTimer != null)
-                            {
-                                themeCheckTimer.Stop();
-                                themeCheckTimer.Dispose();
-                                themeCheckTimer = null;
-                            }
-                        }
-                    }
-                    else
+                    // Use SafeInvoke for error handling (handles all exceptions internally)
+                    ReaLTaiizorExt.PoisonFormHelper.SafeInvoke(this, () =>
                     {
                         if (!this.IsDisposed && !this.Disposing)
                         {
                             UpdateThemeAndStyle();
                         }
-                    }
+                    });
                 }
-            };
-            
+            });
+
             themeCheckTimer.Start();
-            
+
             // Also update on form activation
-            this.Activated += (s, e) => {
-            if (styleManager != null)
+            this.Activated += (s, e) =>
             {
+                if (styleManager != null)
+                {
                     UpdateThemeAndStyle();
                 }
             };
         }
-        
+
+        /// <summary>
+        /// Sets up rainbow animation timer to update UI when rainbow style is active
+        /// </summary>
+        private void SetupRainbowTimer()
+        {
+            // Setup rainbow update timer - updates all controls when rainbow is active
+            rainbowTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 16, (s, e) =>
+            {
+                // Check if form is disposed or disposing
+                if (this.IsDisposed || this.Disposing) return;
+
+                // Check if rainbow is active by finding MainForm
+                MainForm mainForm = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
+                if (mainForm != null && mainForm.IsRainbowStyleActive())
+                {
+                    // Invalidate all controls recursively to update rainbow colors
+                    ReaLTaiizorExt.PoisonControlHelper.RefreshAllControls(this);
+
+                    // Also invalidate the form itself for border updates
+                    this.Invalidate(true);
+                    this.Update();
+                }
+            });
+            rainbowTimer.Start();
+        }
+
+
         /// <summary>
         /// Public method to update theme and style - can be called from outside when theme/style changes
         /// Uses ReaLTaiizor's proper StyleManager.Update() method for automatic theme propagation
@@ -339,62 +325,61 @@ namespace T7CompilerGUI.Forms
         {
             // Check if form is disposed or disposing
             if (this.IsDisposed || this.Disposing || styleManager == null) return;
-            
+
             try
             {
                 // Suspend layout to batch all updates - prevents incremental painting
                 this.SuspendLayout();
-                
-                // Ensure StyleManager is set and Owner is correct
-                if (this.StyleManager != styleManager)
+
+                // Use helper to apply StyleManager to form and all controls
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
+
+                // Ensure Owner is set
+                if (styleManager != null)
                 {
-                    this.StyleManager = styleManager;
                     styleManager.Owner = this;
                 }
-                
+
                 // Sync Designer's poisonStyleManager with the active styleManager
                 if (poisonStyleManager != null)
                 {
                     poisonStyleManager.Theme = styleManager.Theme;
                     poisonStyleManager.Style = styleManager.Style;
                 }
-                
+
                 // Update form background color to match theme (before StyleManager.Update)
-                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                
+                this.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+
                 // Update menu strip (needs custom renderer, not handled by StyleManager)
                 if (mainMenuStrip != null)
                 {
-                    mainMenuStrip.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                    mainMenuStrip.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                    mainMenuStrip.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                    mainMenuStrip.ForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
                     mainMenuStrip.Renderer = new PoisonMenuStripRenderer(styleManager);
                 }
-                
+
                 // Update file buttons panel background (FlowLayoutPanel doesn't support StyleManager)
                 if (fileButtonsPanel != null)
                 {
-                    fileButtonsPanel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    fileButtonsPanel.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
                 }
-                
+
                 // Update all open code editors (custom controls) - these need manual theme updates
                 UpdateAllEditorsTheme();
-                
+
                 // Update all file buttons (dynamically created) - ensure they're connected to StyleManager
                 UpdateAllFileButtonsTheme();
-                
-                // Update editor panel context menu theme
+
+                // Update editor panel context menu theme using helper
                 if (editorPanelContextMenu != null)
                 {
-                    editorPanelContextMenu.Theme = styleManager.Theme;
-                    editorPanelContextMenu.Style = styleManager.Style;
-                    editorPanelContextMenu.UseStyleColors = true;
-                    editorPanelContextMenu.StyleManager = styleManager;
+                    ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(editorPanelContextMenu, styleManager);
                 }
-                
+
                 // Use StyleManager.Update() to automatically update all IPoisonControl and IPoisonComponent controls
                 // This recursively calls Refresh() on all controls, so no additional refresh calls are needed
                 styleManager.Update();
-                
+
                 // Resume layout - StyleManager.Update() already refreshed all controls
                 // No Invalidate/Update/Refresh needed - they cause visible transitions
                 this.ResumeLayout(false);
@@ -408,11 +393,11 @@ namespace T7CompilerGUI.Forms
                 // Form is being disposed, ignore
             }
         }
-        
+
         private void UpdateAllEditorsTheme()
         {
             if (styleManager == null) return;
-            
+
             // Update StyleManager on all open editors - this will trigger ApplyPoisonTheme() in each editor
             // All updates are batched - no individual refreshes happen here
             foreach (var editor in openEditors.Values)
@@ -422,7 +407,7 @@ namespace T7CompilerGUI.Forms
                     // Setting StyleManager will automatically apply Poison theme colors
                     // This doesn't trigger immediate refresh - StyleManager.Update() handles that
                     editor.StyleManager = styleManager;
-                    
+
                     // Update WPF context menu theme if it exists
                     // WPF controls need manual color updates, but no refresh is needed
                     if (editor.Editor?.TextArea?.ContextMenu != null)
@@ -432,31 +417,31 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
         private void UpdateWpfContextMenuTheme(System.Windows.Controls.ContextMenu contextMenu)
         {
             if (contextMenu == null || styleManager == null) return;
-            
+
             try
             {
                 // Get theme colors from Poison - match MainForm's PoisonContextMenuStrip
-                var backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                var foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
-                var borderColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
-                var styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
-                
+                var backColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                var foreColor = PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
+                var borderColor = PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
+                var styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
+
                 // Convert to WPF colors
                 var wpfBackColor = System.Windows.Media.Color.FromArgb(backColor.A, backColor.R, backColor.G, backColor.B);
                 var wpfForeColor = System.Windows.Media.Color.FromArgb(foreColor.A, foreColor.R, foreColor.G, foreColor.B);
                 var wpfBorderColor = System.Windows.Media.Color.FromArgb(borderColor.A, borderColor.R, borderColor.G, borderColor.B);
                 // Use style color with 150 alpha for hover (matches MainForm's StyleBasedMenuRenderer)
-                var wpfHoverColor = System.Windows.Media.Color.FromArgb(150, 
+                var wpfHoverColor = System.Windows.Media.Color.FromArgb(150,
                     (byte)styleColor.R, (byte)styleColor.G, (byte)styleColor.B);
-                
+
                 contextMenu.Background = new System.Windows.Media.SolidColorBrush(wpfBackColor);
                 contextMenu.Foreground = new System.Windows.Media.SolidColorBrush(wpfForeColor);
                 contextMenu.BorderBrush = new System.Windows.Media.SolidColorBrush(wpfBorderColor);
-                
+
                 // Update all menu items with proper hover handling
                 foreach (var item in contextMenu.Items)
                 {
@@ -464,15 +449,15 @@ namespace T7CompilerGUI.Forms
                     {
                         menuItem.Background = new System.Windows.Media.SolidColorBrush(wpfBackColor);
                         menuItem.Foreground = new System.Windows.Media.SolidColorBrush(wpfForeColor);
-                        
+
                         // Remove existing handlers to avoid duplicates
                         menuItem.MouseEnter -= MenuItem_MouseEnter;
                         menuItem.MouseLeave -= MenuItem_MouseLeave;
-                        
+
                         // Add hover handlers
                         menuItem.MouseEnter += MenuItem_MouseEnter;
                         menuItem.MouseLeave += MenuItem_MouseLeave;
-                        
+
                         // Store colors in Tag for use in event handlers
                         menuItem.Tag = new { Normal = wpfBackColor, Hover = wpfHoverColor };
                     }
@@ -488,7 +473,7 @@ namespace T7CompilerGUI.Forms
                 // Ignore errors - context menu might be disposed
             }
         }
-        
+
         private void MenuItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (sender is System.Windows.Controls.MenuItem menuItem && menuItem.Tag != null)
@@ -504,7 +489,7 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
         private void MenuItem_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (sender is System.Windows.Controls.MenuItem menuItem && menuItem.Tag != null)
@@ -520,11 +505,11 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
         private void UpdateAllFileButtonsTheme()
         {
             if (styleManager == null || fileButtonsPanel == null) return;
-            
+
             // Update all file buttons in the file list panel
             // All StyleManager assignments are batched - no individual refreshes happen here
             foreach (Control control in fileButtonsPanel.Controls)
@@ -532,32 +517,29 @@ namespace T7CompilerGUI.Forms
                 if (control is PoisonPanel buttonContainer && !buttonContainer.IsDisposed)
                 {
                     // Update container panel - StyleManager assignment doesn't trigger immediate refresh
-                    buttonContainer.StyleManager = styleManager;
-                    buttonContainer.UseStyleColors = true;
-                    
-                    // Update file button and close button
+                    // Use PoisonControlHelper to apply StyleManager to container and buttons
+                    ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(buttonContainer, styleManager);
+
+                    // Update file button and close button (already handled by ApplyStyleManager, but verify)
                     foreach (Control child in buttonContainer.Controls)
                     {
                         if (child is PoisonButton btn && !btn.IsDisposed)
                         {
-                            // Setting StyleManager will automatically apply theme
-                            // This doesn't trigger immediate refresh - StyleManager.Update() handles that
-                            btn.StyleManager = styleManager;
-                            btn.UseStyleColors = true;
-                            
+                            // StyleManager already applied via ApplyStyleManager above
+
                             // For close buttons (X buttons), update colors to match theme
                             // These are set but won't paint until ResumeLayout and Refresh
                             if (btn.Text == "X")
                             {
-                                btn.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
-                                btn.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
+                                btn.BackColor = PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
+                                btn.ForeColor = PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
                             }
                         }
                     }
                 }
             }
         }
-        
+
 
         protected override void OnLoad(EventArgs e)
         {
@@ -568,7 +550,7 @@ namespace T7CompilerGUI.Forms
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            
+
             // Update theme on show to catch any changes
             // UpdateThemeAndStyle() handles all rendering - no need for explicit Refresh()
             if (styleManager != null)
@@ -576,11 +558,11 @@ namespace T7CompilerGUI.Forms
                 UpdateThemeAndStyle();
             }
         }
-        
+
         protected override void OnActivated(EventArgs e)
         {
             base.OnActivated(e);
-            
+
             // Update theme when form is activated to catch changes made in other forms
             // This is handled by SetupThemeChangeHandling() timer, but we also update here for immediate feedback
             if (styleManager != null)
@@ -591,106 +573,147 @@ namespace T7CompilerGUI.Forms
 
         // InitializeComponent is now in CodeEditorForm.Designer.cs
 
+        /// <summary>
+        /// Removes placeholder tabs that may be added for designer visibility
+        /// </summary>
+        private void RemovePlaceholderTabs()
+        {
+            if (tabControl == null) return;
+
+            // Remove any tabs with "Placeholder" in the name
+            for (int i = tabControl.TabPages.Count - 1; i >= 0; i--)
+            {
+                var tab = tabControl.TabPages[i];
+                if (tab != null && (tab.Name?.Contains("Placeholder") == true || tab.Text == "Code Editor"))
+                {
+                    // Dispose editor and tab before removing
+                    var tabPageToRemove = tabControl.TabPages[i];
+                    string pathToRemove = null;
+
+                    // Find the path for this tab
+                    foreach (var kvp in editorTabs)
+                    {
+                        if (kvp.Value == tabPageToRemove)
+                        {
+                            pathToRemove = kvp.Key;
+                            break;
+                        }
+                    }
+
+                    // Properly clean up tab and free memory
+                    if (pathToRemove != null)
+                    {
+                        CleanupTabResources(pathToRemove);
+                    }
+
+                    // Dispose and remove tab page
+                    tabPageToRemove.Dispose();
+                    tabControl.TabPages.RemoveAt(i);
+                }
+            }
+        }
+
         private void SetupControls()
         {
-            // Replace Designer's poisonStyleManager with the passed-in styleManager from MainForm
+            // Remove any placeholder tabs added by the designer
+            RemovePlaceholderTabs();
+
+            // Use helper to apply StyleManager to form and all controls
             if (styleManager != null)
             {
-                this.StyleManager = styleManager;
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
                 styleManager.Owner = this;
-                
+
                 // Sync the Designer's poisonStyleManager component
                 if (poisonStyleManager != null)
                 {
+                    // Sync the component's properties with the passed-in styleManager
                     poisonStyleManager.Theme = styleManager.Theme;
                     poisonStyleManager.Style = styleManager.Style;
                     poisonStyleManager.Owner = this;
                 }
-                
+
                 // Apply theme to menu strip with custom renderer (MenuStrip needs special handling)
                 if (mainMenuStrip != null)
                 {
-                    mainMenuStrip.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                    mainMenuStrip.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                    mainMenuStrip.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                    mainMenuStrip.ForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
                     mainMenuStrip.Renderer = new PoisonMenuStripRenderer(styleManager);
                 }
-                
+
                 // Apply theme to file buttons panel (FlowLayoutPanel doesn't support StyleManager)
                 if (fileButtonsPanel != null)
                 {
-                    fileButtonsPanel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    fileButtonsPanel.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
                 }
-                
+
                 // Use StyleManager.Update() to automatically apply theme to all Poison controls
                 styleManager.Update();
             }
-            
+
             // Setup menus (menu items created at runtime due to dynamic behavior)
             SetupMainMenu();
             SetupGameMenu();
             SetupGameModeMenu();
-            
+
             // Hide scrollbar corner control using Windows API (runtime behavior, must stay in code)
             SetupScrollbarCornerHiding();
-            
+
             // Setup mouse scrolling for file list panel
             SetupFileListMouseScrolling();
-            
+
             // Setup context menu for editor panel and tab control
             SetupEditorPanelContextMenu();
-            
-            PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
-            
+
+            ReaLTaiizorExt.PoisonControlHelper.SetupAllButtonEffectsRecursive(this, styleManager);
+
             // StyleManager.Update() already handles all control refreshes
             // No need for explicit Refresh() call here - it causes unnecessary paint events
         }
-        
+
         private ReaLTaiizor.Controls.PoisonContextMenuStrip editorPanelContextMenu;
-        
+
         private void SetupEditorPanelContextMenu()
         {
             // Create context menu for editor panel
             editorPanelContextMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
-            
-            // Set theme and style BEFORE StyleManager to ensure proper initialization
+
+            // Use helper to apply StyleManager - handles Theme, Style, and UseStyleColors automatically
             if (styleManager != null)
             {
-                editorPanelContextMenu.Theme = styleManager.Theme;
-                editorPanelContextMenu.Style = styleManager.Style;
-                editorPanelContextMenu.UseStyleColors = true;
-                // Set StyleManager after theme/style to ensure it uses correct values
-                editorPanelContextMenu.StyleManager = styleManager;
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(editorPanelContextMenu, styleManager);
             }
             else
             {
-                editorPanelContextMenu.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Dark;
-                editorPanelContextMenu.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
-                editorPanelContextMenu.UseStyleColors = true;
+                // Fallback if no StyleManager - use helper to set properties with default theme
+                ReaLTaiizorExt.PoisonControlHelper.SetupControl(editorPanelContextMenu, null, true, false);
+                ReaLTaiizorExt.PoisonControlHelper.UpdateThemeAndStyle(editorPanelContextMenu,
+                    ReaLTaiizor.Enum.Poison.ThemeStyle.Dark, ReaLTaiizor.Enum.Poison.ColorStyle.Blue);
             }
-            
+
             var goToLineItem = new System.Windows.Forms.ToolStripMenuItem("Go to Line...");
             goToLineItem.Click += (s, e) => GoToLine();
             editorPanelContextMenu.Items.Add(goToLineItem);
-            
+
             editorPanelContextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            
+
             var refreshItem = new System.Windows.Forms.ToolStripMenuItem("Refresh Files");
             refreshItem.Click += (s, e) => RefreshItem_Click(s, e);
             editorPanelContextMenu.Items.Add(refreshItem);
-            
+
             // Assign to editor panel
             if (editorPanel != null)
             {
                 editorPanel.ContextMenuStrip = editorPanelContextMenu;
             }
-            
+
             // Also assign to tab control
             if (tabControl != null)
             {
                 tabControl.ContextMenuStrip = editorPanelContextMenu;
             }
         }
-        
+
         private void SetupScrollbarCornerHiding()
         {
             // Hide scrollbar corner for panels and tab control
@@ -704,53 +727,63 @@ namespace T7CompilerGUI.Forms
                         HideScrollbarCorner(control);
                 };
             };
-            
+
             setupCornerHiding(editorPanel);
             setupCornerHiding(mainPanel);
             setupCornerHiding(tabControl);
+
+            // Hide tab control scrollbars if it has any
+            if (tabControl != null)
+            {
+                tabControl.HandleCreated += (s, e) => HideScrollbarCorner(tabControl);
+                tabControl.Layout += (s, e) =>
+                {
+                    if (tabControl.IsHandleCreated)
+                        HideScrollbarCorner(tabControl);
+                };
+            }
         }
-        
+
+        /// <summary>
+        /// Configures scrollbar settings for panels and controls
+        /// </summary>
+        private void SetupScrollbarSettings()
+        {
+            // File buttons panel: use helper to configure invisible scrollbars
+            if (fileButtonsPanel != null)
+            {
+                ReaLTaiizorExt.PoisonControlHelper.ConfigureScrollbars(fileButtonsPanel,
+                    showVertical: true,
+                    showHorizontal: true,
+                    verticalInvisible: true,
+                    horizontalInvisible: true);
+            }
+
+            // Editor panel: use helper to configure invisible scrollbars
+            if (editorPanel != null)
+            {
+                ReaLTaiizorExt.PoisonControlHelper.ConfigureScrollbars(editorPanel,
+                    showVertical: true,
+                    showHorizontal: true,
+                    verticalInvisible: true,
+                    horizontalInvisible: true);
+            }
+
+            // Tab pages: scrollbars are configured as invisible when created in CreateTabPage()
+            // Tab control itself doesn't have scrollbar properties
+        }
+
         private void SetupFileListMouseScrolling()
         {
             if (fileButtonsPanel == null) return;
-            
-            // AutoScroll is enabled in Designer, but we hide the scrollbars
-            // Hide scrollbars using Windows API and FlowLayoutPanel properties
-            fileButtonsPanel.HandleCreated += (s, e) =>
-            {
-                HideScrollbarCorner(fileButtonsPanel);
-                // Hide scrollbars but keep AutoScroll enabled for functionality
-                fileButtonsPanel.HorizontalScroll.Visible = false;
-                fileButtonsPanel.VerticalScroll.Visible = false;
-            };
-            
-            // Also hide scrollbars after layout changes
-            fileButtonsPanel.Layout += (s, e) =>
-            {
-                if (fileButtonsPanel.IsHandleCreated)
-                {
-                    HideScrollbarCorner(fileButtonsPanel);
-                    fileButtonsPanel.HorizontalScroll.Visible = false;
-                    fileButtonsPanel.VerticalScroll.Visible = false;
-                }
-            };
-            
-            // Mouse wheel scrolling is handled automatically by AutoScroll
-            // Just ensure scrollbars stay hidden
-            fileButtonsPanel.MouseWheel += (s, e) =>
-            {
-                if (fileButtonsPanel.IsHandleCreated)
-                {
-                    fileButtonsPanel.HorizontalScroll.Visible = false;
-                    fileButtonsPanel.VerticalScroll.Visible = false;
-                }
-            };
-            
-            // Enable middle mouse button drag scrolling
+
+            // Now that fileButtonsPanel is a PoisonPanel, we just need to ensure scrollbars are invisible
+            // Settings are already configured in Designer and SetupScrollbarSettings()
+            // Enable middle mouse button drag scrolling for better UX
             bool isMiddleMouseScrolling = false;
             System.Drawing.Point scrollStartPoint = System.Drawing.Point.Empty;
             int scrollStartY = 0;
-            
+
             fileButtonsPanel.MouseDown += (s, e) =>
             {
                 if (e.Button == MouseButtons.Middle)
@@ -761,23 +794,23 @@ namespace T7CompilerGUI.Forms
                     fileButtonsPanel.Cursor = Cursors.Hand;
                 }
             };
-            
+
             fileButtonsPanel.MouseMove += (s, e) =>
             {
                 if (isMiddleMouseScrolling)
                 {
                     int deltaY = scrollStartPoint.Y - e.Y;
                     int newY = scrollStartY + deltaY;
-                    
+
                     // Calculate max scroll position
-                    int maxScroll = Math.Max(0, fileButtonsPanel.PreferredSize.Height - fileButtonsPanel.Height);
+                    int maxScroll = Math.Max(0, fileButtonsPanel.DisplayRectangle.Height - fileButtonsPanel.Height);
                     newY = Math.Max(0, Math.Min(newY, maxScroll));
-                    
+
                     // Scroll by setting AutoScrollPosition (negative value)
                     fileButtonsPanel.AutoScrollPosition = new System.Drawing.Point(0, newY);
                 }
             };
-            
+
             fileButtonsPanel.MouseUp += (s, e) =>
             {
                 if (e.Button == MouseButtons.Middle && isMiddleMouseScrolling)
@@ -786,7 +819,7 @@ namespace T7CompilerGUI.Forms
                     fileButtonsPanel.Cursor = Cursors.Default;
                 }
             };
-            
+
             fileButtonsPanel.MouseLeave += (s, e) =>
             {
                 if (isMiddleMouseScrolling)
@@ -796,23 +829,18 @@ namespace T7CompilerGUI.Forms
                 }
             };
         }
-        
-        // Windows API to hide scrollbar corner and control redraw
+
+        // Windows API to hide scrollbar corner - ReaLTaiizor's Native classes are internal
         [DllImport("user32.dll")]
         private static extern int ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
-        
-        [DllImport("user32.dll")]
-        private static extern int SendMessage(IntPtr hWnd, int wMsg, bool wParam, int lParam);
-        
+
         private const int SB_HORZ = 0;
         private const int SB_VERT = 1;
-        private const int SB_BOTH = 3;
-        private const int WM_SETREDRAW = 0x000B;
-        
+
         private void HideScrollbarCorner(Control control)
         {
             if (control == null || !control.IsHandleCreated) return;
-            
+
             try
             {
                 // Hide both scrollbars to hide the corner
@@ -824,28 +852,14 @@ namespace T7CompilerGUI.Forms
                 // Ignore errors
             }
         }
-        
+
 
         private void SetupTimers()
         {
-            // Auto-save timer DISABLED - files should only save when user explicitly saves
-            // The original had auto-save, but we want manual save only
-            // autoSaveTimer = new System.Windows.Forms.Timer();
-            // autoSaveTimer.Interval = 200;
-            // autoSaveTimer.Tick += (s, e) => ForceSave();
-            // autoSaveTimer.Start();
-
             // Tab update timer (100ms like original)
-            tabUpdateTimer = new System.Windows.Forms.Timer();
-            tabUpdateTimer.Interval = 100;
-            tabUpdateTimer.Tick += (s, e) => UpdateSelectedTabItem();
+            tabUpdateTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 100, (s, e) => UpdateSelectedTabItem());
             tabUpdateTimer.Start();
 
-            // Discord presence update timer DISABLED - not needed for this project
-            // discordUpdateTimer = new System.Windows.Forms.Timer();
-            // discordUpdateTimer.Interval = 200;
-            // discordUpdateTimer.Tick += (s, e) => UpdateDiscordPresence();
-            // discordUpdateTimer.Start();
         }
 
 
@@ -868,87 +882,77 @@ namespace T7CompilerGUI.Forms
             // Menu items are now created in Designer - event handlers are wired up in Designer.cs
             // This method is kept for potential future use but currently does nothing
         }
-        
+
         // Menu event handler methods (called from Designer)
         private void NewProjectItem_Click(object sender, EventArgs e)
         {
             BtnNewProject_Click(sender: null, e: EventArgs.Empty);
         }
-        
+
         private void NewFileItem_Click(object sender, EventArgs e)
         {
             BtnNewFile_Click(sender: null, e: EventArgs.Empty);
         }
-        
+
         private void SaveItem_Click(object sender, EventArgs e)
         {
             BtnSave_Click(sender: null, e: EventArgs.Empty);
         }
-        
+
         private void SaveAllItem_Click(object sender, EventArgs e)
         {
             BtnSaveAll_Click(sender: null, e: EventArgs.Empty);
         }
-        
+
         private void RefreshItem_Click(object sender, EventArgs e)
         {
             BtnRefresh_Click(sender: null, e: EventArgs.Empty);
         }
-        
+
         private void PortILItem_Click(object sender, EventArgs e)
         {
             BtnPortIL_Click(sender: null, e: EventArgs.Empty);
         }
-        
+
         private void ShortcutsItem_Click(object sender, EventArgs e)
         {
             ShortcutsMenu_Click(sender, e);
         }
-        
+
         private void GoToLineItem_Click(object sender, EventArgs e)
         {
             GoToLine();
         }
-        
+
         private void ForceHostItem_Click(object sender, EventArgs e)
         {
             ForceHostMenu_Click(sender, e);
         }
-        
+
         private void ResetHostItem_Click(object sender, EventArgs e)
         {
             ClearHostDvarsMenu_Click(sender, e);
         }
-        
-        private void UpdateItem_Click(object sender, EventArgs e)
-        {
-            UpdateCompilerMenu_Click(sender, e);
-        }
-        
-        private void AboutItem_Click(object sender, EventArgs e)
-        {
-            AboutMenu_Click(sender, e);
-        }
-        
+
         private void ExitItem_Click(object sender, EventArgs e)
         {
             this.Close();
         }
-        
+
         private void T7GameItem_Click(object sender, EventArgs e)
         {
             currentGame = TreyarchCompiler.Enums.Games.T7;
             t7GameItem.Checked = true;
             t8GameItem.Checked = false;
         }
-        
+
         private void T8GameItem_Click(object sender, EventArgs e)
         {
             currentGame = TreyarchCompiler.Enums.Games.T8;
             t8GameItem.Checked = true;
             t7GameItem.Checked = false;
         }
-        
+
         private void CampaignModeItem_Click(object sender, EventArgs e)
         {
             currentGameModeStr = "SP";
@@ -959,7 +963,7 @@ namespace T7CompilerGUI.Forms
             SaveModeToGscConf();
             UpdateConditionalCompilationIndicators();
         }
-        
+
         private void MultiplayerModeItem_Click(object sender, EventArgs e)
         {
             currentGameModeStr = "MP";
@@ -970,7 +974,7 @@ namespace T7CompilerGUI.Forms
             SaveModeToGscConf();
             UpdateConditionalCompilationIndicators();
         }
-        
+
         private void ZombiesModeItem_Click(object sender, EventArgs e)
         {
             currentGameModeStr = "ZM";
@@ -981,7 +985,7 @@ namespace T7CompilerGUI.Forms
             SaveModeToGscConf();
             UpdateConditionalCompilationIndicators();
         }
-        
+
         /// <summary>
         /// Saves the current mode and symbols to gsc.conf
         /// </summary>
@@ -989,25 +993,28 @@ namespace T7CompilerGUI.Forms
         {
             if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
                 return;
-                
+
             string gscConfPath = Path.Combine(projectPath, "gsc.conf");
             try
             {
                 // Build symbols string from current state
                 var symbolsList = new List<string>();
-                
+
                 // Add game symbol (BO3 or BO4)
                 if (currentGame == TreyarchCompiler.Enums.Games.T7)
                     symbolsList.Add("BO3");
                 else if (currentGame == TreyarchCompiler.Enums.Games.T8)
                     symbolsList.Add("BO4");
-                
-                // Add serious
-                symbolsList.Add("serious");
-                
+
+                // Add namespace from source files (if found)
+                if (!string.IsNullOrEmpty(projectNamespace))
+                {
+                    symbolsList.Add(projectNamespace);
+                }
+
                 // Add game mode (MP, ZM, or SP)
                 symbolsList.Add(currentGameModeStr.ToLower());
-                
+
                 // Add enabled custom symbols
                 foreach (var symbol in availableCustomSymbols.OrderBy(s => s))
                 {
@@ -1017,7 +1024,7 @@ namespace T7CompilerGUI.Forms
                         symbolsList.Add(symbol);
                     }
                 }
-                
+
                 string symbolsString = string.Join(",", symbolsList);
                 File.WriteAllText(gscConfPath, $"symbols={symbolsString}");
             }
@@ -1027,53 +1034,37 @@ namespace T7CompilerGUI.Forms
                 System.Diagnostics.Debug.WriteLine($"Error saving gsc.conf: {ex.Message}");
             }
         }
-        
+
         private void InjectBO3Item_Click(object sender, EventArgs e)
         {
             InjectPrecompiledScript(TreyarchCompiler.Enums.Games.T7);
         }
-        
+
         private void InjectBO4Item_Click(object sender, EventArgs e)
         {
             InjectPrecompiledScript(TreyarchCompiler.Enums.Games.T8);
         }
-        
+
         private void KillBO3Item_Click(object sender, EventArgs e)
         {
             KillGame("blackops3");
         }
-        
+
         private void KillBO4Item_Click(object sender, EventArgs e)
         {
             KillGame("blackops4");
         }
-        
-        private void AboutMenu_Click(object sender, EventArgs e)
-        {
-            ReaLTaiizor.Controls.PoisonMessageBox.Show(
-                this,
-                "T7 Compiler GUI\n\nA powerful GSC compiler for Call of Duty: Black Ops 3/4",
-                "About",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
 
         private void SetupGameMenu()
         {
-            // Context menu no longer needed since we have Game menu in menu bar
-            // This method is kept for potential future use but currently does nothing
         }
 
         private void SetupGameModeMenu()
         {
-            // Context menu no longer needed since we have Mode menu in menu bar
-            // This method is kept for potential future use but currently does nothing
         }
 
-        private void ResetButtonState(object sender)
-        {
-            PoisonControlHelper.ResetButtonState(sender);
-        }
+        // Removed ResetButtonState wrapper - PoisonButton.OnClick now handles state reset automatically
+        // If needed for non-PoisonButton controls, use PoisonControlHelper.ResetButtonState directly
 
         #endregion
 
@@ -1085,7 +1076,7 @@ namespace T7CompilerGUI.Forms
             this.KeyDown -= CodeEditorForm_KeyDown;
             this.KeyDown += CodeEditorForm_KeyDown;
         }
-        
+
         private void CodeEditorForm_KeyDown(object sender, KeyEventArgs e)
         {
             // Initialize keybinds if not already loaded
@@ -1093,7 +1084,7 @@ namespace T7CompilerGUI.Forms
             {
                 codeEditorKeybinds = GetDefaultCodeEditorKeybinds();
             }
-            
+
             // Check each keybind
             foreach (var kvp in codeEditorKeybinds)
             {
@@ -1102,11 +1093,11 @@ namespace T7CompilerGUI.Forms
                 bool shiftMatch = keybind.Shift == e.Shift;
                 bool altMatch = keybind.Alt == e.Alt;
                 bool keyMatch = keybind.Key == e.KeyCode;
-                
+
                 if (ctrlMatch && shiftMatch && altMatch && keyMatch)
                 {
                     e.Handled = true;
-                    
+
                     // Execute the corresponding action
                     switch (kvp.Key)
                     {
@@ -1120,7 +1111,7 @@ namespace T7CompilerGUI.Forms
                             SaveCurrentFile();
                             break;
                         case "Save All":
-                    SaveAllFiles();
+                            SaveAllFiles();
                             break;
                         case "Refresh Files":
                             RefreshFileList(false);
@@ -1147,7 +1138,7 @@ namespace T7CompilerGUI.Forms
                     return;
                 }
             }
-            
+
             // Zoom shortcuts (Ctrl+Plus, Ctrl+Minus, Ctrl+0)
             if (e.Control)
             {
@@ -1170,7 +1161,7 @@ namespace T7CompilerGUI.Forms
                     return;
                 }
             }
-            
+
             // Go to Line (Ctrl+G)
             if (e.Control && e.KeyCode == Keys.G)
             {
@@ -1178,7 +1169,7 @@ namespace T7CompilerGUI.Forms
                 GoToLine();
                 return;
             }
-            
+
             // Undo/Redo - let AvalonEdit handle these natively
             // Ctrl+Z for undo, Ctrl+Y or Ctrl+Shift+Z for redo
             if (e.Control && e.KeyCode == Keys.Z && !e.Shift)
@@ -1192,7 +1183,7 @@ namespace T7CompilerGUI.Forms
                 // AvalonEdit will process this automatically
             }
         }
-        
+
         private void ShortcutsMenu_Click(object sender, EventArgs e)
         {
             // Get default keybinds for code editor
@@ -1200,7 +1191,7 @@ namespace T7CompilerGUI.Forms
             {
                 codeEditorKeybinds = GetDefaultCodeEditorKeybinds();
             }
-            
+
             // Open keybind dialog
             using (var dialog = new Dialogs.KeybindDialog(styleManager, codeEditorKeybinds))
             {
@@ -1212,7 +1203,7 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
         private Dictionary<string, Dialogs.KeybindDialog.KeybindInfo> GetDefaultCodeEditorKeybinds()
         {
             return new Dictionary<string, Dialogs.KeybindDialog.KeybindInfo>
@@ -1230,12 +1221,12 @@ namespace T7CompilerGUI.Forms
                 { "Go to Line", new Dialogs.KeybindDialog.KeybindInfo("Go to Line", Keys.G, ctrl: true) }
             };
         }
-        
+
         private void ApplyKeybindsToMenu()
         {
             if (codeEditorKeybinds == null || fileMenu == null)
                 return;
-            
+
             // Update menu items with new keybinds
             foreach (ToolStripItem item in fileMenu.DropDownItems)
             {
@@ -1250,7 +1241,7 @@ namespace T7CompilerGUI.Forms
                     menuItem.ShowShortcutKeys = false; // Keep shortcuts hidden in menu
                 }
             }
-            
+
             // Update keyboard shortcut handlers
             SetupKeyboardShortcuts();
         }
@@ -1261,8 +1252,6 @@ namespace T7CompilerGUI.Forms
 
         private void BtnNewProject_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             string selectedPath = ModernFolderDialog.Show(this, "Select Folder for New Project");
             if (string.IsNullOrEmpty(selectedPath))
                 return;
@@ -1275,7 +1264,7 @@ namespace T7CompilerGUI.Forms
                     "Folder Not Empty",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question);
-                
+
                 if (result != DialogResult.Yes)
                     return;
             }
@@ -1311,11 +1300,15 @@ namespace T7CompilerGUI.Forms
 
                 string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "bo3" : "bo4";
                 string gameModeLower = currentGameModeStr.ToLower();
-                File.WriteAllText(Path.Combine(selectedPath, "gsc.conf"), 
-                    $"symbols={gameSymbol},serious,{gameModeLower}");
+                // Read namespace from source files if available, otherwise use empty (will be read when project loads)
+                string namespaceSymbol = !string.IsNullOrEmpty(projectNamespace) ? projectNamespace : "";
+                string symbolsLine = string.IsNullOrEmpty(namespaceSymbol)
+                    ? $"symbols={gameSymbol},{gameModeLower}"
+                    : $"symbols={gameSymbol},{namespaceSymbol},{gameModeLower}";
+                File.WriteAllText(Path.Combine(selectedPath, "gsc.conf"), symbolsLine);
 
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Project created successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                
+
                 OpenFolder(selectedPath);
             }
             catch (Exception ex)
@@ -1326,8 +1319,6 @@ namespace T7CompilerGUI.Forms
 
         private void BtnOpenFolder_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             string selectedPath = ModernFolderDialog.Show(this, "Select Project Folder");
             if (!string.IsNullOrEmpty(selectedPath))
             {
@@ -1338,7 +1329,6 @@ namespace T7CompilerGUI.Forms
 
         private void BtnRecentProjects_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             ShowRecentProjectsMenu();
         }
 
@@ -1350,19 +1340,19 @@ namespace T7CompilerGUI.Forms
             try
             {
                 List<string> recentProjects = GetRecentProjects();
-                
+
                 // Remove if already exists (to move to top)
                 recentProjects.Remove(projectPath);
-                
+
                 // Add to beginning
                 recentProjects.Insert(0, projectPath);
-                
+
                 // Keep only last 10 projects
                 if (recentProjects.Count > 10)
                 {
                     recentProjects = recentProjects.Take(10).ToList();
                 }
-                
+
                 // Save to file
                 SaveRecentProjects(recentProjects);
             }
@@ -1372,13 +1362,13 @@ namespace T7CompilerGUI.Forms
             }
         }
 
-        private const string CONFIG_FILE_NAME = "T7CompilerGUI.config";
+        private const string CONFIG_FILE_NAME = "T7CompilerGUI.conf";
         private const int MAX_RECENT_PROJECTS = 10;
 
         private string GetConfigPath()
         {
             string startupPath = Application.StartupPath;
-            
+
             // Check if startup path is writable, if not use AppData
             try
             {
@@ -1426,7 +1416,7 @@ namespace T7CompilerGUI.Forms
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to load recent projects: {ex.Message}");
             }
-            
+
             return new List<string>();
         }
 
@@ -1436,7 +1426,7 @@ namespace T7CompilerGUI.Forms
             {
                 string configPath = GetConfigPath();
                 XDocument config;
-                
+
                 // Load existing config or create new one
                 if (File.Exists(configPath))
                 {
@@ -1448,21 +1438,21 @@ namespace T7CompilerGUI.Forms
                         new XElement("T7CompilerConfig")
                     );
                 }
-                
+
                 XElement root = config.Root;
                 if (root == null)
                 {
                     root = new XElement("T7CompilerConfig");
                     config.Add(root);
                 }
-                
+
                 // Remove existing RecentProjects element if it exists
                 XElement existingRecentProjects = root.Element("RecentProjects");
                 if (existingRecentProjects != null)
                 {
                     existingRecentProjects.Remove();
                 }
-                
+
                 // Add new RecentProjects element
                 if (projects != null && projects.Count > 0)
                 {
@@ -1470,7 +1460,7 @@ namespace T7CompilerGUI.Forms
                         projects.Take(MAX_RECENT_PROJECTS).Select(p => new XElement("Project", p))
                     ));
                 }
-                
+
                 // Save the config file
                 config.Save(configPath);
             }
@@ -1483,7 +1473,7 @@ namespace T7CompilerGUI.Forms
         private void ShowRecentProjectsMenu()
         {
             List<string> recentProjects = GetRecentProjects();
-            
+
             if (recentProjects.Count == 0)
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(
@@ -1494,45 +1484,43 @@ namespace T7CompilerGUI.Forms
                     MessageBoxIcon.Information);
                 return;
             }
-            
+
             // Create context menu using PoisonContextMenuStrip
             // Pass null for Container since we're creating it dynamically (constructor accepts null)
             ReaLTaiizor.Controls.PoisonContextMenuStrip recentMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(null);
             if (styleManager != null)
             {
-                // Set Theme and Style first to match StyleManager
-                recentMenu.Theme = styleManager.Theme;
-                recentMenu.Style = styleManager.Style;
-                recentMenu.UseStyleColors = true;
-                // Set StyleManager last - this will call settheme() and apply the theme
-                recentMenu.StyleManager = styleManager;
+                // Use helper to apply StyleManager - handles Theme, Style, and UseStyleColors automatically
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(recentMenu, styleManager);
             }
             else
             {
-                // Fallback if no StyleManager
-                recentMenu.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Dark;
-                recentMenu.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
+                // Fallback if no StyleManager - use helper to set properties with default theme
+                ReaLTaiizorExt.PoisonControlHelper.SetupControl(recentMenu, null, true, false);
+                ReaLTaiizorExt.PoisonControlHelper.UpdateThemeAndStyle(recentMenu,
+                    ReaLTaiizor.Enum.Poison.ThemeStyle.Dark, ReaLTaiizor.Enum.Poison.ColorStyle.Blue);
             }
-            
+
             foreach (string projectPath in recentProjects)
             {
                 string displayName = Path.GetFileName(projectPath);
                 if (string.IsNullOrEmpty(displayName))
                     displayName = projectPath;
-                
+
                 // Truncate if too long
                 if (displayName.Length > 50)
                 {
                     displayName = displayName.Substring(0, 47) + "...";
                 }
-                
+
                 ToolStripMenuItem item = new ToolStripMenuItem(displayName)
                 {
                     ToolTipText = projectPath
                 };
-                
+
                 string path = projectPath; // Capture for closure
-                item.Click += (s, e) => {
+                item.Click += (s, e) =>
+                {
                     if (Directory.Exists(path))
                     {
                         OpenFolder(path);
@@ -1546,35 +1534,36 @@ namespace T7CompilerGUI.Forms
                             "Error",
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Warning);
-                        
+
                         // Remove from recent projects
                         List<string> updated = GetRecentProjects();
                         updated.Remove(path);
                         SaveRecentProjects(updated);
                     }
                 };
-                
+
                 recentMenu.Items.Add(item);
             }
-            
+
             // Add separator and clear option
             recentMenu.Items.Add(new ToolStripSeparator());
             ToolStripMenuItem clearItem = new ToolStripMenuItem("Clear Recent Projects");
-            clearItem.Click += (s, e) => {
+            clearItem.Click += (s, e) =>
+            {
                 var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
                     this,
                     "Clear all recent projects?",
                     "Clear Recent Projects",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question);
-                
+
                 if (result == DialogResult.Yes)
                 {
                     SaveRecentProjects(new List<string>());
                 }
             };
             recentMenu.Items.Add(clearItem);
-            
+
             // Show menu at button location
             Point location = btnRecentProjects.PointToScreen(new Point(0, btnRecentProjects.Height));
             recentMenu.Show(location);
@@ -1582,46 +1571,39 @@ namespace T7CompilerGUI.Forms
 
         private void BtnNewFile_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             if (!folderOpened)
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Please open a project folder first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            
+
             // Use NewFileDialog with proper validation (matches original T7-Compiler-UI)
             if (NewFileDialog.ShowNewFileDialog(this, projectPath, out string fileName, out string fileExtension, styleManager))
             {
-                    RefreshFileList(false);
-                    
-                    // Open the new file
+                RefreshFileList(false);
+
+                // Open the new file
                 OpenFileInEditor($"{fileName}.{fileExtension}");
             }
         }
 
         private void BtnSave_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             SaveCurrentFile();
         }
 
         private void BtnSaveAll_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             SaveAllFiles();
         }
 
         private void BtnRefresh_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             RefreshFileList(false);
         }
 
         private void BtnPortIL_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             string ilProjectPath = ModernFolderDialog.Show(this, "Select IL (Infinity Loader) Project Folder");
             if (string.IsNullOrEmpty(ilProjectPath) || !Directory.Exists(ilProjectPath))
                 return;
@@ -1635,8 +1617,8 @@ namespace T7CompilerGUI.Forms
                 {
                     errorMessage += $"\n\nDetection Details:\n{detectionError}";
                 }
-                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
-                    errorMessage, 
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    errorMessage,
                     "Invalid Project", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -1683,11 +1665,15 @@ namespace T7CompilerGUI.Forms
 
                 string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "bo3" : "bo4";
                 string gameModeLower = currentGameModeStr.ToLower();
-                File.WriteAllText(Path.Combine(outputPath, "gsc.conf"), 
-                    $"symbols={gameSymbol},serious,{gameModeLower}");
+                // Read namespace from source files if available
+                string namespaceSymbol = !string.IsNullOrEmpty(projectNamespace) ? projectNamespace : "";
+                string symbolsLine = string.IsNullOrEmpty(namespaceSymbol)
+                    ? $"symbols={gameSymbol},{gameModeLower}"
+                    : $"symbols={gameSymbol},{namespaceSymbol},{gameModeLower}";
+                File.WriteAllText(Path.Combine(outputPath, "gsc.conf"), symbolsLine);
 
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "IL project ported successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                
+
                 OpenFolder(outputPath);
             }
             catch (Exception ex)
@@ -1702,11 +1688,9 @@ namespace T7CompilerGUI.Forms
 
         private void BtnSearch_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             if (tabControl.SelectedTab == null)
                 return;
-                
+
             using (var searchDialog = new Dialogs.SearchDialog(styleManager))
             {
                 if (searchDialog.ShowDialog(this) == DialogResult.OK)
@@ -1717,18 +1701,18 @@ namespace T7CompilerGUI.Forms
                         lastSearchFlags |= AvalonEditWrapper.SearchFlagsEnum.MatchCase;
                     if (searchDialog.WholeWord)
                         lastSearchFlags |= AvalonEditWrapper.SearchFlagsEnum.WholeWord;
-                    
+
                     // Reset search state to start fresh
                     currentSearchFileIndex = -1;
                     currentSearchPosition = -1;
                     searchableFiles.Clear();
-                    
+
                     // Always search all project files
                     InitializeSearchAllProjectFiles();
-                    
+
                     // Perform search and show results
                     List<Dialogs.SearchResultsDialog.SearchResult> results = PerformSearch(searchDialog.SearchText, lastSearchFlags, true);
-                    
+
                     if (results.Count > 1)
                     {
                         // Show results dialog if multiple matches
@@ -1747,7 +1731,7 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
         private void GoToLine()
         {
             AvalonEditWrapper currentEditor = GetCurrentEditor();
@@ -1758,25 +1742,25 @@ namespace T7CompilerGUI.Forms
             }
 
             int maxLine = currentEditor.LineCount;
-            
+
             // Build list of navigation items (functions, labels, ifdefs)
             var navigationItems = BuildNavigationItems(currentEditor);
-            
+
             // Use the proper GoToLineDialog
             using (var dialog = new Dialogs.GoToLineDialog(navigationItems, maxLine, currentEditor.CurrentLine, styleManager))
             {
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                 {
                     int targetLine = dialog.SelectedLineNumber;
-                    
+
                     // If an ifdef/endif was selected and it has a matching line, navigate to the match
-                    if (dialog.SelectedNavigationItem != null && 
+                    if (dialog.SelectedNavigationItem != null &&
                         dialog.SelectedNavigationItem.MatchingLineNumber > 0 &&
                         (dialog.SelectedNavigationItem.Type == "ifdef" || dialog.SelectedNavigationItem.Type == "endif"))
                     {
                         targetLine = dialog.SelectedNavigationItem.MatchingLineNumber;
                     }
-                    
+
                     if (targetLine >= 1 && targetLine <= maxLine)
                     {
                         currentEditor.CurrentLine = targetLine;
@@ -1794,25 +1778,25 @@ namespace T7CompilerGUI.Forms
         private List<Dialogs.GoToLineDialog.NavigationItem> BuildNavigationItems(AvalonEditWrapper editor)
         {
             var items = new List<Dialogs.GoToLineDialog.NavigationItem>();
-            
+
             if (editor == null || string.IsNullOrEmpty(editor.Text))
                 return items;
-            
+
             string[] lines = editor.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            
+
             // Dictionary to track ifdef/endif pairs: ifdef line -> endif line
             var ifdefToEndif = new Dictionary<int, int>();
             var endifToIfdef = new Dictionary<int, int>();
-            
+
             // Stack to track ifdef nesting for matching endif
             var ifdefStack = new Stack<(int line, string symbol, string type)>();
-            
+
             // First pass: build the ifdef/endif mapping
             for (int i = 0; i < lines.Length; i++)
             {
                 int lineNumber = i + 1;
                 string line = lines[i].Trim();
-                
+
                 // Match #ifdef, #ifndef
                 var ifdefMatch = Regex.Match(line, @"#ifdef\s+(\w+)", RegexOptions.IgnoreCase);
                 var ifndefMatch = Regex.Match(line, @"#ifndef\s+(\w+)", RegexOptions.IgnoreCase);
@@ -1821,7 +1805,7 @@ namespace T7CompilerGUI.Forms
                     string symbol = ifdefMatch.Success ? ifdefMatch.Groups[1].Value : ifndefMatch.Groups[1].Value;
                     ifdefStack.Push((lineNumber, symbol, ifdefMatch.Success ? "ifdef" : "ifndef"));
                 }
-                
+
                 // Match #endif
                 if (Regex.IsMatch(line, @"#endif", RegexOptions.IgnoreCase))
                 {
@@ -1833,16 +1817,16 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             // Second pass: build navigation items with matching line numbers
             for (int i = 0; i < lines.Length; i++)
             {
                 int lineNumber = i + 1;
                 string line = lines[i].Trim();
-                
+
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
-                
+
                 // Match functions: functionName( or functionName {
                 var functionMatch = Regex.Match(line, @"^\s*(\w+)\s*[({]", RegexOptions.IgnoreCase);
                 if (functionMatch.Success)
@@ -1859,7 +1843,7 @@ namespace T7CompilerGUI.Forms
                         });
                     }
                 }
-                
+
                 // Match labels: labelName:
                 var labelMatch = Regex.Match(line, @"^\s*(\w+)\s*:", RegexOptions.IgnoreCase);
                 if (labelMatch.Success)
@@ -1872,7 +1856,7 @@ namespace T7CompilerGUI.Forms
                         Type = "label"
                     });
                 }
-                
+
                 // Match #ifdef, #ifndef
                 var ifdefMatch = Regex.Match(line, @"#ifdef\s+(\w+)", RegexOptions.IgnoreCase);
                 var ifndefMatch = Regex.Match(line, @"#ifndef\s+(\w+)", RegexOptions.IgnoreCase);
@@ -1900,7 +1884,7 @@ namespace T7CompilerGUI.Forms
                         MatchingLineNumber = matchingEndif
                     });
                 }
-                
+
                 // Match #endif
                 if (Regex.IsMatch(line, @"#endif", RegexOptions.IgnoreCase))
                 {
@@ -1926,15 +1910,15 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             return items;
         }
 
         private bool IsKeyword(string word)
         {
             // Common GSC keywords that shouldn't be treated as functions
-            string[] keywords = { "if", "else", "while", "for", "foreach", "switch", "case", "default", 
-                                 "return", "wait", "waitframe", "waittill", "thread", "self", "level", 
+            string[] keywords = { "if", "else", "while", "for", "foreach", "switch", "case", "default",
+                                 "return", "wait", "waitframe", "waittill", "thread", "self", "level",
                                  "game", "undefined", "true", "false", "var", "const", "private", "new" };
             return Array.IndexOf(keywords, word.ToLower()) >= 0;
         }
@@ -1970,7 +1954,7 @@ namespace T7CompilerGUI.Forms
         private int currentSearchFileIndex = -1;
         private int currentSearchPosition = -1;
         private List<string> searchableFiles = new List<string>();
-        
+
         // Use SearchResultsDialog.SearchResult for consistency
 
         private void FindNext()
@@ -1980,19 +1964,19 @@ namespace T7CompilerGUI.Forms
                 BtnSearch_Click(null, EventArgs.Empty);
                 return;
             }
-            
+
             // Initialize search across all open files
             if (currentSearchFileIndex < 0 || searchableFiles.Count == 0)
             {
                 InitializeSearchAcrossFiles();
             }
-            
+
             if (searchableFiles.Count == 0)
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "No files to search.", "Search", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            
+
             // Search in current file from current position
             AvalonEditWrapper currentEditor = GetCurrentEditor();
             if (currentEditor != null && currentSearchFileIndex >= 0 && currentSearchFileIndex < searchableFiles.Count)
@@ -2002,28 +1986,28 @@ namespace T7CompilerGUI.Forms
                 {
                     // Continue searching in current file
                     int startPos = currentSearchPosition >= 0 ? currentSearchPosition : currentEditor.CurrentPosition;
-                        int endPos = currentEditor.TextLength;
-                        
-            currentEditor.SearchFlags = lastSearchFlags;
-                        currentEditor.TargetStart = startPos;
-                        currentEditor.TargetEnd = endPos;
-                        
-            int foundPos = currentEditor.SearchInTarget(lastSearchText);
-            
-            if (foundPos >= 0)
-            {
-                currentEditor.SetSelection(currentEditor.TargetStart, currentEditor.TargetEnd);
-                currentEditor.ScrollCaret();
+                    int endPos = currentEditor.TextLength;
+
+                    currentEditor.SearchFlags = lastSearchFlags;
+                    currentEditor.TargetStart = startPos;
+                    currentEditor.TargetEnd = endPos;
+
+                    int foundPos = currentEditor.SearchInTarget(lastSearchText);
+
+                    if (foundPos >= 0)
+                    {
+                        currentEditor.SetSelection(currentEditor.TargetStart, currentEditor.TargetEnd);
+                        currentEditor.ScrollCaret();
                         currentEditor.Focus();
                         currentSearchPosition = currentEditor.TargetEnd;
                         return;
                     }
                 }
             }
-            
+
             // Not found in current file, search in next files
             bool found = SearchInNextFile();
-            
+
             if (!found)
             {
                 // Not found anywhere - wrap around and search from beginning
@@ -2031,10 +2015,10 @@ namespace T7CompilerGUI.Forms
                 currentSearchFileIndex = -1;
                 currentSearchPosition = -1;
                 InitializeSearchAcrossFiles();
-                
+
                 // Try one more time from the beginning
                 found = SearchInNextFile();
-                
+
                 if (!found)
                 {
                     ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Text not found in any open file.", "Search", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -2047,17 +2031,17 @@ namespace T7CompilerGUI.Forms
         private void InitializeSearchAcrossFiles()
         {
             searchableFiles.Clear();
-            
+
             // Get all open GSC files
             foreach (var kvp in openEditors)
             {
-                if (kvp.Key.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) || 
+                if (kvp.Key.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
                     kvp.Key.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
                 {
                     searchableFiles.Add(kvp.Key);
                 }
             }
-            
+
             // Start from current file
             AvalonEditWrapper currentEditor = GetCurrentEditor();
             if (currentEditor != null)
@@ -2074,18 +2058,18 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             currentSearchFileIndex = 0;
             currentSearchPosition = 0;
         }
-        
+
         private void InitializeSearchAllProjectFiles()
         {
             searchableFiles.Clear();
-            
+
             if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
                 return;
-            
+
             try
             {
                 // Get all .gsc and .csc files from the project
@@ -2095,7 +2079,7 @@ namespace T7CompilerGUI.Forms
                     if (!searchableFiles.Contains(file, StringComparer.OrdinalIgnoreCase))
                         searchableFiles.Add(file);
                 }
-                
+
                 files = Directory.GetFiles(projectPath, "*.csc", SearchOption.AllDirectories);
                 foreach (string file in files)
                 {
@@ -2108,16 +2092,16 @@ namespace T7CompilerGUI.Forms
                 System.Diagnostics.Debug.WriteLine($"Error initializing search all project files: {ex.Message}");
             }
         }
-        
+
         private List<Dialogs.SearchResultsDialog.SearchResult> PerformSearch(string searchText, AvalonEditWrapper.SearchFlagsEnum flags, bool searchAllFiles)
         {
             List<Dialogs.SearchResultsDialog.SearchResult> results = new List<Dialogs.SearchResultsDialog.SearchResult>();
-            
+
             if (string.IsNullOrEmpty(searchText))
                 return results;
-            
+
             List<string> filesToSearch = new List<string>();
-            
+
             if (searchAllFiles)
             {
                 // Search all project files
@@ -2129,7 +2113,7 @@ namespace T7CompilerGUI.Forms
                 // Search only open files
                 foreach (var kvp in openEditors)
                 {
-                    if (kvp.Key.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) || 
+                    if (kvp.Key.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
                         kvp.Key.EndsWith(".csc", StringComparison.OrdinalIgnoreCase) ||
                         kvp.Key.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
                     {
@@ -2137,7 +2121,7 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             foreach (string filePath in filesToSearch)
             {
                 try
@@ -2145,20 +2129,20 @@ namespace T7CompilerGUI.Forms
                     string[] lines = File.ReadAllLines(filePath);
                     bool matchCase = (flags & AvalonEditWrapper.SearchFlagsEnum.MatchCase) != 0;
                     bool wholeWord = (flags & AvalonEditWrapper.SearchFlagsEnum.WholeWord) != 0;
-                    
+
                     StringComparison comparison = matchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-                    
+
                     for (int i = 0; i < lines.Length; i++)
                     {
                         string line = lines[i];
                         int searchIndex = 0;
-                        
+
                         while (true)
                         {
                             int index = line.IndexOf(searchText, searchIndex, comparison);
                             if (index < 0)
                                 break;
-                            
+
                             // Check whole word if needed
                             if (wholeWord)
                             {
@@ -2167,14 +2151,14 @@ namespace T7CompilerGUI.Forms
                                     isWholeWord = false;
                                 if (index + searchText.Length < line.Length && char.IsLetterOrDigit(line[index + searchText.Length]))
                                     isWholeWord = false;
-                                
+
                                 if (!isWholeWord)
                                 {
                                     searchIndex = index + 1;
                                     continue;
                                 }
                             }
-                            
+
                             // Found a match
                             results.Add(new Dialogs.SearchResultsDialog.SearchResult
                             {
@@ -2185,7 +2169,7 @@ namespace T7CompilerGUI.Forms
                                 MatchStart = index,
                                 MatchLength = searchText.Length
                             });
-                            
+
                             searchIndex = index + searchText.Length;
                         }
                     }
@@ -2196,10 +2180,10 @@ namespace T7CompilerGUI.Forms
                     continue;
                 }
             }
-            
+
             return results;
         }
-        
+
         private void ShowSearchResults(List<Dialogs.SearchResultsDialog.SearchResult> results)
         {
             using (var resultsDialog = new Dialogs.SearchResultsDialog(results, styleManager, projectPath))
@@ -2210,7 +2194,7 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
         private void NavigateToSearchResult(Dialogs.SearchResultsDialog.SearchResult result)
         {
             // Open the file if not already open
@@ -2220,21 +2204,21 @@ namespace T7CompilerGUI.Forms
                 // Give it time to load
                 Application.DoEvents();
             }
-            
+
             // Switch to the file's tab
             if (editorTabs.ContainsKey(result.FilePath))
             {
                 tabControl.SelectedTab = editorTabs[result.FilePath];
                 Application.DoEvents();
             }
-            
+
             // Navigate to the line and column
             if (openEditors.ContainsKey(result.FilePath))
             {
                 AvalonEditWrapper editor = openEditors[result.FilePath];
                 editor.CurrentLine = result.LineNumber;
                 editor.CurrentColumn = result.ColumnNumber;
-                
+
                 // Select the match
                 if (result.LineNumber > 0 && result.LineNumber <= editor.LineCount)
                 {
@@ -2247,26 +2231,26 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
 
         private bool SearchInNextFile()
         {
             if (searchableFiles.Count == 0)
                 return false;
-            
+
             // Start from next file (or current file if we haven't started searching yet)
             int startFileIndex = currentSearchFileIndex >= 0 ? currentSearchFileIndex + 1 : 0;
-            
+
             // If we've wrapped around, start from beginning
             if (startFileIndex >= searchableFiles.Count)
                 startFileIndex = 0;
-            
+
             // Search through all files (wrap around once)
             for (int fileOffset = 0; fileOffset < searchableFiles.Count; fileOffset++)
-                        {
+            {
                 int fileIndex = (startFileIndex + fileOffset) % searchableFiles.Count;
                 string fileName = searchableFiles[fileIndex];
-                
+
                 // If file is not open, open it for searching
                 if (!openEditors.ContainsKey(fileName))
                 {
@@ -2282,14 +2266,14 @@ namespace T7CompilerGUI.Forms
                         continue; // File doesn't exist, skip it
                     }
                 }
-                
+
                 if (!openEditors.ContainsKey(fileName))
                     continue;
-                
+
                 AvalonEditWrapper editor = openEditors[fileName];
                 if (editor == null)
                     continue;
-                
+
                 // Switch to this file's tab BEFORE searching
                 if (editorTabs.ContainsKey(fileName))
                 {
@@ -2297,19 +2281,19 @@ namespace T7CompilerGUI.Forms
                     // Give the tab time to switch
                     Application.DoEvents();
                 }
-                
+
                 // Search in this file - start from beginning if it's a new file, or from current position if it's the first file we're checking
                 editor.SearchFlags = lastSearchFlags;
-                
+
                 // If this is the first file we're checking and we have a saved position, use it
                 // Otherwise start from beginning (or current cursor position if it's the current file)
                 if (fileOffset == 0 && fileIndex == currentSearchFileIndex && currentSearchPosition >= 0)
                 {
                     // Continue from where we left off in the current file
                     editor.TargetStart = currentSearchPosition;
-                        }
-                        else
-                        {
+                }
+                else
+                {
                     // Start from beginning of file (or current cursor if it's the active tab)
                     if (tabControl.SelectedTab != null && editorTabs.ContainsKey(fileName) && editorTabs[fileName] == tabControl.SelectedTab)
                     {
@@ -2320,38 +2304,36 @@ namespace T7CompilerGUI.Forms
                         editor.TargetStart = 0;
                     }
                 }
-                
+
                 editor.TargetEnd = editor.TextLength;
-                
+
                 int foundPos = editor.SearchInTarget(lastSearchText);
-                
+
                 if (foundPos >= 0)
                 {
                     // Found it! Select and scroll to it
                     editor.SetSelection(editor.TargetStart, editor.TargetEnd);
                     editor.ScrollCaret();
                     editor.Focus();
-                    
+
                     // Update search state
                     currentSearchFileIndex = fileIndex;
                     currentSearchPosition = editor.TargetEnd;
                     return true;
                 }
-                
+
                 // Not found in this file, reset position for next file
                 currentSearchPosition = 0;
-                        }
-            
+            }
+
             return false;
-                }
-        
+        }
+
         private void BtnReplace_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             if (tabControl.SelectedTab == null)
                 return;
-                
+
             using (var replaceDialog = new Dialogs.ReplaceDialog(styleManager))
             {
                 if (replaceDialog.ShowDialog() == DialogResult.OK)
@@ -2361,10 +2343,10 @@ namespace T7CompilerGUI.Forms
                     bool matchCase = replaceDialog.MatchCase;
                     bool wholeWord = replaceDialog.WholeWord;
                     bool replaceAll = replaceDialog.ReplaceAll;
-                    
+
                     AvalonEditWrapper currentEditor = GetCurrentEditor();
                     if (currentEditor == null)
-                return;
+                        return;
 
                     // Set search flags
                     AvalonEditWrapper.SearchFlagsEnum searchFlags = AvalonEditWrapper.SearchFlagsEnum.None;
@@ -2372,16 +2354,16 @@ namespace T7CompilerGUI.Forms
                         searchFlags |= AvalonEditWrapper.SearchFlagsEnum.MatchCase;
                     if (wholeWord)
                         searchFlags |= AvalonEditWrapper.SearchFlagsEnum.WholeWord;
-                    
+
                     currentEditor.SearchFlags = searchFlags;
-                    
+
                     if (replaceAll)
                     {
                         // Replace all occurrences
                         int replaceCount = 0;
                         currentEditor.TargetStart = 0;
                         currentEditor.TargetEnd = currentEditor.TextLength;
-                        
+
                         while (currentEditor.SearchInTarget(searchText) >= 0)
                         {
                             currentEditor.ReplaceTarget(replaceText);
@@ -2389,11 +2371,11 @@ namespace T7CompilerGUI.Forms
                             currentEditor.TargetStart = currentEditor.TargetEnd;
                             currentEditor.TargetEnd = currentEditor.TextLength;
                         }
-                        
-                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
-                            $"Replaced {replaceCount} occurrence(s).", 
-                            "Replace", 
-                            MessageBoxButtons.OK, 
+
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                            $"Replaced {replaceCount} occurrence(s).",
+                            "Replace",
+                            MessageBoxButtons.OK,
                             MessageBoxIcon.Information);
                     }
                     else
@@ -2408,10 +2390,10 @@ namespace T7CompilerGUI.Forms
                             // Find next and replace
                             int startPos = currentEditor.CurrentPosition;
                             int endPos = currentEditor.TextLength;
-                            
+
                             currentEditor.TargetStart = startPos;
                             currentEditor.TargetEnd = endPos;
-                            
+
                             if (currentEditor.SearchInTarget(searchText) >= 0)
                             {
                                 currentEditor.ReplaceTarget(replaceText);
@@ -2434,14 +2416,14 @@ namespace T7CompilerGUI.Forms
 
         // Store the last used hashes.txt path
         private string lastHashesFilePath = null;
-        
+
         /// <summary>
         /// Loads and parses the hashes.txt file from the project's compiled folder
         /// </summary>
         private bool LoadHashesFile(bool promptIfNotFound = false)
         {
             hashToFunctionMap.Clear();
-            
+
             if (string.IsNullOrEmpty(projectPath) || !folderOpened)
             {
                 if (promptIfNotFound)
@@ -2450,7 +2432,7 @@ namespace T7CompilerGUI.Forms
                 }
                 return false;
             }
-            
+
             // Look for hashes.txt in common locations
             string[] possiblePaths = new[]
             {
@@ -2460,13 +2442,13 @@ namespace T7CompilerGUI.Forms
                 Path.Combine(Directory.GetParent(projectPath)?.FullName ?? "", "compiled", "hashes.txt"),
                 Path.Combine(Directory.GetParent(projectPath)?.FullName ?? "", "build", "hashes.txt")
             };
-            
+
             // If we have a last used path, check it first
             if (!string.IsNullOrEmpty(lastHashesFilePath) && File.Exists(lastHashesFilePath))
             {
                 possiblePaths = new[] { lastHashesFilePath }.Concat(possiblePaths).ToArray();
             }
-            
+
             string hashesPath = null;
             foreach (string path in possiblePaths)
             {
@@ -2476,7 +2458,7 @@ namespace T7CompilerGUI.Forms
                     break;
                 }
             }
-            
+
             if (string.IsNullOrEmpty(hashesPath))
             {
                 // Try to find hashes.txt recursively
@@ -2493,7 +2475,7 @@ namespace T7CompilerGUI.Forms
                     // Ignore errors
                 }
             }
-            
+
             if (string.IsNullOrEmpty(hashesPath) || !File.Exists(hashesPath))
             {
                 if (promptIfNotFound)
@@ -2503,10 +2485,10 @@ namespace T7CompilerGUI.Forms
                 }
                 return false;
             }
-            
+
             // Store the path for future use
             lastHashesFilePath = hashesPath;
-            
+
             try
             {
                 string[] lines = File.ReadAllLines(hashesPath);
@@ -2515,18 +2497,18 @@ namespace T7CompilerGUI.Forms
                     // Skip comments and empty lines
                     if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("#"))
                         continue;
-                    
+
                     // Parse format: "0x006CB618, functionname" or "0x006CB618, 0bogsindex..."
                     string[] parts = line.Split(new[] { ',' }, 2);
                     if (parts.Length == 2)
                     {
                         string hash = parts[0].Trim();
                         string functionName = parts[1].Trim();
-                        
+
                         // Skip obfuscated function names (those starting with "0bogs")
                         if (functionName.StartsWith("0bogs", StringComparison.OrdinalIgnoreCase))
                             continue;
-                        
+
                         // Store hash without "0x" prefix for easier lookup
                         string hashKey = hash.Replace("0x", "").Replace("0X", "").ToUpper();
                         if (!hashToFunctionMap.ContainsKey(hashKey))
@@ -2542,10 +2524,10 @@ namespace T7CompilerGUI.Forms
                 System.Diagnostics.Debug.WriteLine($"Error loading hashes.txt: {ex.Message}");
                 return false;
             }
-            
+
             return true; // Successfully loaded
         }
-        
+
         /// <summary>
         /// Prompts the user to select the hashes.txt file location
         /// </summary>
@@ -2556,7 +2538,7 @@ namespace T7CompilerGUI.Forms
                 dialog.Filter = "Hash Files|hashes.txt|All Files|*.*";
                 dialog.Title = "Select hashes.txt file";
                 dialog.CheckFileExists = true;
-                
+
                 // Set initial directory to project path or last used path
                 if (!string.IsNullOrEmpty(projectPath) && Directory.Exists(projectPath))
                 {
@@ -2567,7 +2549,7 @@ namespace T7CompilerGUI.Forms
                     dialog.InitialDirectory = Path.GetDirectoryName(lastHashesFilePath);
                     dialog.FileName = Path.GetFileName(lastHashesFilePath);
                 }
-                
+
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     lastHashesFilePath = dialog.FileName;
@@ -2575,7 +2557,7 @@ namespace T7CompilerGUI.Forms
                 }
             }
         }
-        
+
         /// <summary>
         /// Looks up a function name from a hash
         /// </summary>
@@ -2583,18 +2565,18 @@ namespace T7CompilerGUI.Forms
         {
             if (string.IsNullOrWhiteSpace(hash))
                 return null;
-            
+
             // Normalize hash (remove 0x prefix, uppercase)
             string hashKey = hash.Replace("0x", "").Replace("0X", "").Trim().ToUpper();
-            
+
             if (hashToFunctionMap.ContainsKey(hashKey))
             {
                 return hashToFunctionMap[hashKey];
             }
-            
+
             return null;
         }
-        
+
         /// <summary>
         /// Searches for a function in all open files and navigates to it
         /// </summary>
@@ -2602,7 +2584,7 @@ namespace T7CompilerGUI.Forms
         {
             if (string.IsNullOrWhiteSpace(functionName))
                 return false;
-            
+
             // Try different patterns: functionName(, functionName {, functionName =, etc.
             string[] searchPatterns = new[]
             {
@@ -2612,18 +2594,18 @@ namespace T7CompilerGUI.Forms
                 $@"\b{Regex.Escape(functionName)}\s*;",
                 $@"\b{Regex.Escape(functionName)}\b"
             };
-            
+
             // Search in all open files
             foreach (var kvp in openEditors)
             {
                 string fileName = kvp.Key;
                 AvalonEditWrapper editor = kvp.Value;
-                
+
                 if (editor == null)
                     continue;
-                
+
                 string content = editor.Text;
-                
+
                 // Try each search pattern
                 foreach (string pattern in searchPatterns)
                 {
@@ -2632,23 +2614,23 @@ namespace T7CompilerGUI.Forms
                     {
                         // Found it! Navigate to this position
                         int position = match.Index;
-                        
+
                         // Switch to this tab
                         if (editorTabs.ContainsKey(fileName))
                         {
                             tabControl.SelectedTab = editorTabs[fileName];
                         }
-                        
+
                         // Set cursor position and scroll to it
                         editor.GotoPosition(position);
                         editor.SetSelection(position, position + match.Length);
                         editor.ScrollCaret();
-                        
+
                         return true;
                     }
                 }
             }
-            
+
             // If not found in open files, try to find and open the file
             if (!string.IsNullOrEmpty(projectPath) && Directory.Exists(projectPath))
             {
@@ -2656,13 +2638,13 @@ namespace T7CompilerGUI.Forms
                 {
                     // Search for .gsc files containing the function
                     string[] gscFiles = Directory.GetFiles(projectPath, "*.gsc", SearchOption.AllDirectories);
-                    
+
                     foreach (string filePath in gscFiles)
                     {
                         try
                         {
                             string content = File.ReadAllText(filePath);
-                            
+
                             // Try each search pattern
                             foreach (string pattern in searchPatterns)
                             {
@@ -2672,11 +2654,11 @@ namespace T7CompilerGUI.Forms
                                     // Found it! Open the file (use full path)
                                     string fullPath = Path.GetFullPath(filePath);
                                     OpenFileInEditor(fullPath);
-                                    
+
                                     // Wait a bit for the file to open, then navigate
                                     Application.DoEvents();
                                     System.Threading.Thread.Sleep(50);
-                                    
+
                                     if (openEditors.ContainsKey(fullPath))
                                     {
                                         AvalonEditWrapper editor = openEditors[fullPath];
@@ -2685,7 +2667,7 @@ namespace T7CompilerGUI.Forms
                                         editor.SetSelection(position, position + match.Length);
                                         editor.ScrollCaret();
                                     }
-                                    
+
                                     return true;
                                 }
                             }
@@ -2702,14 +2684,12 @@ namespace T7CompilerGUI.Forms
                     // Ignore errors
                 }
             }
-            
+
             return false;
         }
-        
+
         private void BtnHashCheck_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             string hashInput = txtHashInput.Text?.Trim();
             if (string.IsNullOrWhiteSpace(hashInput))
             {
@@ -2720,7 +2700,7 @@ namespace T7CompilerGUI.Forms
                     MessageBoxIcon.Information);
                 return;
             }
-            
+
             // Load hashes if not already loaded, prompt if not found
             if (hashToFunctionMap.Count == 0)
             {
@@ -2733,7 +2713,7 @@ namespace T7CompilerGUI.Forms
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
                     PromptForHashesFile();
-                    
+
                     // Try loading again after user selects file
                     if (hashToFunctionMap.Count == 0)
                     {
@@ -2746,10 +2726,10 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             // Lookup function name
             string functionName = GetFunctionNameFromHash(hashInput);
-            
+
             if (string.IsNullOrEmpty(functionName))
             {
                 // Offer to reload or select a different file
@@ -2758,7 +2738,7 @@ namespace T7CompilerGUI.Forms
                     "Hash Not Found",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning);
-                
+
                 if (result == DialogResult.Yes)
                 {
                     PromptForHashesFile();
@@ -2779,10 +2759,10 @@ namespace T7CompilerGUI.Forms
                     return;
                 }
             }
-            
+
             // Navigate to function
             bool found = NavigateToFunction(functionName);
-            
+
             if (!found)
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
@@ -2801,7 +2781,7 @@ namespace T7CompilerGUI.Forms
                     MessageBoxIcon.Information);
             }
         }
-        
+
         private void TxtHashInput_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter)
@@ -2815,7 +2795,7 @@ namespace T7CompilerGUI.Forms
 
         #region Folder and File Management
 
-        private void OpenFolder(string path)
+        internal void OpenFolder(string path)
         {
             if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
                 return;
@@ -2829,46 +2809,86 @@ namespace T7CompilerGUI.Forms
                     "WARNING",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning);
-                
+
                 if (result != DialogResult.Yes)
                     return;
-                    
+
                 var m = ReaLTaiizor.Controls.PoisonMessageBox.Show(
                     this,
                     "Do you really wish to open this folder? IT WILL DESTROY YOUR FOLDER STRUCTURE",
                     "WARNING",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning);
-                    
+
                 if (m != DialogResult.Yes)
                     return;
             }
 
             try
             {
-                // Clear existing tabs and editors when opening a new folder
-                if (tabControl.TabPages.Count > 0)
+                // CRITICAL: Dispose all resources before clearing to prevent memory leaks
+                // Dispose all editors and tab pages first
+                if (openEditors != null && openEditors.Count > 0)
                 {
-                    tabControl.TabPages.Clear();
+                    var keysToCleanup = new List<string>(openEditors.Keys);
+                    foreach (var key in keysToCleanup)
+                    {
+                        CleanupTabResources(key);
+                    }
+                }
+
+                // Dispose all file button controls (they have event handlers that keep references alive)
+                if (fileButtonsPanel != null && fileButtonsPanel.Controls.Count > 0)
+                {
+                    var controlsToDispose = new List<Control>();
+                    foreach (Control control in fileButtonsPanel.Controls)
+                    {
+                        controlsToDispose.Add(control);
+                    }
+                    fileButtonsPanel.Controls.Clear(); // Clear first to remove from parent
+                    foreach (var control in controlsToDispose)
+                    {
+                        // Dispose container and all child controls (buttons)
+                        DisposeControlRecursive(control);
+                    }
+                }
+
+                // Clear dictionaries (resources already disposed above)
+                if (openEditors != null)
+                {
                     openEditors.Clear();
+                }
+                if (editorTabs != null)
+                {
                     editorTabs.Clear();
                 }
-                fileButtonsPanel.Controls.Clear();
+                if (tabControl != null && tabControl.TabPages.Count > 0)
+                {
+                    tabControl.TabPages.Clear();
+                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error clearing controls in OpenFolder: {ex.Message}");
+            }
 
             // Set project path and folder opened BEFORE calling RefreshFileList
             projectPath = path;
             folderOpened = true;
-            CompilerActions.menu = Path.GetFileName(projectPath);
-            lblProjectPath.Text = $"Project: {CompilerActions.menu}";
-            
+            string projectName = Path.GetFileName(projectPath);
+
+            // Update UI controls with null checks
+            if (lblProjectPath != null)
+            {
+                lblProjectPath.Text = $"Project: {projectName}";
+            }
+
             // Update status bar to show project path
             if (statusLabel != null)
             {
                 statusLabel.Text = GetDefaultStatusText();
             }
-            
+
             // Add to recent projects
             AddToRecentProjects(path);
 
@@ -2876,10 +2896,10 @@ namespace T7CompilerGUI.Forms
             string guiPath = GetGuiPath();
             string defaultProjectBasePath = Path.Combine(guiPath, "defaultproject");
             bool isDefaultProject = path.StartsWith(defaultProjectBasePath, StringComparison.OrdinalIgnoreCase);
-            
+
             // Skip IL detection for already-ported projects (they have "_ported" in the path)
             bool isPortedProject = path.IndexOf("_ported", StringComparison.OrdinalIgnoreCase) >= 0;
-            
+
             // Check for IL project (new syntax: system::register("infinityloader" or #ifdef IL)
             // Skip detection for default project template and already-ported projects
             if (!isDefaultProject && !isPortedProject)
@@ -2916,11 +2936,11 @@ namespace T7CompilerGUI.Forms
             // Only move contents if scripts folder exists and has no files, or if no GSC files found in root
             string scriptsPath = Path.Combine(projectPath, "scripts");
             bool hasGscFilesInRoot = Directory.GetFiles(projectPath, "*.gsc", SearchOption.TopDirectoryOnly).Length > 0;
-            
+
             // Only move contents if scripts folder exists and project appears to need organization
             if (Directory.Exists(scriptsPath) && !hasGscFilesInRoot)
             {
-            MoveContentsToScripts(scriptsPath);
+                MoveContentsToScripts(scriptsPath);
             }
 
             // Setup file watcher to watch entire project folder (not just scripts)
@@ -2934,10 +2954,10 @@ namespace T7CompilerGUI.Forms
 
             // Load symbols from gsc.conf
             LoadSymbolsFromGscConf();
-            
+
             // Load hashes.txt for hash checker
             LoadHashesFile(false);
-            
+
             // Now refresh file list (folderOpened and projectPath are set)
             RefreshFileList(false);
             UpdateTitle();
@@ -2987,41 +3007,178 @@ namespace T7CompilerGUI.Forms
             if (!force && !folderOpened)
                 return;
 
-            // Clear existing tabs and editors when refreshing
-            if (tabControl.TabPages.Count > 0)
+            // INSTANT UNLOAD: Hide panels immediately to prevent visual flicker
+            // This makes unloading appear instant, just like loading
+            bool wasFileButtonsPanelVisible = fileButtonsPanel != null ? fileButtonsPanel.Visible : false;
+            bool wasTabControlVisible = tabControl != null ? tabControl.Visible : false;
+
+            // Suspend painting and layout for both panels simultaneously
+            if (fileButtonsPanel != null)
             {
-                tabControl.TabPages.Clear();
+                fileButtonsPanel.SuspendLayout();
+                fileButtonsPanel.Visible = false; // Hide instantly - user won't see disposal
+            }
+            if (tabControl != null)
+            {
+                tabControl.SuspendLayout();
+                tabControl.Visible = false; // Hide instantly - user won't see disposal
+            }
+
+            // OPTIMIZED UNLOAD: Batch all disposal operations for maximum speed
+            // Clear tab pages first (fast operation, no disposal needed here)
+            if (tabControl != null && tabControl.TabPages.Count > 0)
+            {
+                tabControl.TabPages.Clear(); // Fast clear - tab pages will be disposed separately
+            }
+
+            // Batch collect all resources to dispose in one pass (much faster than individual cleanup)
+            var editorsToDispose = new List<AvalonEditWrapper>();
+            var tabPagesToDispose = new List<ReaLTaiizor.Controls.PoisonTabPage>();
+            var fileButtonsToDispose = new List<Control>();
+
+            // Collect all resources in single pass
+            if (openEditors != null && openEditors.Count > 0)
+            {
+                foreach (var kvp in openEditors)
+                {
+                    if (kvp.Value != null)
+                    {
+                        editorsToDispose.Add(kvp.Value);
+                    }
+                    if (editorTabs != null && editorTabs.ContainsKey(kvp.Key))
+                    {
+                        var tabPage = editorTabs[kvp.Key];
+                        if (tabPage != null)
+                        {
+                            tabPagesToDispose.Add(tabPage);
+                        }
+                    }
+                }
+            }
+
+            // Collect file buttons to dispose
+            if (fileButtonsPanel != null && fileButtonsPanel.Controls.Count > 0)
+            {
+                foreach (Control control in fileButtonsPanel.Controls)
+                {
+                    fileButtonsToDispose.Add(control);
+                }
+                fileButtonsPanel.Controls.Clear(); // Clear parent reference immediately
+            }
+
+            // INSTANT CLEAR: Clear dictionaries immediately (memory cleanup happens instantly)
+            // This is fast and prevents any references from being held
+            if (openEditors != null)
+            {
                 openEditors.Clear();
+            }
+            if (editorTabs != null)
+            {
                 editorTabs.Clear();
             }
-            fileButtonsPanel.Controls.Clear();
+            if (fileContents != null)
+            {
+                fileContents.Clear(); // Clear file contents to free memory instantly
+            }
+
+            // Batch dispose all resources (actual disposal happens here, but references already cleared)
+            // Dispose in efficient batches to avoid blocking UI thread
+            try
+            {
+                // Dispose editors (these are the heaviest resources)
+                foreach (var editor in editorsToDispose)
+                {
+                    try
+                    {
+                        if (editor != null && !editor.IsDisposed)
+                        {
+                            editor.Dispose();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore disposal errors - resource is being cleaned up anyway
+                    }
+                }
+
+                // Dispose tab pages (lighter, but still important)
+                foreach (var tabPage in tabPagesToDispose)
+                {
+                    try
+                    {
+                        if (tabPage != null && !tabPage.IsDisposed)
+                        {
+                            tabPage.Dispose();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore disposal errors
+                    }
+                }
+
+                // Dispose file buttons (lightweight)
+                foreach (var control in fileButtonsToDispose)
+                {
+                    try
+                    {
+                        if (control != null && !control.IsDisposed)
+                        {
+                            DisposeControlRecursive(control);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore disposal errors
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore any batch disposal errors - we've already cleared references
+            }
+
+            // Resume layout for file buttons panel (will be reshown in finally if loading)
+            if (fileButtonsPanel != null)
+            {
+                fileButtonsPanel.ResumeLayout(false);
+            }
 
             if (!folderOpened || string.IsNullOrEmpty(projectPath))
                 return;
 
-            // Move contents to scripts folder (matching original Compiler UI behavior)
-            // This ensures all GSC files are in the scripts folder for consistent project structure
+            // Only move contents to scripts folder when opening a new folder, not on refresh
+            // This prevents unnecessary file operations when user just wants to refresh the list
+            // MoveContentsToScripts should only be called from OpenFolder, not RefreshFileList
             string scriptsPath = Path.Combine(projectPath, "scripts");
-            if (!Directory.Exists(scriptsPath))
-            {
-                Directory.CreateDirectory(scriptsPath);
-            }
-            MoveContentsToScripts(scriptsPath);
 
             // Auto-detect GSC project: search recursively for .gsc and .txt files anywhere in the project folder
             // This supports various folder structures (scripts/, root, subfolders, etc.)
             string[] gscFiles = Directory.GetFiles(projectPath, "*.gsc", SearchOption.AllDirectories)
                 .Concat(Directory.GetFiles(projectPath, "*.txt", SearchOption.AllDirectories))
-                .Where(f => !f.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase) && 
+                .Where(f => !f.EndsWith(".gscc", StringComparison.OrdinalIgnoreCase) &&
                             !f.EndsWith(".stub.gscc", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => {
+                .OrderBy(f =>
+                {
                     // Always put main.gsc first (case-insensitive)
                     string fileName = Path.GetFileName(f);
                     if (fileName.Equals("main.gsc", StringComparison.OrdinalIgnoreCase))
-                        return "0" + fileName; // Prefix with 0 to sort first
-                    return "1" + fileName; // Other files come after
+                        return "0"; // Prefix with 0 to sort first
+                    return "1"; // Other files come after
                 })
-                .ThenBy(f => Path.GetFileName(f)) // Then sort alphabetically
+                .ThenBy(f =>
+                {
+                    // Sort by folder path (directory) first
+                    string directory = Path.GetDirectoryName(f);
+                    if (!string.IsNullOrEmpty(projectPath) && directory.StartsWith(projectPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Get relative directory path from project root
+                        string relativeDir = directory.Substring(projectPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                        return relativeDir.ToLowerInvariant(); // Case-insensitive folder sorting
+                    }
+                    return directory.ToLowerInvariant();
+                })
+                .ThenBy(f => Path.GetFileName(f).ToLowerInvariant()) // Then sort by filename alphabetically (case-insensitive)
                 .ToArray();
 
             if (gscFiles == null || gscFiles.Length == 0)
@@ -3037,7 +3194,20 @@ namespace T7CompilerGUI.Forms
 
             // Set loading flag to prevent hasChanges during file loading
             isLoadingFiles = true;
-            
+
+            // Hide tab control and file buttons panel during loading to make it look instant
+            // (They're already hidden from disposal above, but ensure they stay hidden)
+            if (tabControl != null)
+            {
+                tabControl.SuspendLayout();
+                tabControl.Visible = false;
+            }
+            if (fileButtonsPanel != null)
+            {
+                fileButtonsPanel.SuspendLayout();
+                fileButtonsPanel.Visible = false;
+            }
+
             // Show loading status
             if (statusLabel != null)
             {
@@ -3048,18 +3218,18 @@ namespace T7CompilerGUI.Forms
             {
                 // Prepare file list with full absolute paths
                 var fileList = new List<(string fullPath, int index)>();
-            int i = 0;
-            foreach (string gscFile in gscFiles)
-            {
-                    string fullPath = Path.GetFullPath(gscFile);
-                string filename = Path.GetFileName(gscFile);
-                    
-                if (filename.EndsWith(".gsc") || filename.EndsWith(".txt"))
+                int i = 0;
+                foreach (string gscFile in gscFiles)
                 {
+                    string fullPath = Path.GetFullPath(gscFile);
+                    string filename = Path.GetFileName(gscFile);
+
+                    if (filename.EndsWith(".gsc") || filename.EndsWith(".txt"))
+                    {
                         fileList.Add((fullPath, i));
-                    i++;
+                        i++;
+                    }
                 }
-            }
 
                 // Create all file buttons first (UI operations must be on UI thread)
                 foreach (var (fullPath, index) in fileList)
@@ -3068,8 +3238,9 @@ namespace T7CompilerGUI.Forms
                 }
 
                 // Load all files efficiently - read files in parallel, then create editors on UI thread
-                var fileContents = new ConcurrentDictionary<string, string>();
-                
+                // Use local ConcurrentDictionary for thread-safe parallel reading, then transfer to class member
+                var tempFileContents = new ConcurrentDictionary<string, string>();
+
                 // Read all files in parallel (file I/O can be done on background threads)
                 System.Threading.Tasks.Parallel.ForEach(fileList, fileInfo =>
                 {
@@ -3080,37 +3251,34 @@ namespace T7CompilerGUI.Forms
                         {
                             string content = File.ReadAllText(filePath);
                             // Store content even if empty - empty files should still show in editor
-                            fileContents[fileInfo.fullPath] = content ?? "";
+                            tempFileContents[fileInfo.fullPath] = content ?? "";
                         }
                         catch (Exception ex)
                         {
                             // Log error but still create empty editor for the file
                             System.Diagnostics.Debug.WriteLine($"Failed to read file {filePath}: {ex.Message}");
-                            fileContents[fileInfo.fullPath] = "";
+                            tempFileContents[fileInfo.fullPath] = "";
                         }
                     }
                     else
                     {
                         // File doesn't exist - create empty editor
-                        fileContents[fileInfo.fullPath] = "";
+                        tempFileContents[fileInfo.fullPath] = "";
                     }
                 });
 
                 // Create all editors on UI thread (must be on UI thread for WinForms controls)
                 // This is fast since file I/O is already done
+                // Don't show tabs during loading - build them all first, then show at once
                 int fileIndex = 0;
                 foreach (var fileInfo in fileList)
                 {
-                    if (fileContents.TryGetValue(fileInfo.fullPath, out string content))
+                    if (tempFileContents.TryGetValue(fileInfo.fullPath, out string content))
                     {
                         // Ensure content is not null
                         string contentToLoad = content ?? "";
                         OpenFileInEditorWithContent(fileInfo.fullPath, contentToLoad);
-                        // Allow UI to update between files for smooth loading
-                        if (fileIndex % 5 == 0) // Update every 5 files
-                        {
-                            Application.DoEvents();
-                        }
+                        // Don't call DoEvents during loading - keep tabs hidden
                         fileIndex++;
                     }
                     else
@@ -3119,58 +3287,68 @@ namespace T7CompilerGUI.Forms
                         OpenFileInEditorWithContent(fileInfo.fullPath, "");
                     }
                 }
+
+                // Layout all file buttons after creating them (PoisonPanel doesn't auto-layout like FlowLayoutPanel)
+                LayoutFileButtons();
+
             }
             finally
             {
+                // Always show tabs and file buttons panel, and resume layout, even if an exception occurs
+                // This makes loading look instant - all tabs and buttons appear at once
+                if (tabControl != null)
+                {
+                    tabControl.ResumeLayout(true);
+                    tabControl.Visible = true; // Always show after loading
+                }
+                if (fileButtonsPanel != null)
+                {
+                    fileButtonsPanel.ResumeLayout(true);
+                    fileButtonsPanel.Visible = true; // Always show after loading
+                }
+
                 // Always clear the loading flag, even if an exception occurs
                 // This ensures user edits will properly set hasChanges
                 isLoadingFiles = false;
-                
+
                 // Update status to show completion
                 if (statusLabel != null)
                 {
                     statusLabel.Text = GetDefaultStatusText();
                 }
             }
-            
-                    // Update theme for all file buttons (including close buttons) after loading
-                    // This ensures all buttons have proper theme applied
-                    if (styleManager != null)
-                    {
-                        UpdateAllFileButtonsTheme();
-                        
-                        // Also update editor panel context menu theme
-                        if (editorPanelContextMenu != null)
-                        {
-                            editorPanelContextMenu.Theme = styleManager.Theme;
-                            editorPanelContextMenu.Style = styleManager.Style;
-                            editorPanelContextMenu.UseStyleColors = true;
-                            editorPanelContextMenu.StyleManager = styleManager;
-                        }
-                    }
-            
+
+            // Update theme for all file buttons (including close buttons) after loading
+            // This ensures all buttons have proper theme applied
+            if (styleManager != null)
+            {
+                UpdateAllFileButtonsTheme();
+
+                // Also update editor panel context menu theme
+                if (editorPanelContextMenu != null && styleManager != null)
+                {
+                    // Use helper to apply StyleManager - handles Theme, Style automatically
+                    ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(editorPanelContextMenu, styleManager);
+                }
+            }
+
+            // Layout file buttons after theme update
+            LayoutFileButtons();
+
             // Ensure hasChanges is false after loading all files - use CheckForUnsavedChanges to verify
             CheckForUnsavedChanges();
-            
+
             folderOpened = true;
         }
 
         private void CreateFileButton(string filePath, int index)
         {
             // Create container panel for file button and close button - use PoisonPanel for theme consistency
-            PoisonPanel buttonContainer = new PoisonPanel
-            {
-                Height = FileButtonHeight,
-                Width = fileButtonsPanel.Width - FileButtonPanelPadding,
-                Margin = new Padding(0, FileButtonMargin, 0, FileButtonMargin)
-            };
-            
-            // Apply theme to container panel
-            if (styleManager != null)
-            {
-                buttonContainer.StyleManager = styleManager;
-                buttonContainer.UseStyleColors = true;
-            }
+            // Use enhanced helper for better styling - CreateStyledPanel already applies StyleManager
+            PoisonPanel buttonContainer = ReaLTaiizorExt.PoisonControlHelper.CreateStyledPanel(styleManager, true);
+            buttonContainer.Height = FileButtonHeight;
+            buttonContainer.Width = fileButtonsPanel.Width - FileButtonPanelPadding;
+            buttonContainer.Margin = new Padding(0, FileButtonMargin, 0, FileButtonMargin);
 
             // Display relative path from project root on the button
             string displayPath;
@@ -3186,74 +3364,48 @@ namespace T7CompilerGUI.Forms
                 // Fallback to just filename if we can't determine relative path
                 displayPath = Path.GetFileName(filePath);
             }
-            
-            // File button
-            PoisonButton fileButton = new PoisonButton
-            {
-                Text = displayPath,
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                FlatStyle = FlatStyle.Flat,
-                UseStyleColors = true
-            };
-            
-            // Apply theme to file button
-            if (styleManager != null)
-            {
-                fileButton.StyleManager = styleManager;
-                fileButton.UseStyleColors = true;
-            }
-            
-            fileButton.Click += (s, e) => {
-                OpenFileInEditor(filePath);
-                ResetButtonState(fileButton);
-            };
+
+            // File button - use enhanced helper for better styling and effects
+            PoisonButton fileButton = ReaLTaiizorExt.PoisonControlHelper.CreateButton(
+                displayPath,
+                styleManager,
+                (s, e) =>
+                {
+                    OpenFileInEditor(filePath);
+                },
+                true);
+            fileButton.Dock = DockStyle.Fill;
+            fileButton.TextAlign = ContentAlignment.MiddleLeft;
+            fileButton.FlatStyle = FlatStyle.Flat;
             fileButton.Tag = index;
 
-            // Close button (X) - use theme-aware colors
-            PoisonButton closeButton = new PoisonButton
-            {
-                Text = "X",
-                Size = new Size(CloseButtonWidth, CloseButtonHeight),
-                Dock = DockStyle.Right,
-                FlatStyle = FlatStyle.Flat,
-                UseVisualStyleBackColor = false,
-                UseStyleColors = true
-            };
-            
-            // Apply theme to close button
-            if (styleManager != null)
-            {
-                closeButton.StyleManager = styleManager;
-                closeButton.UseStyleColors = true;
-                // Set initial theme-aware colors
-                closeButton.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
-                closeButton.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
-            }
-            else
-            {
-                closeButton.BackColor = FallbackButtonBackColor;
-                closeButton.ForeColor = FallbackButtonForeColor;
-            }
-            
-            closeButton.MouseEnter += (s, e) => {
-                closeButton.BackColor = CloseButtonHoverColor;
-            };
-            closeButton.MouseLeave += (s, e) => {
-                if (styleManager != null)
+            // Close button (X) - use enhanced helper for better styling and effects
+            PoisonButton closeButton = ReaLTaiizorExt.PoisonControlHelper.CreateButton(
+                "X",
+                styleManager,
+                (s, e) =>
                 {
-                    // Use StyleManager to get current theme colors
-                    closeButton.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(styleManager.Theme);
-                    closeButton.ForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
-                }
-                else
-                {
-                    closeButton.BackColor = FallbackButtonBackColor;
-                    closeButton.ForeColor = FallbackButtonForeColor;
-                }
+                    DeleteFile(filePath, index);
+                },
+                true);
+            closeButton.Size = new Size(CloseButtonWidth, CloseButtonHeight);
+            closeButton.Dock = DockStyle.Right;
+            closeButton.FlatStyle = FlatStyle.Flat;
+            closeButton.UseVisualStyleBackColor = false;
+
+            // Enhanced hover effect for close button (red on hover)
+            ThemeStyle currentTheme = styleManager?.Theme ?? ThemeStyle.Dark;
+            closeButton.MouseEnter += (s, e) =>
+            {
+                closeButton.BackColor = CloseButtonHoverColor(currentTheme);
+                // Use theme-aware foreground color for close button text
+                closeButton.ForeColor = PoisonPaint.ForeColor.Button.Normal(currentTheme);
             };
-            closeButton.Click += (s, e) => {
-                DeleteFile(filePath, index);
+            closeButton.MouseLeave += (s, e) =>
+            {
+                // Reset to theme colors
+                closeButton.BackColor = PoisonPaint.BackColor.Button.Normal(currentTheme);
+                closeButton.ForeColor = PoisonPaint.ForeColor.Button.Normal(currentTheme);
             };
             closeButton.Name = Path.GetFileName(filePath).Replace(".gsc", "").Replace(".txt", "").Replace(' ', '_');
 
@@ -3262,11 +3414,33 @@ namespace T7CompilerGUI.Forms
             fileButtonsPanel.Controls.Add(buttonContainer);
         }
 
+        /// <summary>
+        /// Layouts file buttons vertically in the fileButtonsPanel (PoisonPanel doesn't auto-layout like FlowLayoutPanel)
+        /// </summary>
+        private void LayoutFileButtons()
+        {
+            if (fileButtonsPanel == null) return;
+
+            int yPos = 0;
+            foreach (Control control in fileButtonsPanel.Controls)
+            {
+                if (control is PoisonPanel buttonContainer)
+                {
+                    buttonContainer.Location = new Point(0, yPos);
+                    buttonContainer.Width = fileButtonsPanel.ClientSize.Width;
+                    yPos += buttonContainer.Height + FileButtonMargin * 2;
+                }
+            }
+
+            // Update panel's preferred size for scrolling
+            fileButtonsPanel.AutoScrollMinSize = new Size(0, yPos);
+        }
+
         private void DeleteFile(string filePath, int index)
         {
             // Ensure we have a full path
             string fullPath = Path.IsPathRooted(filePath) ? Path.GetFullPath(filePath) : Path.Combine(projectPath, filePath);
-            
+
             var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
                 this,
                 $"Warning: This will delete the file ({fullPath}) Continue?",
@@ -3276,20 +3450,26 @@ namespace T7CompilerGUI.Forms
 
             if (result != DialogResult.Yes)
                 return;
-            
+
             if (File.Exists(fullPath))
                 File.Delete(fullPath);
 
             // Remove from editors using the full path as key
             if (editorTabs.ContainsKey(fullPath))
             {
-                tabControl.TabPages.Remove(editorTabs[fullPath]);
-                editorTabs.Remove(fullPath);
-                openEditors.Remove(fullPath);
+                // Remove tab page from tab control first
+                if (editorTabs.ContainsKey(fullPath))
+                {
+                    var tabPage = editorTabs[fullPath];
+                    tabControl.TabPages.Remove(tabPage);
+
+                    // Properly clean up all resources for this tab
+                    CleanupTabResources(fullPath);
+                }
             }
 
             RefreshFileList(false);
-            
+
             if (tabControl.TabPages.Count > 0)
             {
                 if (index > 0 && index <= tabControl.TabPages.Count)
@@ -3304,32 +3484,32 @@ namespace T7CompilerGUI.Forms
         /// </summary>
         private ReaLTaiizor.Controls.PoisonTabPage CreateTabPage(string tabText, string tooltipText)
         {
-            var tabPage = new ReaLTaiizor.Controls.PoisonTabPage
-            {
-                Text = tabText,
-                ToolTipText = tooltipText, // Show full absolute path in tooltip
-                UseVisualStyleBackColor = false,
-                // Disable scrollbars on tab page - AvalonEdit handles its own scrolling
-                HorizontalScrollbar = false,
-                VerticalScrollbar = false,
-                AutoScroll = false
-            };
-            
-            // Ensure AutoScroll is disabled to prevent corner control from appearing
-            // This must be set after the object is created because AutoScroll property
-            // in PoisonTabPage sets scrollbars when enabled but doesn't clear them when disabled
-            tabPage.AutoScroll = false;
-            
+            // Use helper to create tab page with StyleManager, Theme, Style, and UseStyleColors configured
+            var tabPage = ReaLTaiizorExt.PoisonControlHelper.CreateTabPage(tabText, styleManager, true);
+
+            // Set custom properties
+            tabPage.ToolTipText = tooltipText; // Show full absolute path in tooltip
+            tabPage.UseVisualStyleBackColor = false;
+
+            // Use helper to configure invisible scrollbars (AvalonEdit handles its own scrolling)
+            ReaLTaiizorExt.PoisonControlHelper.ConfigureTabPageScrollbars(tabPage,
+                showVertical: false,
+                showHorizontal: false,
+                verticalInvisible: true,
+                horizontalInvisible: true);
+
             // Hide scrollbar corner control using Windows API (similar to PoisonPanel)
-            tabPage.HandleCreated += (s, e) => {
+            tabPage.HandleCreated += (s, e) =>
+            {
                 if (tabPage.IsHandleCreated)
                     HideScrollbarCorner(tabPage);
             };
-            tabPage.Layout += (s, e) => {
+            tabPage.Layout += (s, e) =>
+            {
                 if (tabPage.IsHandleCreated)
                     HideScrollbarCorner(tabPage);
             };
-            
+
             return tabPage;
         }
 
@@ -3382,49 +3562,43 @@ namespace T7CompilerGUI.Forms
 
             // Create new tab and editor
             string tabText = Path.GetFileName(fullPath);
-            
+
             // Limit tab text length to prevent overlapping
             if (tabText.Length > MaxTabTextLength)
             {
                 string nameWithoutExt = Path.GetFileNameWithoutExtension(tabText);
                 string ext = Path.GetExtension(tabText);
-                
+
                 if (nameWithoutExt.Length > MaxTabTextLength - ext.Length - 3)
                 {
                     nameWithoutExt = nameWithoutExt.Substring(0, MaxTabTextLength - ext.Length - 3) + "...";
                 }
                 tabText = nameWithoutExt + ext;
             }
-            
+
             ReaLTaiizor.Controls.PoisonTabPage tabPage = CreateTabPage(tabText, fullPath);
             AvalonEditWrapper editor = CreateAvalonEditEditor();
-            
+
             // Store original content in fileContents for comparison (use full path as key)
             fileContents[fullPath] = content;
-            
+
             // Track changes (but ignore during file loading)
-            EventHandler textChangedHandler = (s, e) => {
+            EventHandler textChangedHandler = (s, e) =>
+            {
                 if (!isLoadingFiles)
                 {
                     if (this.InvokeRequired)
                     {
-                        try
+                        // Use SafeInvoke for error handling (handles all exceptions internally)
+                        ReaLTaiizorExt.PoisonFormHelper.SafeInvoke(this, () =>
                         {
-                            if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                            if (!isLoadingFiles && !this.IsDisposed && !this.Disposing)
                             {
-                                this.BeginInvoke(new Action(() => {
-                                    if (!isLoadingFiles && !this.IsDisposed && !this.Disposing)
-                                    {
-                                        CheckForUnsavedChanges();
-                                        UpdateConditionalCompilationIndicators(editor);
-                                        UpdateSyntaxHighlightingIndicators(editor);
-                                    }
-                                }));
+                                CheckForUnsavedChanges();
+                                UpdateConditionalCompilationIndicators(editor);
+                                UpdateSyntaxHighlightingIndicators(editor);
                             }
-                        }
-                        catch (ObjectDisposedException) { }
-                        catch (InvalidOperationException) { }
-                        catch (ArgumentException) { }
+                        });
                     }
                     else
                     {
@@ -3434,17 +3608,17 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             };
-            
+
             isLoadingFiles = true;
-            
+
             try
             {
                 // Unsubscribe from TextChanged to prevent false change detection during loading
                 editor.TextChanged -= textChangedHandler;
-                
+
                 // Load text with provided content (ensure content is not null)
                 string contentToSet = content ?? "";
-                
+
                 // Set content and store in fileContents BEFORE setting up editor
                 // This ensures fileContents matches what's in the editor
                 fileContents[fullPath] = contentToSet;
@@ -3452,16 +3626,16 @@ namespace T7CompilerGUI.Forms
 
                 // Clear undo buffer to prevent false change detection
                 editor.EmptyUndoBuffer();
-                
+
                 // Setup editor features
                 SetupGSCSyntaxHighlighting(editor);
                 DisableExtraMargins(editor);
                 SetupConditionalCompilationIndicators(editor);
                 UpdateSyntaxHighlightingIndicators(editor);
-                
+
                 // Clear undo buffer again after setup to ensure clean state
                 editor.EmptyUndoBuffer();
-                
+
                 // Re-subscribe to TextChanged AFTER everything is set up
                 editor.TextChanged += textChangedHandler;
             }
@@ -3474,11 +3648,11 @@ namespace T7CompilerGUI.Forms
             // Add editor to tab BEFORE adding tab to tabControl
             // This ensures the editor is properly initialized when the tab becomes visible
             tabPage.Controls.Add(editor);
-            
+
             // Store references BEFORE adding tab (needed for some operations) - use full path as key
             openEditors[fullPath] = editor;
             editorTabs[fullPath] = tabPage;
-            
+
             // Add tab to tabControl
             tabControl.TabPages.Add(tabPage);
             if (tabControl.TabPages.Count == 1)
@@ -3494,18 +3668,19 @@ namespace T7CompilerGUI.Forms
                 currentFileName = fullPath;
                 selectedTabItem = Path.GetFileName(fullPath);
             }
-            
+
             // Update fileContents to match final editor state (after all setup)
             // This ensures CheckForUnsavedChanges won't detect false changes
             fileContents[fullPath] = editor.Text;
-            
+
             // Update indicators
             UpdateConditionalCompilationIndicators(editor);
             UpdateSyntaxHighlightingIndicators(editor);
-            
+
             // Ensure hasChanges is false after loading - check AFTER all setup is complete
             // Use BeginInvoke to ensure this runs after any queued TextChanged events
-            this.BeginInvoke(new Action(() => {
+            this.BeginInvoke(new Action(() =>
+            {
                 if (!this.IsDisposed && !this.Disposing)
                 {
                     CheckForUnsavedChanges();
@@ -3548,7 +3723,7 @@ namespace T7CompilerGUI.Forms
                     fullPath = Path.GetFullPath(fullPath);
                 }
             }
-            
+
             if (!File.Exists(fullPath))
                 return;
 
@@ -3562,14 +3737,14 @@ namespace T7CompilerGUI.Forms
             // Create new tab and editor
             // Use just the filename without path, and ensure it's not too long to prevent overlapping
             string tabText = Path.GetFileName(fullPath);
-            
+
             // Limit tab text length to prevent overlapping (tabs need space for close button and padding)
             // Typical tab needs ~100-120px width for comfortable display
             if (tabText.Length > MaxTabTextLength)
             {
                 string nameWithoutExt = Path.GetFileNameWithoutExtension(tabText);
                 string ext = Path.GetExtension(tabText);
-                
+
                 // Truncate name part, keep extension
                 if (nameWithoutExt.Length > MaxTabTextLength - ext.Length - 3)
                 {
@@ -3577,18 +3752,19 @@ namespace T7CompilerGUI.Forms
                 }
                 tabText = nameWithoutExt + ext;
             }
-            
+
             ReaLTaiizor.Controls.PoisonTabPage tabPage = CreateTabPage(tabText, fullPath);
             AvalonEditWrapper editor = CreateAvalonEditEditor();
-            
+
             // Load file content
             string content = File.ReadAllText(fullPath);
-            
+
             // Store original content in fileContents for comparison (use full path as key)
             fileContents[fullPath] = content;
-            
+
             // Track changes (but ignore during file loading)
-            EventHandler textChangedHandler = (s, e) => {
+            EventHandler textChangedHandler = (s, e) =>
+            {
                 // Only set hasChanges if we're not currently loading files
                 if (!isLoadingFiles)
                 {
@@ -3601,7 +3777,8 @@ namespace T7CompilerGUI.Forms
                         {
                             if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
                             {
-                                this.BeginInvoke(new Action(() => {
+                                this.BeginInvoke(new Action(() =>
+                                {
                                     if (!isLoadingFiles && !this.IsDisposed && !this.Disposing)
                                     {
                                         CheckForUnsavedChanges();
@@ -3627,15 +3804,15 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             };
-            
+
             // Set loading flag to prevent hasChanges from being set during initialization
             isLoadingFiles = true;
-            
+
             try
             {
                 // Unsubscribe from TextChanged to prevent false change detection during loading
                 editor.TextChanged -= textChangedHandler;
-                
+
                 // Load text and store in fileContents BEFORE setting up editor
                 // This ensures fileContents matches what's in the editor
                 fileContents[fullPath] = content;
@@ -3646,22 +3823,22 @@ namespace T7CompilerGUI.Forms
 
                 // Setup syntax highlighting (this should not modify text, but clear buffer after)
                 SetupGSCSyntaxHighlighting(editor);
-                
+
                 // Ensure margins stay disabled after syntax highlighting setup
                 DisableExtraMargins(editor);
-                
+
                 // Setup conditional compilation indicators
                 SetupConditionalCompilationIndicators(editor);
-                
+
                 // Update syntax highlighting indicators (include paths, method calls)
                 UpdateSyntaxHighlightingIndicators(editor);
-                
+
                 // Ensure margins stay disabled after indicator updates
                 DisableExtraMargins(editor);
-                
+
                 // Clear undo history again after syntax highlighting (in case it modified text)
                 editor.EmptyUndoBuffer();
-                
+
                 // Now attach the event handler after everything is set up
                 // Make sure it's not already attached
                 editor.TextChanged -= textChangedHandler;
@@ -3672,7 +3849,7 @@ namespace T7CompilerGUI.Forms
                 // Always clear the loading flag AFTER handler is attached
                 // This ensures user edits will properly set hasChanges
                 isLoadingFiles = false;
-                
+
                 // Process any queued events after clearing the flag
                 Application.DoEvents();
             }
@@ -3688,29 +3865,30 @@ namespace T7CompilerGUI.Forms
 
             currentFileName = fullPath;
             selectedTabItem = Path.GetFileName(fullPath);
-            
+
             // Update fileContents to match final editor state (after all setup)
             // This ensures CheckForUnsavedChanges won't detect false changes
             fileContents[fullPath] = editor.Text;
-            
+
             // Update conditional compilation indicators after file is loaded
             UpdateConditionalCompilationIndicators(editor);
-            
+
             // Update syntax highlighting indicators after file is loaded
             // Apply indicators AFTER lexer has finished coloring to ensure they override
             // In AvalonEdit, text markers should override syntax highlighting colors when applied correctly
             UpdateSyntaxHighlightingIndicators(editor);
-            
+
             // Force AvalonEdit to refresh the display to ensure indicators are visible
             // This helps ensure that text markers properly override syntax highlighting colors
             // Also refresh scrollbars to prevent white scrollbar artifacts
             editor.Invalidate();
             editor.Update();
             editor.Refresh();
-            
+
             // Ensure hasChanges is false after loading - check AFTER all setup is complete
             // Use BeginInvoke to ensure this runs after any queued TextChanged events
-            this.BeginInvoke(new Action(() => {
+            this.BeginInvoke(new Action(() =>
+            {
                 if (!this.IsDisposed && !this.Disposing)
                 {
                     CheckForUnsavedChanges();
@@ -3724,9 +3902,13 @@ namespace T7CompilerGUI.Forms
             {
                 Dock = DockStyle.Fill
             };
-            
+
             // Disable word wrap - use horizontal scrollbar instead
             editor.WordWrap = false;
+
+            // Configure scrollbar settings for thumb-only display (no track, no arrows, just thumb)
+            editor.UsePoisonScrollbarTheme = true;
+            editor.ScrollbarThumbOpacity = 1.0;
 
             // Set StyleManager to enable Poison theming
             if (styleManager != null)
@@ -3735,10 +3917,10 @@ namespace T7CompilerGUI.Forms
             }
             else
             {
-                // Fallback to default dark theme colors if no style manager
-                // These match the default dark theme appearance
-                Color editorBackColor = Color.FromArgb(16, 16, 16);
-                Color editorForeColor = Color.FromArgb(225, 225, 225);
+                // Fallback to default dark theme colors if no style manager - use PoisonPaint for consistency
+                ThemeStyle fallbackTheme = ThemeStyle.Dark;
+                Color editorBackColor = PoisonPaint.BackColor.Form(fallbackTheme);
+                Color editorForeColor = PoisonPaint.ForeColor.Label.Normal(fallbackTheme);
                 editor.SetColors(editorBackColor, editorForeColor);
             }
 
@@ -3747,26 +3929,27 @@ namespace T7CompilerGUI.Forms
 
             // Setup code completion
             SetupCodeCompletion(editor);
-            
+
             // Setup context menu for line numbers
             SetupEditorContextMenu(editor);
-            
+
             // Disable AvalonEdit's built-in SearchPanel - we use custom search dialog instead
             // Hook into editor to prevent Ctrl+F and F3 from opening SearchPanel
             editor.Editor.TextArea.PreviewKeyDown += (s, e) =>
             {
                 // Intercept Ctrl+F to open our custom search dialog instead of SearchPanel
-                if (e.Key == System.Windows.Input.Key.F && 
+                if (e.Key == System.Windows.Input.Key.F &&
                     (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
                 {
                     e.Handled = true;
                     // Use BeginInvoke to ensure this runs on the UI thread
-                    this.BeginInvoke(new Action(() => {
+                    this.BeginInvoke(new Action(() =>
+                    {
                         BtnSearch_Click(null, EventArgs.Empty);
                     }));
                     return;
                 }
-                
+
                 // Handle F3 - Find Next across tabs
                 if (e.Key == System.Windows.Input.Key.F3)
                 {
@@ -3777,20 +3960,22 @@ namespace T7CompilerGUI.Forms
                         // Use selected text as search term
                         string trimmedText = selectedText.Trim();
                         lastSearchText = trimmedText;
-                        
+
                         // Trigger cross-tab search
                         e.Handled = true;
-                        this.BeginInvoke(new Action(() => {
+                        this.BeginInvoke(new Action(() =>
+                        {
                             FindNext();
                         }));
                         return;
                     }
-                    
+
                     // Use last search text if available
                     if (!string.IsNullOrEmpty(lastSearchText))
                     {
                         e.Handled = true;
-                        this.BeginInvoke(new Action(() => {
+                        this.BeginInvoke(new Action(() =>
+                        {
                             FindNext();
                         }));
                     }
@@ -3799,7 +3984,7 @@ namespace T7CompilerGUI.Forms
 
             return editor;
         }
-        
+
         /// <summary>
         /// Sets up the context menu for the editor (appears when right-clicking on line numbers or text)
         /// </summary>
@@ -3807,18 +3992,18 @@ namespace T7CompilerGUI.Forms
         {
             if (editor?.Editor == null)
                 return;
-                
+
             // Create context menu with useful items
             var contextMenu = new System.Windows.Controls.ContextMenu();
-            
+
             // Apply Poison theme colors to WPF context menu
             if (styleManager != null)
             {
                 // Get theme colors from Poison
-                var backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                var foreColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
-                var borderColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
-                
+                var backColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                var foreColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                var borderColor = PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
+
                 // Convert to WPF colors
                 contextMenu.Background = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(backColor.A, backColor.R, backColor.G, backColor.B));
@@ -3839,7 +4024,7 @@ namespace T7CompilerGUI.Forms
                     System.Windows.Media.Color.FromRgb(100, 100, 100));
                 contextMenu.BorderThickness = new System.Windows.Thickness(1);
             }
-            
+
             // Helper to create styled menu item - matches MainForm's PoisonContextMenuStrip styling
             System.Windows.Controls.MenuItem CreateMenuItem(string header, string inputGestureText, System.Windows.RoutedEventHandler clickHandler)
             {
@@ -3850,22 +4035,22 @@ namespace T7CompilerGUI.Forms
                     Padding = new System.Windows.Thickness(8, 4, 8, 4) // Match WinForms menu item padding
                 };
                 menuItem.Click += clickHandler;
-                
+
                 // Style menu item with Poison theme colors - match MainForm's context menu
                 if (styleManager != null)
                 {
-                    var itemBackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                    var itemForeColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
+                    var itemBackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                    var itemForeColor = PoisonPaint.ForeColor.Button.Normal(styleManager.Theme);
                     // Use style color for hover (like MainForm's StyleBasedMenuRenderer does)
-                    var styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(styleManager.Style);
-                    var hoverColor = System.Windows.Media.Color.FromArgb(150, 
+                    var styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
+                    var hoverColor = System.Windows.Media.Color.FromArgb(150,
                         (byte)styleColor.R, (byte)styleColor.G, (byte)styleColor.B); // 150 alpha like MainForm
-                    
+
                     menuItem.Background = new System.Windows.Media.SolidColorBrush(
                         System.Windows.Media.Color.FromArgb(itemBackColor.A, itemBackColor.R, itemBackColor.G, itemBackColor.B));
                     menuItem.Foreground = new System.Windows.Media.SolidColorBrush(
                         System.Windows.Media.Color.FromArgb(itemForeColor.A, itemForeColor.R, itemForeColor.G, itemForeColor.B));
-                    
+
                     // Handle hover state - use style color with transparency (matches MainForm)
                     menuItem.MouseEnter += (s, e) =>
                     {
@@ -3884,7 +4069,7 @@ namespace T7CompilerGUI.Forms
                         System.Windows.Media.Color.FromRgb(45, 45, 48));
                     menuItem.Foreground = new System.Windows.Media.SolidColorBrush(
                         System.Windows.Media.Color.FromRgb(200, 200, 200));
-                    
+
                     menuItem.MouseEnter += (s, e) =>
                     {
                         menuItem.Background = new System.Windows.Media.SolidColorBrush(
@@ -3896,19 +4081,19 @@ namespace T7CompilerGUI.Forms
                             System.Windows.Media.Color.FromRgb(45, 45, 48));
                     };
                 }
-                
+
                 return menuItem;
             }
-            
+
             // Go to Line
             var goToLineItem = CreateMenuItem("Go to Line...", "Ctrl+G", (s, e) => GoToLine());
             contextMenu.Items.Add(goToLineItem);
-            
+
             // Separator - style it to match Poison theme
             var separator = new System.Windows.Controls.Separator();
             if (styleManager != null)
             {
-                var separatorColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
+                var separatorColor = PoisonPaint.BorderColor.Button.Normal(styleManager.Theme);
                 separator.Background = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(separatorColor.A, separatorColor.R, separatorColor.G, separatorColor.B));
             }
@@ -3918,41 +4103,42 @@ namespace T7CompilerGUI.Forms
                     System.Windows.Media.Color.FromRgb(100, 100, 100));
             }
             contextMenu.Items.Add(separator);
-            
+
             // Toggle ifdef - find the symbol on the current line and toggle it
             var toggleIfdefItem = CreateMenuItem("Toggle ifdef", null, (s, e) => ToggleIfdefAtCurrentLine(editor));
             contextMenu.Items.Add(toggleIfdefItem);
-            
+
             // Set context menu on the text editor
             editor.Editor.TextArea.ContextMenu = contextMenu;
-            
+
             // Store reference to update theme later
             editor.Editor.TextArea.ContextMenu.Tag = editor; // Store editor reference for theme updates
-            
+
             // Also set context menu on the ElementHost to ensure right-click works everywhere
             if (editor.Controls.Count > 0 && editor.Controls[0] is System.Windows.Forms.Integration.ElementHost elementHost)
             {
                 // Create WinForms context menu for the ElementHost wrapper
                 var winFormsContextMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
-                winFormsContextMenu.StyleManager = styleManager;
-                winFormsContextMenu.Theme = styleManager?.Theme ?? ReaLTaiizor.Enum.Poison.ThemeStyle.Dark;
-                winFormsContextMenu.Style = styleManager?.Style ?? ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
-                winFormsContextMenu.UseStyleColors = true;
-                
+                // Use helper to apply StyleManager - handles Theme, Style automatically
+                if (styleManager != null)
+                {
+                    ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(winFormsContextMenu, styleManager);
+                }
+
                 var goToLineWinFormsItem = new System.Windows.Forms.ToolStripMenuItem("Go to Line...");
                 goToLineWinFormsItem.Click += (s, e) => GoToLine();
                 winFormsContextMenu.Items.Add(goToLineWinFormsItem);
-                
+
                 winFormsContextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-                
+
                 var toggleIfdefWinFormsItem = new System.Windows.Forms.ToolStripMenuItem("Toggle ifdef");
                 toggleIfdefWinFormsItem.Click += (s, e) => ToggleIfdefAtCurrentLine(editor);
                 winFormsContextMenu.Items.Add(toggleIfdefWinFormsItem);
-                
+
                 elementHost.ContextMenuStrip = winFormsContextMenu;
             }
         }
-        
+
         /// <summary>
         /// Toggles the ifdef symbol at the current line
         /// </summary>
@@ -3960,19 +4146,19 @@ namespace T7CompilerGUI.Forms
         {
             if (editor?.Editor == null)
                 return;
-                
+
             int currentLine = editor.CurrentLine;
             if (currentLine < 1 || currentLine > editor.LineCount)
                 return;
-                
+
             string lineText = editor.GetLineText(currentLine);
             if (string.IsNullOrWhiteSpace(lineText))
                 return;
-                
+
             // Find #ifdef or #ifndef on this line
             var ifdefMatch = System.Text.RegularExpressions.Regex.Match(lineText, @"#ifdef\s+(\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             var ifndefMatch = System.Text.RegularExpressions.Regex.Match(lineText, @"#ifndef\s+(\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
+
             string symbol = null;
             if (ifdefMatch.Success)
             {
@@ -3982,40 +4168,42 @@ namespace T7CompilerGUI.Forms
             {
                 symbol = ifndefMatch.Groups[1].Value;
             }
-            
+
             if (string.IsNullOrEmpty(symbol))
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "No #ifdef or #ifndef found on this line.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            
+
             // Toggle the symbol in customSymbolStates
             string upperSymbol = symbol.ToUpper();
-            
-            // Skip game mode symbols and constant definitions (they can't be toggled)
-            if (upperSymbol == "MP" || upperSymbol == "ZM" || upperSymbol == "SP" || 
-                upperSymbol == "BO3" || upperSymbol == "BO4" || upperSymbol == "SERIOUS")
+
+            // Skip game mode symbols, namespace, and constant definitions (they can't be toggled)
+            bool isNamespace = !string.IsNullOrEmpty(projectNamespace) &&
+                               upperSymbol.Equals(projectNamespace.ToUpper(), StringComparison.OrdinalIgnoreCase);
+            if (upperSymbol == "MP" || upperSymbol == "ZM" || upperSymbol == "SP" ||
+                upperSymbol == "BO3" || upperSymbol == "BO4" || isNamespace)
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Cannot toggle system symbol: {symbol}", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            
+
             // Toggle the symbol state
             bool currentState = customSymbolStates.ContainsKey(upperSymbol) && customSymbolStates[upperSymbol];
             customSymbolStates[upperSymbol] = !currentState;
-            
+
             // Save symbol changes to gsc.conf
             SaveModeToGscConf();
-            
+
             // Update the symbols menu to reflect the new state
             UpdateSymbolsMenu();
-            
+
             // Update conditional compilation indicators for all editors
             foreach (var kvp in openEditors)
             {
                 UpdateConditionalCompilationIndicators(kvp.Value);
             }
-            
+
             // Show feedback
             string status = !currentState ? "enabled" : "disabled";
             ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Symbol '{symbol}' is now {status}.", "Toggle ifdef", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -4023,13 +4211,13 @@ namespace T7CompilerGUI.Forms
 
         // Store completion list as a field so it's accessible in the event handler
         private string gscCompletionList = null;
-        
+
         private void DisableExtraMargins(AvalonEditWrapper editor)
         {
             // AvalonEdit has built-in line numbers - no need for separate margin configuration
             // This method is kept for compatibility but does nothing for AvalonEdit
         }
-        
+
         private void SetupCodeCompletion(AvalonEditWrapper editor)
         {
             // AvalonEdit has built-in code completion support
@@ -4048,15 +4236,15 @@ namespace T7CompilerGUI.Forms
             // For now, completion is handled by AvalonEdit's built-in mechanisms
             // This can be enhanced later with custom completion data if needed
         }
-        
+
         private string BuildCompletionList()
         {
             // Load GSC syntax data from GSC.xshd if not already loaded
             LoadGscSyntaxData();
-            
+
             // Build completion list from GSC keywords (deduplicated using HashSet)
             var keywords = new HashSet<string>();
-            
+
             // Main keywords from GSC.xshd
             if (gscSyntaxData != null && gscSyntaxData.Keywords.Count > 0)
             {
@@ -4067,7 +4255,7 @@ namespace T7CompilerGUI.Forms
                 // Fallback to hardcoded keywords
                 keywords.UnionWith("$_ player vararg class object new event var return thread undefined self world classes level game anim if else do while for foreach in waittill waittillmatch waittillframeend switch case default break continue notify endon assert assertmsg constructor destructor autoexec private const isdefined vectorscale waitrealtime profilestart profilestop .size wait waitframe".Split(' '));
             }
-            
+
             // TrueFalse keywords
             if (gscSyntaxData != null && gscSyntaxData.TrueFalse.Count > 0)
             {
@@ -4077,7 +4265,7 @@ namespace T7CompilerGUI.Forms
             {
                 keywords.UnionWith("true false".Split(' '));
             }
-            
+
             // Command/preprocessor keywords
             if (gscSyntaxData != null && gscSyntaxData.CommandKeywords.Count > 0)
             {
@@ -4087,7 +4275,7 @@ namespace T7CompilerGUI.Forms
             {
                 keywords.UnionWith("#using_animtree #animtree #namespace #precache #include fn function callback".Split(' '));
             }
-            
+
             if (gscSyntaxData != null && gscSyntaxData.PreprocessorKeywords.Count > 0)
             {
                 keywords.UnionWith(gscSyntaxData.PreprocessorKeywords);
@@ -4096,7 +4284,7 @@ namespace T7CompilerGUI.Forms
             {
                 keywords.UnionWith("#if #elif #else #endif #insert #define #ifdef #ifndef".Split(' '));
             }
-            
+
             // Built-in functions from GSC.xshd (this is the complete list from the file)
             if (gscSyntaxData != null && gscSyntaxData.BuiltInFunctions.Count > 0)
             {
@@ -4107,15 +4295,15 @@ namespace T7CompilerGUI.Forms
                 // Fallback to a subset of common built-in functions
                 keywords.UnionWith("getent getentarray getentbynum getentitynumber getentitytype getentnum getplayers getplayername getplayerspawnid getplayerspeed getplayervehicle getplayercorpse getplayergibdef getplayergravity getplayerlastoutwatertime getorigin getangles setorigin setangles getcentroid getmaxs getmins getabsmaxs getabsmins getowner getparententity getlinkedent getmoverent getgroundent geteye geteyeapprox getaimangles getdistancefromscreencenter gethorizontaloffsetfromscreencenter getlocalplayer getlocalplayers getlocalplayerteam getnonpredictedlocalplayer getactivelocalclients getlobbyclientcount getnumconnectedplayers getnumexpectedplayers getnormalhealth getammocount getcurrentweaponincludingmelee getcurrentgunrank getequippedheroindex getequippedheromode getequippedloadoutitemforhero getequippedshowcaseweaponforhero getloadoutitem getloadoutweapon getloadoutperks getloadoutallocation getloadoutgunsmithvariantindex getloadoutitemref getitemarray getitemattachment getitemattachmentallocationcost getitemgroupforweaponname getitemgroupfromitemindex getbaseweaponitemindex getattachmentnames getattachmentcosmeticvariantforweapon getbuildkitweapon getbuildkitweaponoptions getbuildkitattachmentcosmeticvariantindexes getrandomcompatibleattachmentsforweapon getequippedbodyforhero getequippedbodyindexforhero getequippedheadindexforhero getequippedhelmetforhero getequippedhelmetindexforhero getequippedbodyaccentcolorforhero getequippedhelmetaccentcolorforhero getcharacterindex getcharacterdisplayname getcharacterassetname getcharacterbodymodelcount getcharacterbodymodelcolorcount getcharacterheadrenderoptions getcharacterhelmetmodelcount getcharacterhelmetmodelcolorcount getcharacterhelmetrenderoptions getcharacterhelmethideshead getcharacterbodystyleindex getcharactercustomizationforxuid getcharactermoderenderoptions getbodyrenderoptionspacked getfirstheadofgender getfirstheroofgender getheadgender getherogender getheroes getherobodymodelindices getheroheadmodelindices getherohelmetmodelindices getbodyaccentcolorcountforhero gethelmetaccentcolorcountforhero getallcharacterbodies getallcharacterheads getclassindexfromname getgametypeenumfromname getgametypesetting getshoutcastersetting getcontractname getcontractrequiredcount getcontractrequirements getcontractresetconditions getmissionname getmissionuniqueid getmissionversion getrootmapname getmapatindex getmapfields getmaporder getmapintromovie getmapoutromovie getnextmap getskiptoname getskiptos getcurrenteventid getcurrenteventname getcurrenteventoriginator getcurrenteventtype getcurrenteventtypename geteventpointofinterest getscriptbundle getscriptbundlelist getscriptbundlenames getscriptbundles getscriptmoverarray getlocalclientnumber getlocalclientcount getmaxlocalclients getlocalclientangles getlocalclientpos getlocalclienteyepos getlocalclientfov getlocalclientdriver getlocalgunnerangles getcontrollerposition getcontrollertype getenterbutton getclienttime getrealtime getmillisecondsraw getplaybacktime getcurrentanimscriptedname getanimlength getanimtime getanimframecount getanimcurrframecount getanimforcharacter getanimstatecategory getprimarydeltaanim getcorpseanim getentityanimrate getfootstepstrings getnotetracktimes getnotetracksindelta findanimbyname animhasnotetrack animrelative animscripted animmappingsearch asmsetanimationrate clearanim clearanimlimited camanimscripted endcamanimscripted extracamanimscripted endextracamanimscripted cameraforcedisablescriptcam camerasetlensid camerasetupdatecallback getcamangles getcamanglesbylocalclientnum getcamanimtime getcampos getcamposbylocalclientnum getdynent getdynentarray createdynentandlaunch cleanupspawneddynents getnode getnodearray getnodearraysorted getnodesinradius getnodesinradiussorted getnearestnode getnearestpathpoint getallnodes getpathfindingradius getpathmetric getclosestpointonnavmesh getclosestpointonnavvolume getnavmeshfacenormal getnavmeshtriggersforpoint getentnavmaterial getnodeindexonpath getnodeowner getnoderegion getnexttraversalnodeonpath getothernodeinnegotiationpair getcovernodearray getanynodearray getgrappletargetarray connectpaths disconnectpaths deletepathnode dropnodetofloor drawnode canclaimnode canpath findpath getaiarray getaicount getailimit getaiteamarray getaispeciesarray getaiarchetypearray getactorarray getactorteamarray getactorspawnerarray getactorspawnerteamarray getfreeactorcount getactorweaponoptions getaifxname getaitriggerflags getassignedteam getassignedteamname getenemies getenemyscrambleramount getfriendlyscrambleramount clearnearestenemyscrambler addfriendlyscrambler getinfluenceat getinfluencefacepos getinfluencenumfaces getinfluencerpreset getinfluencertimeoutremaining getbestinfluencepos enableinfluencer addinfluencer addorientedinfluencer addentityinfluencer evsetranges getinterestpoolawareness getinterestpoolvalue addtointerestpool getdamageableentarray dodamage clearplayergravity setplayergravity getlastoutwatertime depthinwater depthofplayerinwater gethealthoverlaytime forcepainon getequipmentheadobjective getcrateheadobjective getretrievableweapons getdroppedweapons getrope getlightcolor getlightintensity getlightradius getlightexponent getlightfovouter getfogsettings getreflectionlocs getreflectionorigin getdecorations getpartname getnumparts getknownlength getmovedelta getmovementtype getmovespeedscale getmaxreversespeed getmaxvehicles getnumfreeentities getbrushmodelcenter getpointinbounds getshootatpos getangledelta getanglefrombits getbitsforangle getnorthyaw getdebugeteye getinkillcam getkillcamentity getmigrationstatus getserverhighestclientfieldversion getclientfieldversion codegetclientfield codegetplayerstateclientfield codegetuimodelclientfield codegetworldclientfield codesetclientfield codesetplayerstateclientfield codesetuimodelclientfield codesetworldclientfield codeincrementclientfield codeincrementplayerstateclientfield codeincrementuimodelclientfield codeincrementworldclientfield getsnapshotindexarray getcountertotal getnumchallengescomplete getnumberofcollectiblesforlevel clearlastupdatedcollectibles delete attach detach detachall attachshieldmodel detachshieldmodel attachweapon getcorpsearray forcedelete cloneandremoveentity wait notify endon thread level game self world undefined isdefined".Split(' '));
             }
-            
+
             return string.Join(" ", keywords);
         }
-        
+
         // SetupFindReplace removed - find/replace is handled via keyboard shortcuts and dialogs
 
         // GSC syntax highlighting data loaded from GSC.xshd
         private static Helpers.GscSyntaxParser.GscSyntaxData gscSyntaxData = null;
-        
+
         // GSC syntax highlighting color constants (loaded from GSC.xshd)
         // Color names match the <Color name="..."> definitions in GSC.xshd
         private static Color CommentColor => GetGscColor("Comment", Color.FromArgb(77, 166, 66));      // #4DA642 - green
@@ -4127,7 +4315,7 @@ namespace T7CompilerGUI.Forms
         private static Color MethodCallColor => GetGscColor("MethodCall", Color.FromArgb(220, 220, 170)); // #DCDCAA - yellow/beige
         private static Color BuiltInFunctionColor => GetGscColor("BuiltInFunctions", Color.FromArgb(86, 156, 214)); // #569cd6 - blue (same as keywords)
         private static Color PreprocessorColor => GetGscColor("PreprocessorKeywords", Color.FromArgb(197, 134, 192)); // #c586c0 - purple (same as CommandKeywords)
-        
+
         /// <summary>
         /// Gets a color from GSC.xshd or returns a default fallback
         /// </summary>
@@ -4137,7 +4325,7 @@ namespace T7CompilerGUI.Forms
                 return gscSyntaxData.Colors[colorName];
             return fallback;
         }
-        
+
         /// <summary>
         /// Loads GSC syntax data from embedded GSC.xshd resource
         /// </summary>
@@ -4145,7 +4333,7 @@ namespace T7CompilerGUI.Forms
         {
             if (gscSyntaxData != null)
                 return; // Already loaded
-            
+
             try
             {
                 using (Stream xshdStream = Helpers.GscSyntaxParser.GetGscXshdStream())
@@ -4162,7 +4350,7 @@ namespace T7CompilerGUI.Forms
                 System.Diagnostics.Debug.WriteLine($"Failed to load GSC.xshd: {ex.Message}");
             }
         }
-        
+
         // Indicator indices for custom highlighting
         private const int INCLUDE_PATH_INDICATOR = 1;
         private const int METHOD_CALL_INDICATOR = 2;
@@ -4179,29 +4367,20 @@ namespace T7CompilerGUI.Forms
             // We just need to update conditional compilation indicators if needed
             // (This will be handled by UpdateConditionalCompilationIndicators)
         }
-        
+
         private void SetupSyntaxHighlightingIndicators(AvalonEditWrapper editor)
         {
             // AvalonEdit handles syntax highlighting directly from GSC.xshd
             // Include paths and method calls are already highlighted by GSC.xshd rules
             // This method is kept for compatibility but does nothing for AvalonEdit
         }
-        
+
         private void UpdateSyntaxHighlightingIndicators(AvalonEditWrapper editor)
         {
-            // AvalonEdit handles syntax highlighting directly from GSC.xshd
-            // Include paths, namespace names, and method calls are already highlighted
-            // by the GSC.xshd syntax definition file, so this method is no longer needed.
-            // However, we keep it for compatibility and as a placeholder for any future
-            // custom highlighting that might be needed beyond what GSC.xshd provides.
         }
 
         private void SetupConditionalCompilationIndicators(AvalonEditWrapper editor)
         {
-            // AvalonEdit uses a different system for conditional compilation highlighting
-            // This can be implemented using TextMarkerService or LineTransformers if needed
-            // For now, this is a placeholder - conditional compilation highlighting
-            // can be enhanced later using AvalonEdit's highlighting system
         }
 
         private void UpdateConditionalCompilationIndicators()
@@ -4212,7 +4391,7 @@ namespace T7CompilerGUI.Forms
                 this.BeginInvoke(new Action(() => UpdateConditionalCompilationIndicators()));
                 return;
             }
-            
+
             // Update indicators for all open editors
             foreach (var editor in openEditors.Values)
             {
@@ -4226,20 +4405,20 @@ namespace T7CompilerGUI.Forms
         private void UpdateConditionalCompilationIndicators(AvalonEditWrapper editor)
         {
             if (editor == null || editor.Editor == null) return;
-            
+
             // Clear all existing markers
             editor.ClearAllMarkers();
-            
+
             // Get active symbols from current game mode and gsc.conf
             HashSet<string> activeSymbols = GetActiveSymbols();
-            
+
             // Parse conditional compilation blocks
             string text = editor.Text;
             if (string.IsNullOrEmpty(text))
                 return;
-            
+
             List<CodeBlock> blocks = ParseConditionalBlocks(text);
-            
+
             // Apply markers to inactive blocks
             foreach (var block in blocks)
             {
@@ -4250,27 +4429,27 @@ namespace T7CompilerGUI.Forms
                     {
                         // One-line block: highlight the content between #ifdef and #endif
                         string line = editor.Lines[block.StartLine].Text;
-                        
+
                         // Find positions of #ifdef/#ifndef and #endif anywhere on the line
                         Regex ifdefRegex = new Regex(@"#if(def|ndef)\s+(\w+)", RegexOptions.IgnoreCase);
                         Regex endifRegex = new Regex(@"#endif\b", RegexOptions.IgnoreCase);
-                        
+
                         Match ifdefMatch = ifdefRegex.Match(line);
                         Match endifMatch = endifRegex.Match(line);
-                        
+
                         if (ifdefMatch.Success && endifMatch.Success)
                         {
                             // Get the line's start position (character offset)
                             int lineStartPos = editor.Lines[block.StartLine].Position;
-                            
+
                             // Calculate character positions for the content between #ifdef and #endif
                             int ifdefEndChar = ifdefMatch.Index + ifdefMatch.Length;
                             int endifStartChar = endifMatch.Index;
-                            
+
                             // Highlight the content between #ifdef and #endif
                             int startPos = lineStartPos + ifdefEndChar;
                             int length = endifStartChar - ifdefEndChar;
-                            
+
                             if (length > 0)
                             {
                                 editor.IndicatorFillRange(startPos, length);
@@ -4283,20 +4462,20 @@ namespace T7CompilerGUI.Forms
                         int startLine = block.StartLine + 1;
                         if (startLine >= editor.Lines.Count)
                             continue;
-                            
+
                         int startPos = editor.Lines[startLine].Position;
                         int endLine = block.EndLine < editor.Lines.Count ? block.EndLine - 1 : editor.Lines.Count - 1;
                         if (endLine < startLine)
                             continue;
-                            
+
                         int endPos = editor.Lines[endLine].EndPosition;
-                        
+
                         // Apply marker to inactive code
                         editor.IndicatorFillRange(startPos, endPos - startPos);
                     }
                 }
             }
-            
+
             // Force redraw to show markers
             if (editor.Editor?.TextArea?.TextView != null)
             {
@@ -4307,24 +4486,27 @@ namespace T7CompilerGUI.Forms
         // Track which custom symbols are enabled (user can toggle these)
         private Dictionary<string, bool> customSymbolStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private List<string> availableCustomSymbols = new List<string>();
-        
+
         private HashSet<string> GetActiveSymbols()
         {
             HashSet<string> symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            
+
             // Add current game mode symbol
             if (!string.IsNullOrEmpty(currentGameModeStr))
             {
                 symbols.Add(currentGameModeStr.ToUpper());
             }
-            
+
             // Add game symbol (BO3 or BO4)
             string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "BO3" : "BO4";
             symbols.Add(gameSymbol);
-            
-            // Add "serious" symbol (always active)
-            symbols.Add("SERIOUS");
-            
+
+            // Add namespace symbol (if found in source files)
+            if (!string.IsNullOrEmpty(projectNamespace))
+            {
+                symbols.Add(projectNamespace.ToUpper());
+            }
+
             // Add custom symbols that are enabled
             // Symbols work independently UNLESS they are inside a mode-specific ifdef (MP, ZM, SP)
             // If a symbol is inside a mode ifdef, it requires that mode to be active
@@ -4333,14 +4515,14 @@ namespace T7CompilerGUI.Forms
                 if (kvp.Value) // If symbol is enabled
                 {
                     string symbol = kvp.Key.ToUpper();
-                    
+
                     // Check if this symbol is inside a mode-specific ifdef block
                     if (symbolModeConditions.ContainsKey(symbol) && symbolModeConditions[symbol].Count > 0)
                     {
                         // Symbol is inside one or more mode ifdefs - check if current mode matches
                         string currentMode = currentGameModeStr.ToUpper();
                         bool modeMatches = symbolModeConditions[symbol].Contains(currentMode);
-                        
+
                         if (modeMatches)
                         {
                             // Current mode matches one of the modes this symbol is inside - symbol is active
@@ -4355,20 +4537,18 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             return symbols;
         }
-        
-        // Note: IsSymbolActive method removed - symbols now work independently
         // Parent conditions are still tracked for reference but don't affect symbol activation
-        
+
         // Track which symbols are defined inside which #ifdef blocks
         private Dictionary<string, List<string>> symbolParentConditions = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        
+
         // Track which symbols are inside mode-specific ifdef blocks (MP, ZM, SP)
         // Key: symbol name, Value: list of mode symbols (MP, ZM, SP) that this symbol appears inside
         private Dictionary<string, List<string>> symbolModeConditions = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        
+
         /// <summary>
         /// Public method to reload symbols from gsc.conf (called when GSC Configuration Editor saves)
         /// </summary>
@@ -4379,18 +4559,18 @@ namespace T7CompilerGUI.Forms
                 this.Invoke(new Action(ReloadSymbolsFromGscConf));
                 return;
             }
-            
+
             LoadSymbolsFromGscConf();
             UpdateSymbolsMenu();
             UpdateModeMenu();
-            
+
             // Update conditional compilation indicators for all open editors
             foreach (var kvp in openEditors)
             {
                 UpdateConditionalCompilationIndicators(kvp.Value);
             }
         }
-        
+
         /// <summary>
         /// Loads available symbols from gsc.conf and scans project files for symbols in #ifdef blocks
         /// Also reads and sets the game mode from gsc.conf
@@ -4401,10 +4581,10 @@ namespace T7CompilerGUI.Forms
             availableCustomSymbols.Clear();
             symbolParentConditions.Clear();
             symbolModeConditions.Clear();
-            
+
             if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
                 return;
-                
+
             // First, load symbols from gsc.conf
             string gscConfPath = Path.Combine(projectPath, "gsc.conf");
             if (File.Exists(gscConfPath))
@@ -4424,13 +4604,13 @@ namespace T7CompilerGUI.Forms
                         string trimmedLine = line.Trim();
                         if (string.IsNullOrEmpty(trimmedLine) || trimmedLine.StartsWith("#") || trimmedLine.StartsWith("//"))
                             continue;
-                            
+
                         if (trimmedLine.StartsWith("symbols=", StringComparison.OrdinalIgnoreCase))
                         {
                             // Extract symbols value (handle both "symbols=" and "symbols =")
                             int equalsIndex = trimmedLine.IndexOf('=');
                             if (equalsIndex < 0) continue;
-                            
+
                             string symbolsValue = trimmedLine.Substring(equalsIndex + 1).Trim();
                             foreach (string symbol in symbolsValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
                             {
@@ -4438,7 +4618,7 @@ namespace T7CompilerGUI.Forms
                                 if (!string.IsNullOrEmpty(trimmedSymbol))
                                 {
                                     string upperSymbol = trimmedSymbol.ToUpper();
-                                    
+
                                     // Check for game mode (MP, ZM, SP) and set currentGameModeStr
                                     if (upperSymbol == "MP" || upperSymbol == "ZM" || upperSymbol == "SP")
                                     {
@@ -4453,13 +4633,14 @@ namespace T7CompilerGUI.Forms
                                     {
                                         currentGame = TreyarchCompiler.Enums.Games.T8;
                                     }
-                                    // Track custom symbols (not game mode, game, or serious)
-                                    else if (upperSymbol != "SERIOUS")
+                                    // Track custom symbols (not game mode, game, or namespace)
+                                    else if (string.IsNullOrEmpty(projectNamespace) ||
+                                             !upperSymbol.Equals(projectNamespace.ToUpper(), StringComparison.OrdinalIgnoreCase))
                                     {
                                         // Use case-insensitive comparison for checking
                                         // Find existing symbol (case-insensitive) to preserve its exact casing
                                         string existingSymbol = availableCustomSymbols.FirstOrDefault(s => s.Equals(upperSymbol, StringComparison.OrdinalIgnoreCase));
-                                        
+
                                         if (existingSymbol == null)
                                         {
                                             // Symbol doesn't exist, add it
@@ -4492,17 +4673,68 @@ namespace T7CompilerGUI.Forms
                     System.Diagnostics.Debug.WriteLine($"Error loading gsc.conf: {ex.Message}");
                 }
             }
-            
+
+            // Read namespace from source files
+            ReadNamespaceFromSourceFiles();
+
             // Scan project files for symbols in #ifdef blocks
             ScanProjectForSymbols();
-            
+
             // Update the symbols menu
             UpdateSymbolsMenu();
-            
+
             // Update the mode menu to reflect the mode from gsc.conf
             UpdateModeMenu();
         }
-        
+
+        /// <summary>
+        /// Reads the namespace from source files by scanning for #namespace directives
+        /// </summary>
+        private void ReadNamespaceFromSourceFiles()
+        {
+            projectNamespace = string.Empty;
+
+            if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
+                return;
+
+            try
+            {
+                // Regex pattern to match #namespace directives (case-insensitive)
+                Regex namespaceRegex = new Regex(@"#namespace\s+(\w+)\s*;", RegexOptions.IgnoreCase);
+
+                // Scan all .gsc and .csc files in the project
+                foreach (string gscFile in Directory.GetFiles(projectPath, "*.*", SearchOption.AllDirectories)
+                    .Where(f => f.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
+                                f.EndsWith(".csc", StringComparison.OrdinalIgnoreCase)))
+                {
+                    try
+                    {
+                        string content = File.ReadAllText(gscFile);
+                        Match match = namespaceRegex.Match(content);
+                        if (match.Success && match.Groups.Count > 1)
+                        {
+                            string nsName = match.Groups[1].Value.Trim();
+                            if (!string.IsNullOrEmpty(nsName))
+                            {
+                                // Store the namespace as found (preserve original case)
+                                projectNamespace = nsName;
+                                break; // Use first namespace found
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Skip files that can't be read
+                        continue;
+                    }
+                }
+            }
+            catch
+            {
+                // Silently fail - namespace will remain empty
+            }
+        }
+
         /// <summary>
         /// Updates the mode menu checkboxes to reflect the current game mode
         /// </summary>
@@ -4510,12 +4742,12 @@ namespace T7CompilerGUI.Forms
         {
             if (campaignModeItem == null || multiplayerModeItem == null || zombiesModeItem == null)
                 return;
-            
+
             // Uncheck all first
             campaignModeItem.Checked = false;
             multiplayerModeItem.Checked = false;
             zombiesModeItem.Checked = false;
-            
+
             // Check the appropriate mode based on currentGameModeStr
             switch (currentGameModeStr.ToUpper())
             {
@@ -4531,7 +4763,7 @@ namespace T7CompilerGUI.Forms
                     break;
             }
         }
-        
+
         /// <summary>
         /// Scans all project files for symbols used in #ifdef/#ifndef blocks
         /// </summary>
@@ -4539,24 +4771,29 @@ namespace T7CompilerGUI.Forms
         {
             if (string.IsNullOrEmpty(projectPath) || !Directory.Exists(projectPath))
                 return;
-            
+
             try
             {
+                // Clear old symbol data for fresh scan when switching projects
+                availableCustomSymbols.Clear();
+                symbolParentConditions.Clear();
+                symbolModeConditions.Clear();
+
                 // Regex patterns for scanning project files
                 Regex ifdefPattern = new Regex(@"#if(?:def|ndef)\s+(\w+)", RegexOptions.Multiline | RegexOptions.IgnoreCase);
                 Regex constantDefinePattern = new Regex(@"^\s*#define\s+(\w+)\s*=", RegexOptions.Multiline | RegexOptions.IgnoreCase);
-                
+
                 HashSet<string> constantDefines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                
+
                 // Scan all .gsc and .csc files in the project
                 foreach (string gscFile in Directory.GetFiles(projectPath, "*.*", SearchOption.AllDirectories)
-                    .Where(f => f.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) || 
+                    .Where(f => f.EndsWith(".gsc", StringComparison.OrdinalIgnoreCase) ||
                                 f.EndsWith(".csc", StringComparison.OrdinalIgnoreCase)))
                 {
                     try
                     {
                         string content = File.ReadAllText(gscFile);
-                        
+
                         // First, identify constant definitions to exclude them
                         foreach (Match match in constantDefinePattern.Matches(content))
                         {
@@ -4569,34 +4806,36 @@ namespace T7CompilerGUI.Forms
                                 }
                             }
                         }
-                        
+
                         // Find all symbols used in #ifdef/#ifndef blocks and track their parent conditions
                         string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
                         Stack<KeyValuePair<string, bool>> ifdefStack = new Stack<KeyValuePair<string, bool>>(); // Track nested #ifdef conditions (symbol, isIfndef)
                         HashSet<string> currentModeParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // Track which mode symbols (MP, ZM, SP) are in the stack
-                        
+
                         for (int i = 0; i < lines.Length; i++)
                         {
                             string line = lines[i];
-                            
+
                             // Check for #ifdef or #ifndef
                             Match ifdefMatch = ifdefPattern.Match(line);
                             if (ifdefMatch.Success && ifdefMatch.Groups.Count > 1)
                             {
                                 string symbol = ifdefMatch.Groups[1].Value.Trim().ToUpper();
                                 bool isIfndef = line.Trim().StartsWith("#ifndef", StringComparison.OrdinalIgnoreCase);
-                                
+
                                 if (!string.IsNullOrEmpty(symbol))
                                 {
-                                    // Exclude game mode symbols and constant definitions
-                                    if (symbol != "MP" && symbol != "ZM" && symbol != "SP" && 
-                                        symbol != "BO3" && symbol != "BO4" && symbol != "SERIOUS" &&
+                                    // Exclude game mode symbols, namespace, and constant definitions
+                                    bool isNamespace = !string.IsNullOrEmpty(projectNamespace) &&
+                                                       symbol.Equals(projectNamespace.ToUpper(), StringComparison.OrdinalIgnoreCase);
+                                    if (symbol != "MP" && symbol != "ZM" && symbol != "SP" &&
+                                        symbol != "BO3" && symbol != "BO4" && !isNamespace &&
                                         !constantDefines.Contains(symbol))
                                     {
                                         // Add symbol to available list (case-insensitive check)
                                         // Find existing symbol (case-insensitive) to preserve its exact casing
                                         string existingSymbol = availableCustomSymbols.FirstOrDefault(s => s.Equals(symbol, StringComparison.OrdinalIgnoreCase));
-                                        
+
                                         if (existingSymbol == null)
                                         {
                                             // Symbol doesn't exist, add it
@@ -4614,20 +4853,20 @@ namespace T7CompilerGUI.Forms
                                             // Don't modify customSymbolStates - preserve whatever state was set from gsc.conf
                                             // The state is already set correctly from gsc.conf loading
                                         }
-                                        
+
                                         // Track parent conditions (nested #ifdef blocks)
                                         // A symbol is only active if all its parent conditions are met
                                         if (!symbolParentConditions.ContainsKey(symbol))
                                         {
                                             symbolParentConditions[symbol] = new List<string>();
                                         }
-                                        
+
                                         // Track mode-specific conditions (if symbol is inside MP, ZM, or SP ifdef)
                                         if (!symbolModeConditions.ContainsKey(symbol))
                                         {
                                             symbolModeConditions[symbol] = new List<string>();
                                         }
-                                        
+
                                         // Add current parent conditions to this symbol
                                         // Only add parents that are not already in the list
                                         foreach (var parent in ifdefStack)
@@ -4636,7 +4875,7 @@ namespace T7CompilerGUI.Forms
                                             {
                                                 symbolParentConditions[symbol].Add(parent.Key);
                                             }
-                                            
+
                                             // If parent is a mode symbol (MP, ZM, SP), track it separately
                                             if (parent.Key == "MP" || parent.Key == "ZM" || parent.Key == "SP")
                                             {
@@ -4646,7 +4885,7 @@ namespace T7CompilerGUI.Forms
                                                 }
                                             }
                                         }
-                                        
+
                                         // Also check currentModeParents (modes in the stack)
                                         foreach (string modeParent in currentModeParents)
                                         {
@@ -4655,10 +4894,10 @@ namespace T7CompilerGUI.Forms
                                                 symbolModeConditions[symbol].Add(modeParent);
                                             }
                                         }
-                                        
+
                                         // Push this symbol onto the stack (it's now a parent for nested blocks)
                                         ifdefStack.Push(new KeyValuePair<string, bool>(symbol, isIfndef));
-                                        
+
                                         // If this symbol is a mode symbol, add it to currentModeParents
                                         if (symbol == "MP" || symbol == "ZM" || symbol == "SP")
                                         {
@@ -4667,7 +4906,7 @@ namespace T7CompilerGUI.Forms
                                     }
                                 }
                             }
-                            
+
                             // Check for #endif to pop from stack
                             if (Regex.IsMatch(line, @"^\s*#endif\b", RegexOptions.IgnoreCase))
                             {
@@ -4692,7 +4931,7 @@ namespace T7CompilerGUI.Forms
             }
             catch { }
         }
-        
+
         /// <summary>
         /// Updates the symbols menu to show all available custom symbols
         /// </summary>
@@ -4718,7 +4957,7 @@ namespace T7CompilerGUI.Forms
                     mainMenuStrip.Items.Add(symbolsMenu);
                 }
             }
-            
+
             // Add menu items for each custom symbol
             foreach (string symbol in availableCustomSymbols.OrderBy(s => s))
             {
@@ -4728,7 +4967,8 @@ namespace T7CompilerGUI.Forms
                 string upperSymbol = symbol.ToUpper();
                 symbolItem.Checked = customSymbolStates.ContainsKey(upperSymbol) && customSymbolStates[upperSymbol];
                 symbolItem.Tag = upperSymbol; // Store uppercase version for consistency
-                symbolItem.Click += (s, e) => {
+                symbolItem.Click += (s, e) =>
+                {
                     ToolStripMenuItem item = s as ToolStripMenuItem;
                     if (item != null && item.Tag != null)
                     {
@@ -4749,7 +4989,7 @@ namespace T7CompilerGUI.Forms
                 };
                 symbolsMenu.DropDownItems.Add(symbolItem);
             }
-            
+
             // If no custom symbols, add a disabled item
             if (availableCustomSymbols.Count == 0)
             {
@@ -4772,26 +5012,26 @@ namespace T7CompilerGUI.Forms
         {
             List<CodeBlock> blocks = new List<CodeBlock>();
             HashSet<string> activeSymbols = GetActiveSymbols();
-            
+
             string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
             Stack<CodeBlock> blockStack = new Stack<CodeBlock>();
-            
+
             // Match #ifdef/#ifndef anywhere on the line (not just at start) - needed for one-line blocks
             Regex ifdefRegex = new Regex(@"#ifdef\s+(\w+)", RegexOptions.IgnoreCase);
             Regex ifndefRegex = new Regex(@"#ifndef\s+(\w+)", RegexOptions.IgnoreCase);
             Regex elseRegex = new Regex(@"^\s*#else\b", RegexOptions.IgnoreCase);
             // Match #endif anywhere on the line (not just at start) - needed for one-line blocks
             Regex endifRegex = new Regex(@"#endif\b", RegexOptions.IgnoreCase);
-            
+
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = lines[i];
-                
+
                 Match ifdefMatch = ifdefRegex.Match(line);
                 Match ifndefMatch = ifndefRegex.Match(line);
                 Match elseMatch = elseRegex.Match(line);
                 Match endifMatch = endifRegex.Match(line);
-                
+
                 // Check for one-line blocks (e.g., "#ifndef MP AddSubmenu(...); #endif" or "#ifdef MP code(); #endif")
                 // Look for #endif on the same line after #ifdef/#ifndef
                 bool isOneLineBlock = false;
@@ -4805,19 +5045,19 @@ namespace T7CompilerGUI.Forms
                         isOneLineBlock = true;
                     }
                 }
-                
+
                 if (ifdefMatch.Success)
                 {
                     string symbol = ifdefMatch.Groups[1].Value.ToUpper();
                     bool isActive = activeSymbols.Contains(symbol);
-                    
+
                     if (isOneLineBlock)
                     {
                         // One-line block: #ifdef ... #endif on same line
                         // Extract the content between #ifdef and #endif
                         int ifdefEnd = ifdefMatch.Index + ifdefMatch.Length;
                         int endifStart = endifMatch.Index;
-                        
+
                         // Create a block for the content between #ifdef and #endif
                         CodeBlock block = new CodeBlock
                         {
@@ -4827,13 +5067,13 @@ namespace T7CompilerGUI.Forms
                             IsIfndef = false,
                             IsActive = isActive
                         };
-                        
+
                         // Only add if inactive (we only need to grey out inactive code)
                         if (!block.IsActive)
                         {
                             blocks.Add(block);
                         }
-                        
+
                         // Skip processing this line further (don't push to stack)
                         continue;
                     }
@@ -4847,16 +5087,17 @@ namespace T7CompilerGUI.Forms
                             IsActive = isActive,
                             EndLine = -1 // Will be set when we find #endif
                         };
-                        
+
                         blockStack.Push(block);
                     }
                 }
                 else if (ifndefMatch.Success)
                 {
                     string symbol = ifndefMatch.Groups[1].Value.ToUpper();
-                    // Special case: "serious" is always active as a namespace, so #ifndef serious blocks should always be active (not grayed out)
+                    // Special case: namespace is always active, so #ifndef namespace blocks should always be active (not grayed out)
                     bool isActive;
-                    if (symbol == "SERIOUS")
+                    if (!string.IsNullOrEmpty(projectNamespace) &&
+                        symbol.Equals(projectNamespace.ToUpper(), StringComparison.OrdinalIgnoreCase))
                     {
                         isActive = true; // Always active - don't gray out
                     }
@@ -4866,7 +5107,7 @@ namespace T7CompilerGUI.Forms
                         // This matches user expectation: if XBOX is disabled, #ifndef XBOX should be blanked
                         isActive = activeSymbols.Contains(symbol);
                     }
-                    
+
                     if (isOneLineBlock)
                     {
                         // One-line block: #ifndef ... #endif on same line
@@ -4878,13 +5119,13 @@ namespace T7CompilerGUI.Forms
                             IsIfndef = true,
                             IsActive = isActive
                         };
-                        
+
                         // Only add if inactive (we only need to grey out inactive code)
                         if (!block.IsActive)
                         {
                             blocks.Add(block);
                         }
-                        
+
                         // Skip processing this line further (don't push to stack)
                         continue;
                     }
@@ -4898,7 +5139,7 @@ namespace T7CompilerGUI.Forms
                             IsActive = isActive,
                             EndLine = -1
                         };
-                        
+
                         blockStack.Push(block);
                     }
                 }
@@ -4907,7 +5148,7 @@ namespace T7CompilerGUI.Forms
                     // When we hit #else, we need to mark the previous block section
                     // and create a new block for the #else section
                     CodeBlock currentBlock = blockStack.Peek();
-                    
+
                     // Mark the end of the "if" section (before #else)
                     CodeBlock ifBlock = new CodeBlock
                     {
@@ -4922,7 +5163,7 @@ namespace T7CompilerGUI.Forms
                     {
                         blocks.Add(ifBlock);
                     }
-                    
+
                     // The #else section has the opposite active state
                     currentBlock.StartLine = i + 1; // Start after #else
                     currentBlock.IsActive = !currentBlock.IsActive;
@@ -4939,7 +5180,7 @@ namespace T7CompilerGUI.Forms
                         // This block was split by #else, so the end is the line before #endif
                         block.EndLine = i - 1;
                     }
-                    
+
                     // Only add if there's actual content AND it's inactive (we only grey out inactive code)
                     if (block.EndLine >= block.StartLine && !block.IsActive)
                     {
@@ -4947,7 +5188,7 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             return blocks;
         }
 
@@ -4980,7 +5221,7 @@ namespace T7CompilerGUI.Forms
             // Check if tabs are overflowing (selector would be visible)
             // We can detect this by checking if all tabs fit in the visible area
             bool tabsOverflowing = AreTabsOverflowing();
-            
+
             if (tabsOverflowing)
             {
                 // When tabs overflow, let the base TabControl handle scrolling
@@ -5035,19 +5276,19 @@ namespace T7CompilerGUI.Forms
                 lastTabScrollTime = now;
             }
         }
-        
+
         // Check if tabs are overflowing (would show selector)
         // This is a simple heuristic: if the total width of all tabs exceeds the control width
         private bool AreTabsOverflowing()
         {
             if (tabControl == null || tabControl.TabPages.Count == 0 || !tabControl.IsHandleCreated)
                 return false;
-            
+
             try
             {
                 // Get the width of the tab control's display area
                 int controlWidth = tabControl.DisplayRectangle.Width;
-                
+
                 // Estimate total width of all tabs
                 int totalTabWidth = 0;
                 for (int i = 0; i < tabControl.TabPages.Count; i++)
@@ -5055,7 +5296,7 @@ namespace T7CompilerGUI.Forms
                     Rectangle tabRect = tabControl.GetTabRect(i);
                     totalTabWidth += tabRect.Width;
                 }
-                
+
                 // If total width exceeds control width, tabs are likely overflowing
                 return totalTabWidth > controlWidth;
             }
@@ -5070,7 +5311,7 @@ namespace T7CompilerGUI.Forms
         {
             if (tabControl == null || tabControl.TabPages.Count == 0)
                 return;
-            
+
             // Check if tabs are overflowing
             if (AreTabsOverflowing())
             {
@@ -5079,10 +5320,10 @@ namespace T7CompilerGUI.Forms
                 int currentIndex = tabControl.SelectedIndex;
                 if (currentIndex < 0 && tabControl.TabPages.Count > 0)
                     currentIndex = 0;
-                
+
                 int scrollDirection = e.Delta > 0 ? -1 : 1;
                 int newIndex = currentIndex + scrollDirection;
-                
+
                 if (newIndex >= 0 && newIndex < tabControl.TabPages.Count)
                 {
                     tabControl.SelectedIndex = newIndex;
@@ -5097,15 +5338,15 @@ namespace T7CompilerGUI.Forms
                 }
                 return;
             }
-            
+
             // When tabs don't overflow, handle tab selection
             // No throttling - allow continuous scrolling
             int currentIdx = tabControl.SelectedIndex;
             if (currentIdx < 0)
                 currentIdx = 0;
-            
+
             int newIdx = currentIdx;
-            
+
             if (e.Delta > 0)
             {
                 // Scroll up - go to previous tab
@@ -5132,7 +5373,7 @@ namespace T7CompilerGUI.Forms
                     newIdx = 0;
                 }
             }
-            
+
             // Only change if index actually changed
             if (newIdx != currentIdx)
             {
@@ -5148,12 +5389,12 @@ namespace T7CompilerGUI.Forms
             {
                 // Get the tab control's client coordinates
                 Point tabControlMousePos = tabControl.PointToClient(Control.MousePosition);
-                
+
                 // Check if mouse is in the tab area (top ~30 pixels) or if Ctrl key is held
                 // This allows scrolling tabs even when mouse is over content if Ctrl is held
                 bool isOverTabArea = tabControlMousePos.Y < 30;
                 bool ctrlHeld = (Control.ModifierKeys & Keys.Control) != 0;
-                
+
                 if (isOverTabArea || ctrlHeld)
                 {
                     // The TabControl_MouseWheel handler will handle it
@@ -5162,7 +5403,7 @@ namespace T7CompilerGUI.Forms
                     return;
                 }
             }
-            
+
             base.OnMouseWheel(e);
         }
 
@@ -5216,19 +5457,19 @@ namespace T7CompilerGUI.Forms
                         filePath = foundFiles[0];
                 }
             }
-            
+
             // Ensure directory exists
             Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-            
+
             string contentToSave = editor.Text;
             File.WriteAllText(filePath, contentToSave);
-            
+
             // Update saved content reference - this is what we compare against for hasChanges
             fileContents[currentFileName] = contentToSave;
-            
+
             // Clear undo history after save (so undo doesn't go back past save point)
             editor.EmptyUndoBuffer();
-            
+
             // Recheck for unsaved changes (this will update hasChanges and title)
             CheckForUnsavedChanges();
         }
@@ -5270,28 +5511,28 @@ namespace T7CompilerGUI.Forms
                                     filePath = foundFiles[0];
                             }
                         }
-                        
+
                         // Ensure directory exists
                         string dir = Path.GetDirectoryName(filePath);
                         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                         {
                             Directory.CreateDirectory(dir);
                         }
-                        
+
                         string contentToSave = kvp.Value.Text;
-                        
+
                         // Process UI events before each save to keep UI responsive
                         Application.DoEvents();
-                        
+
                         // Use async file write to prevent blocking
                         File.WriteAllText(filePath, contentToSave);
-                        
+
                         // Update saved content reference - this is what we compare against for hasChanges
                         fileContents[kvp.Key] = contentToSave;
-                        
+
                         // Clear undo history after save (so undo doesn't go back past save point)
                         kvp.Value.EmptyUndoBuffer();
-                        
+
                         savedCount++;
                     }
                     catch (Exception ex)
@@ -5306,7 +5547,7 @@ namespace T7CompilerGUI.Forms
 
                 // Update hasChanges flag directly (all files are now saved)
                 hasChanges = false;
-                
+
                 // Only update title if requested (not during form closing)
                 if (updateTitle)
                 {
@@ -5327,8 +5568,6 @@ namespace T7CompilerGUI.Forms
 
         private void BtnCompile_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
             if (!folderOpened || string.IsNullOrEmpty(projectPath))
             {
                 ReaLTaiizor.Controls.PoisonMessageBox.Show(this, "Please open a project folder first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -5337,47 +5576,47 @@ namespace T7CompilerGUI.Forms
 
             this.Cursor = Cursors.WaitCursor;
             btnCompile.Cursor = Cursors.WaitCursor;
-            
+
             try
             {
-            SaveAllFiles();
-            
+                SaveAllFiles();
+
                 // Use MainForm's compile logic - find MainForm instance and use its public method
                 MainForm mainForm = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
                 if (mainForm != null)
                 {
                     // Determine output path
                     string outputPath = Path.Combine(projectPath, Path.GetFileName(projectPath) + ".gsc");
-                    
+
                     // Get active symbols from the editor (includes mode and custom symbols)
                     HashSet<string> activeSymbols = GetActiveSymbols();
                     List<string> symbolsList = activeSymbols.ToList();
-                    
+
                     // Use MainForm's public CompileProject method with symbols from editor
                     mainForm.CompileProject(projectPath, outputPath, currentGame, GetGameModeEnum(), symbolsList);
                 }
                 else
                 {
                     // Fallback: Show error message
-                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
-                        "MainForm not available. Please use the Compile tab in the main window.", 
-                        "Error", 
-                        MessageBoxButtons.OK, 
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                        "MainForm not available. Please use the Compile tab in the main window.",
+                        "Error",
+                        MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
                 }
             }
             catch (Exception ex)
             {
-                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
-                    $"Error during compilation: {ex.Message}\n\nStack trace: {ex.StackTrace}", 
-                    "Error", 
-                    MessageBoxButtons.OK, 
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    $"Error during compilation: {ex.Message}\n\nStack trace: {ex.StackTrace}",
+                    "Error",
+                    MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
             finally
             {
-            btnCompile.Cursor = Cursors.Default;
-            this.Cursor = Cursors.Default;
+                btnCompile.Cursor = Cursors.Default;
+                this.Cursor = Cursors.Default;
             }
         }
 
@@ -5396,6 +5635,9 @@ namespace T7CompilerGUI.Forms
             }
         }
 
+        /// <summary>
+        /// Checks if the game is currently running
+        /// </summary>
 
         #endregion
 
@@ -5406,12 +5648,12 @@ namespace T7CompilerGUI.Forms
             try
             {
                 string gameSubfolder = currentGame == TreyarchCompiler.Enums.Games.T7 ? "T7" : "T8";
-                
+
                 // Create default project in the exe directory as "defaultproject"
                 string guiPath = GetGuiPath();
                 string defaultProjectBasePath = Path.Combine(guiPath, "defaultproject");
                 string defaultProjectPath = Path.Combine(defaultProjectBasePath, gameSubfolder);
-                
+
                 // Check if the defaultproject folder exists (from installer or build)
                 if (Directory.Exists(defaultProjectPath))
                 {
@@ -5420,19 +5662,19 @@ namespace T7CompilerGUI.Forms
                     folderOpened = true;
                     return;
                 }
-                
+
                 // Get default template files path
                 string defaultsPath = GetDefaultsPath();
-                
+
                 // Create it using the template files
                 string scriptsPath = Path.Combine(defaultProjectPath, "scripts");
                 string functionsPath = Path.Combine(scriptsPath, "functions");
-                
+
                 // Create directories
                 Directory.CreateDirectory(defaultProjectPath);
                 Directory.CreateDirectory(scriptsPath);
                 Directory.CreateDirectory(functionsPath);
-                
+
                 if (currentGame == TreyarchCompiler.Enums.Games.T7)
                 {
                     // For T7, use multiple template files
@@ -5457,7 +5699,12 @@ namespace T7CompilerGUI.Forms
                 {
                     string gameSymbol = currentGame == TreyarchCompiler.Enums.Games.T7 ? "bo3" : "bo4";
                     string gameModeLower = currentGameModeStr.ToLower();
-                    File.WriteAllText(gscConfPath, $"symbols={gameSymbol},serious,{gameModeLower}");
+                    // Read namespace from source files if available
+                    string namespaceSymbol = !string.IsNullOrEmpty(projectNamespace) ? projectNamespace : "";
+                    string symbolsLine = string.IsNullOrEmpty(namespaceSymbol)
+                        ? $"symbols={gameSymbol},{gameModeLower}"
+                        : $"symbols={gameSymbol},{namespaceSymbol},{gameModeLower}";
+                    File.WriteAllText(gscConfPath, symbolsLine);
                 }
 
                 // Open the folder
@@ -5496,7 +5743,7 @@ namespace T7CompilerGUI.Forms
         {
             errorDetails = string.Empty;
             StringBuilder errorInfo = new StringBuilder();
-            
+
             try
             {
                 // Step 1: Find main.gsc file - search recursively in all subfolders (same as RefreshFileList)
@@ -5507,21 +5754,21 @@ namespace T7CompilerGUI.Forms
                     errorDetails = errorInfo.ToString();
                     return false;
                 }
-                
+
                 // Use the first main.gsc found (typically there should only be one)
                 string mainGscPath = mainGscFiles[0];
                 string relativePath = mainGscPath.Substring(projectPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 errorInfo.AppendLine($"✓ Found main.gsc: {relativePath}");
-                
+
                 // Step 2: Read and analyze main.gsc
                 string content = File.ReadAllText(mainGscPath);
                 string lowerContent = content.ToLower();
-                
+
                 // Step 3: Check namespace (for informational purposes only - not used for detection)
                 // Namespace alone is not a reliable indicator - we require both system::register and #ifdef IL
                 bool foundNamespace = false;
                 string namespaceValue = string.Empty;
-                
+
                 // Look for #namespace directive
                 System.Text.RegularExpressions.Regex namespaceRegex = new System.Text.RegularExpressions.Regex(@"#namespace\s+(\w+)\s*;", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                 System.Text.RegularExpressions.Match namespaceMatch = namespaceRegex.Match(content);
@@ -5535,18 +5782,18 @@ namespace T7CompilerGUI.Forms
                 {
                     errorInfo.AppendLine("✗ No #namespace directive found");
                 }
-                
+
                 // Step 4: Check for BOTH system::register("infinityloader" AND #ifdef IL (both required)
                 // The new syntax requires both indicators to be present
                 bool foundSystemRegister = false;
                 bool foundIfdefIL = false;
-                
+
                 // Look for system::register("infinityloader" anywhere in the file
                 // Pattern: system::register("infinityloader" (with flexible spacing)
                 System.Text.RegularExpressions.Regex registerRegex = new System.Text.RegularExpressions.Regex(
                     @"system\s*::\s*register\s*\(\s*[""']infinityloader[""']",
                     System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                
+
                 if (registerRegex.IsMatch(content))
                 {
                     foundSystemRegister = true;
@@ -5556,10 +5803,10 @@ namespace T7CompilerGUI.Forms
                 {
                     errorInfo.AppendLine("✗ system::register(\"infinityloader\" not found in file");
                 }
-                
+
                 // Check for #ifdef IL directives (new IL syntax indicator)
                 // Check for both "#ifdef IL" and "#ifdef\tIL" (with tab)
-                if (lowerContent.IndexOf("#ifdef il", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                if (lowerContent.IndexOf("#ifdef il", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     lowerContent.IndexOf("#ifdef\til", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     foundIfdefIL = true;
@@ -5569,7 +5816,7 @@ namespace T7CompilerGUI.Forms
                 {
                     errorInfo.AppendLine("✗ #ifdef IL directive not found in file");
                 }
-                
+
                 // BOTH indicators must be present for it to be an IL project
                 if (foundSystemRegister && foundIfdefIL)
                 {
@@ -5590,7 +5837,7 @@ namespace T7CompilerGUI.Forms
                     {
                         errorInfo.AppendLine("✗ #ifdef IL directive not found - not an IL project");
                     }
-                    
+
                     if (foundNamespace && namespaceValue.Equals("duplicate_render", StringComparison.OrdinalIgnoreCase))
                     {
                         errorInfo.AppendLine("✗ Namespace is 'duplicate_render' and IL indicators not found - not an IL project");
@@ -5604,7 +5851,7 @@ namespace T7CompilerGUI.Forms
                 errorDetails = errorInfo.ToString();
                 return false;
             }
-            
+
             errorDetails = errorInfo.ToString();
             return false;
         }
@@ -5630,7 +5877,7 @@ namespace T7CompilerGUI.Forms
                 @"#namespace\s+infinityloader\s*;",
                 "#namespace duplicate_render;",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
+
             // Step 1: Convert #ifdef RELEASE ... #else ... #ifndef DEBUG ... #else ... #endif ... #endif
             // to: autoexec __init__system__() { system::register("duplicate_render", ::__init__, undefined, undefined); }
             // Only match if it contains BUILD definition (to avoid false matches)
@@ -5640,7 +5887,7 @@ namespace T7CompilerGUI.Forms
                 @"#ifdef\s+RELEASE\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#define\s+BUILD[^\r\n]*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*(?:[^#]|#(?!ifndef|endif))*?#ifndef\s+DEBUG\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#define\s+BUILD[^\r\n]*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*(?:[^#]|#(?!endif))*?#define\s+BUILD[^\r\n]*[\r\n]*(?:[^#]|#(?!endif))*?[\r\n]*?#endif\s*[\r\n]*#endif",
                 "autoexec __init__system__()\r\n{\r\n    system::register(\"duplicate_render\", ::__init__, undefined, undefined);\r\n}",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
-            
+
             // Step 2: Handle nested #ifdef T7 ... #else ... #ifdef IL ... #else ... #endif ... #endif
             // We want to keep the #ifdef T7 block and remove the entire #else block (which contains the IL code)
             // Pattern: #ifdef T7 (keep this) ... #else (remove everything from here) ... #ifdef IL ... #else ... #endif ... #endif
@@ -5650,7 +5897,7 @@ namespace T7CompilerGUI.Forms
                 @"(#ifdef\s+T7\s*[\r\n]*(?:[^#]|#(?!else|endif))*?)(#else\s*[\r\n]*(?:[^#]|#(?!endif))*?#ifdef\s+IL\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*[\r\n]*(?:[^#]|#(?!endif))*?[\r\n]*?#endif\s*[\r\n]*#endif)",
                 "$1",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
-            
+
             // Also handle simpler case: #ifdef T7 ... #else ... #endif (remove #else part if it contains IL indicators)
             // But only if the #else doesn't have nested #ifdef IL (already handled above)
             content = System.Text.RegularExpressions.Regex.Replace(
@@ -5658,7 +5905,7 @@ namespace T7CompilerGUI.Forms
                 @"(#ifdef\s+T7\s*[\r\n]*(?:[^#]|#(?!else|endif))*?)#else\s*[\r\n]*(?:[^#]|#(?!endif))*?(system\s*::\s*register\s*\(\s*[""']infinityloader[""']|#ifdef\s+IL)(?:[^#]|#(?!endif))*?#endif",
                 "$1",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
-            
+
             // Step 3: Handle standalone #ifdef IL ... #else ... #endif blocks (keep #else part, remove IL part)
             // This regex matches: #ifdef IL ... #else (T7 code) ... #endif
             // and replaces it with just the T7 code from #else
@@ -5667,14 +5914,14 @@ namespace T7CompilerGUI.Forms
                 @"#ifdef\s+IL\s*[\r\n]*(?:[^#]|#(?!else|endif))*?#else\s*(?:[\r\n]|//[^\r\n]*[\r\n])*((?:[^#]|#(?!endif))*?)[\r\n]*?#endif",
                 "$1",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
-            
+
             // Step 4: Handle #ifdef IL blocks without #else (remove entire block)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"#ifdef\s+IL\s*[\r\n]*(?:[^#]|#(?!endif))*?[\r\n]*?#endif",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
-            
+
             // Step 5: Remove autoexec __init__system__() functions that register infinityloader (IL-specific)
             // This needs to match multiline functions - match from autoexec to closing brace
             // But keep the ones that register "duplicate_render" (we just added those)
@@ -5683,7 +5930,7 @@ namespace T7CompilerGUI.Forms
                 @"autoexec\s+__init__system__\s*\([^)]*\)\s*\{[^\}]*system\s*::\s*register\s*\(\s*[""']infinityloader[""'][^\}]*\}",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
-            
+
             // Step 6: Remove system::register("infinityloader" calls (can be multiline, now in #else blocks)
             // Match the entire call including any whitespace before it
             content = System.Text.RegularExpressions.Regex.Replace(
@@ -5691,42 +5938,42 @@ namespace T7CompilerGUI.Forms
                 @"\s*system\s*::\s*register\s*\(\s*[""']infinityloader[""'][^;]*;\s*",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
-            
+
             // Step 7: Remove standalone #ifdef IL lines (if any remain)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"#ifdef\s+IL\s*[\r\n]+",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
+
             // Step 8: Remove #else comments that were part of IL blocks (e.g., "// ---------------- T7 / BUILD MODE ----------------")
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"#else\s*//\s*[^\r\n]*(?:T7|BUILD\s+MODE)[^\r\n]*[\r\n]+",
                 "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Multiline);
-            
+
             // Step 9: Replace enableonlinematch with getplayers (old IL syntax compatibility)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"enableonlinematch",
                 "getplayers",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
+
             // Step 10: Clean up excessive blank lines (more than 2 consecutive)
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"[\r\n]{3,}",
                 "\r\n\r\n",
                 System.Text.RegularExpressions.RegexOptions.Multiline);
-            
+
             // Step 11: Clean up trailing whitespace on lines
             content = System.Text.RegularExpressions.Regex.Replace(
                 content,
                 @"[ \t]+[\r\n]",
                 "\r\n",
                 System.Text.RegularExpressions.RegexOptions.Multiline);
-            
+
             return content;
         }
 
@@ -5754,14 +6001,14 @@ namespace T7CompilerGUI.Forms
                 {
                     Directory.CreateDirectory(outputPath);
                     FileHelper.CopyDirectory(input, outputPath, true);
-                    
+
                     ReaLTaiizor.Controls.PoisonMessageBox.Show(
                         this,
                         $"Project already has gsc.conf - copied as-is to:\n{outputPath}\n\nThe project will now be opened.",
                         "Porting Complete",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
-                    
+
                     OpenFolder(outputPath);
                     return;
                 }
@@ -5794,15 +6041,19 @@ namespace T7CompilerGUI.Forms
                 // Convert config.il to gsc.conf (aligned with ImportDialog.cs logic)
                 HashSet<string> symbols = new HashSet<string>();
                 symbols.Add("BO3");  // Always add BO3
-                symbols.Add("SERIOUS");  // Always add SERIOUS
-                
+                // Add namespace if found (read from source files)
+                if (!string.IsNullOrEmpty(projectNamespace))
+                {
+                    symbols.Add(projectNamespace.ToUpper());
+                }
+
                 var configIl = Directory.GetFiles(scriptsPath, "config.il", SearchOption.AllDirectories).FirstOrDefault();
                 if (configIl != null)
                 {
                     try
                     {
                         string configData = File.ReadAllText(configIl);
-                        
+
                         // Extract <Mode> tag value
                         int modeIndex = configData.IndexOf("<Mode>");
                         if (modeIndex >= 0)
@@ -5813,13 +6064,13 @@ namespace T7CompilerGUI.Forms
                                 .ToArray())
                                 .Trim()
                                 .ToUpper();
-                            
+
                             if (!string.IsNullOrEmpty(modeValue))
                             {
                                 symbols.Add(modeValue);
                             }
                         }
-                        
+
                         // Extract <Symbols> tag values (semicolon-separated)
                         int symbolsIndex = configData.IndexOf("<Symbols>");
                         if (symbolsIndex >= 0)
@@ -5830,7 +6081,7 @@ namespace T7CompilerGUI.Forms
                                 .ToArray())
                                 .Trim()
                                 .ToUpper();
-                            
+
                             if (!string.IsNullOrEmpty(symbolsValue))
                             {
                                 foreach (var symbol in symbolsValue.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
@@ -5843,7 +6094,7 @@ namespace T7CompilerGUI.Forms
                                 }
                             }
                         }
-                        
+
                         // Delete config.il after extracting its data
                         File.Delete(configIl);
                     }
@@ -5883,10 +6134,10 @@ namespace T7CompilerGUI.Forms
             }
             catch (Exception ex)
             {
-                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
-                    $"Error porting IL project: {ex.Message}", 
-                    "Error", 
-                    MessageBoxButtons.OK, 
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    $"Error porting IL project: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
                 CreateDefaultProjectOnStartup();
             }
@@ -5909,10 +6160,10 @@ namespace T7CompilerGUI.Forms
                 // Replace %USERPROFILE% or actual user profile path with ~
                 string displayPath = projectPath;
                 string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                
+
                 // First expand any environment variables
                 displayPath = Environment.ExpandEnvironmentVariables(displayPath);
-                
+
                 // Replace user profile path with ~
                 if (!string.IsNullOrEmpty(userProfile) && displayPath.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase))
                 {
@@ -5928,7 +6179,7 @@ namespace T7CompilerGUI.Forms
                         displayPath = displayPath.Substring(0, index) + "~" + displayPath.Substring(index + "%USERPROFILE%".Length);
                     }
                 }
-                
+
                 // Truncate path if too long (max 100 characters for path)
                 if (displayPath.Length > 100)
                 {
@@ -5962,19 +6213,16 @@ namespace T7CompilerGUI.Forms
                 statusBarTimer.Dispose();
             }
 
-            // Create a new timer to reset the status bar after the duration
-            statusBarTimer = new System.Windows.Forms.Timer();
-            statusBarTimer.Interval = durationMs;
-            statusBarTimer.Tick += (s, e) =>
+            // Create a tracked timer to reset the status bar after the duration
+            statusBarTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, durationMs, (s, e) =>
             {
                 statusBarTimer.Stop();
-                statusBarTimer.Dispose();
                 statusBarTimer = null;
                 if (statusLabel != null && !this.IsDisposed)
                 {
                     statusLabel.Text = GetDefaultStatusText();
                 }
-            };
+            });
             statusBarTimer.Start();
         }
 
@@ -5984,32 +6232,33 @@ namespace T7CompilerGUI.Forms
 
         private void FileWatcher_Changed(object sender, FileSystemEventArgs e)
         {
+            // CRITICAL: Check if form is disposed/disposing before processing to prevent memory leaks
+            if (this.IsDisposed || this.Disposing || !this.IsHandleCreated)
+                return;
+
             // File was changed externally - reload if not currently editing
             if (this.InvokeRequired)
             {
                 // Use BeginInvoke instead of Invoke to avoid TimeoutException
                 // BeginInvoke is asynchronous and won't block or timeout
-                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                try
                 {
-                    try
-                    {
-                        this.BeginInvoke(new Action(() => FileWatcher_Changed(sender, e)));
-                    }
-                    catch (ObjectDisposedException) { }
-                    catch (InvalidOperationException) { }
-                    catch (ArgumentException) { }
+                    this.BeginInvoke(new Action(() => FileWatcher_Changed(sender, e)));
                 }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                catch (ArgumentException) { }
                 return;
             }
 
             // Use full absolute path to match openEditors keys
             string fullPath = Path.GetFullPath(e.FullPath);
             string filename = Path.GetFileName(e.FullPath);
-            
+
             // Check both full path and filename (for backward compatibility)
-            string keyToUse = openEditors.ContainsKey(fullPath) ? fullPath : 
+            string keyToUse = openEditors.ContainsKey(fullPath) ? fullPath :
                              (openEditors.ContainsKey(filename) ? filename : null);
-            
+
             // Reload file if it's open
             // If it's the current file being edited, we'll still reload but show a notification
             if (keyToUse != null)
@@ -6023,12 +6272,12 @@ namespace T7CompilerGUI.Forms
                     {
                         // Wait a bit for the file to be fully written (FileSystemWatcher can fire too early)
                         System.Threading.Thread.Sleep(100);
-                        
+
                         // Retry reading the file with delays to handle file locks
                         string content = null;
                         int retries = 10; // Increased retries
                         int delay = 100; // Start with 100ms delay
-                        
+
                         for (int i = 0; i < retries; i++)
                         {
                             try
@@ -6066,7 +6315,7 @@ namespace T7CompilerGUI.Forms
                                 return;
                             }
                         }
-                        
+
                         if (content != null)
                         {
                             // Update UI on the main thread
@@ -6083,15 +6332,15 @@ namespace T7CompilerGUI.Forms
                                                 isLoadingFiles = true;
                                                 try
                                                 {
-                    editor.Text = content;
+                                                    editor.Text = content;
                                                     fileContents[keyToUse] = content;
                                                     // Clear undo history after external reload
                                                     editor.EmptyUndoBuffer();
                                                     // Don't set hasChanges = false here - external changes don't affect our unsaved state
-                                                    
+
                                                     // Show notification in status bar
                                                     ShowStatusMessage($"File '{Path.GetFileName(e.FullPath)}' was modified externally and has been reloaded.", 5000);
-                                                    
+
                                                     // Update conditional compilation indicators after reload
                                                     UpdateConditionalCompilationIndicators(editor);
                                                     UpdateSyntaxHighlightingIndicators(editor);
@@ -6118,10 +6367,10 @@ namespace T7CompilerGUI.Forms
                                     // Clear undo history after external reload
                                     editor.EmptyUndoBuffer();
                                     // Don't set hasChanges = false here - external changes don't affect our unsaved state
-                                    
+
                                     // Show notification in status bar
                                     ShowStatusMessage($"File '{Path.GetFileName(e.FullPath)}' was modified externally and has been reloaded.", 5000);
-                                    
+
                                     // Update conditional compilation indicators after reload
                                     UpdateConditionalCompilationIndicators(editor);
                                     UpdateSyntaxHighlightingIndicators(editor);
@@ -6139,19 +6388,20 @@ namespace T7CompilerGUI.Forms
 
         private void FileWatcher_Created(object sender, FileSystemEventArgs e)
         {
+            // CRITICAL: Check if form is disposed/disposing before processing to prevent memory leaks
+            if (this.IsDisposed || this.Disposing || !this.IsHandleCreated)
+                return;
+
             if (this.InvokeRequired)
             {
                 // Use BeginInvoke instead of Invoke to avoid TimeoutException
-                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                try
                 {
-                    try
-                    {
-                        this.BeginInvoke(new Action(() => FileWatcher_Created(sender, e)));
-                    }
-                    catch (ObjectDisposedException) { }
-                    catch (InvalidOperationException) { }
-                    catch (ArgumentException) { }
+                    this.BeginInvoke(new Action(() => FileWatcher_Created(sender, e)));
                 }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                catch (ArgumentException) { }
                 return;
             }
 
@@ -6160,59 +6410,63 @@ namespace T7CompilerGUI.Forms
 
         private void FileWatcher_Deleted(object sender, FileSystemEventArgs e)
         {
+            // CRITICAL: Check if form is disposed/disposing before processing to prevent memory leaks
+            if (this.IsDisposed || this.Disposing || !this.IsHandleCreated)
+                return;
+
             if (this.InvokeRequired)
             {
                 // Use BeginInvoke instead of Invoke to avoid TimeoutException
-                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                try
                 {
-                    try
-                    {
-                        this.BeginInvoke(new Action(() => FileWatcher_Deleted(sender, e)));
-                    }
-                    catch (ObjectDisposedException) { }
-                    catch (InvalidOperationException) { }
-                    catch (ArgumentException) { }
+                    this.BeginInvoke(new Action(() => FileWatcher_Deleted(sender, e)));
                 }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                catch (ArgumentException) { }
                 return;
             }
 
             // Use full absolute path to match editorTabs keys
             string fullPath = Path.GetFullPath(e.FullPath);
             string filename = Path.GetFileName(e.FullPath);
-            
+
             // Check both full path and filename (for backward compatibility)
-            string keyToUse = editorTabs.ContainsKey(fullPath) ? fullPath : 
+            string keyToUse = editorTabs.ContainsKey(fullPath) ? fullPath :
                              (editorTabs.ContainsKey(filename) ? filename : null);
-            
+
             if (keyToUse != null)
             {
                 // Show notification in status bar
                 ShowStatusMessage($"File '{Path.GetFileName(e.FullPath)}' was deleted. Closing tab...", 3000);
-                
-                tabControl.TabPages.Remove(editorTabs[keyToUse]);
-                editorTabs.Remove(keyToUse);
-                openEditors.Remove(keyToUse);
-                fileContents.Remove(keyToUse);
+
+                // Dispose and remove tab page first
+                var tabPageToRemove = editorTabs[keyToUse];
+                tabControl.TabPages.Remove(tabPageToRemove);
+
+                // Properly clean up all resources for this tab
+                CleanupTabResources(keyToUse);
             }
-            
+
             RefreshFileList(false);
         }
 
         private void FileWatcher_Renamed(object sender, RenamedEventArgs e)
         {
+            // CRITICAL: Check if form is disposed/disposing before processing to prevent memory leaks
+            if (this.IsDisposed || this.Disposing || !this.IsHandleCreated)
+                return;
+
             if (this.InvokeRequired)
             {
                 // Use BeginInvoke instead of Invoke to avoid TimeoutException
-                if (!this.IsDisposed && !this.Disposing && this.IsHandleCreated)
+                try
                 {
-                    try
-                    {
-                        this.BeginInvoke(new Action(() => FileWatcher_Renamed(sender, e)));
-                    }
-                    catch (ObjectDisposedException) { }
-                    catch (InvalidOperationException) { }
-                    catch (ArgumentException) { }
+                    this.BeginInvoke(new Action(() => FileWatcher_Renamed(sender, e)));
                 }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                catch (ArgumentException) { }
                 return;
             }
 
@@ -6238,14 +6492,14 @@ namespace T7CompilerGUI.Forms
             Uri targetUri = new Uri(targetPath);
             Uri relativeUri = baseUri.MakeRelativeUri(targetUri);
             string relativePath = Uri.UnescapeDataString(relativeUri.ToString()).Replace('/', Path.DirectorySeparatorChar);
-            
+
             return relativePath;
         }
 
         private void CheckForUnsavedChanges()
         {
             bool anyChanges = false;
-            
+
             // Check all open editors against their saved content
             foreach (var kvp in openEditors)
             {
@@ -6254,7 +6508,7 @@ namespace T7CompilerGUI.Forms
                     try
                     {
                         string currentText = kvp.Value.Text ?? string.Empty;
-                        
+
                         if (fileContents.ContainsKey(kvp.Key))
                         {
                             // Compare against saved content
@@ -6281,11 +6535,11 @@ namespace T7CompilerGUI.Forms
                     }
                 }
             }
-            
+
             // Always update hasChanges flag
             bool previousState = hasChanges;
             hasChanges = anyChanges;
-            
+
             // Update title if state changed or if we're on UI thread (for immediate feedback)
             if (previousState != anyChanges || !this.InvokeRequired)
             {
@@ -6342,7 +6596,7 @@ namespace T7CompilerGUI.Forms
             {
                 Assembly assembly = Assembly.GetExecutingAssembly();
                 string fullResourceName = $"T7CompilerGUI.Defaults.{resourceName}";
-                
+
                 using (Stream stream = assembly.GetManifestResourceStream(fullResourceName))
                 {
                     if (stream != null)
@@ -6358,7 +6612,7 @@ namespace T7CompilerGUI.Forms
             {
                 // If embedded resource not found, return empty string
             }
-            
+
             return "";
         }
 
@@ -6376,7 +6630,7 @@ namespace T7CompilerGUI.Forms
                 if (!string.IsNullOrEmpty(content))
                     return content;
             }
-            
+
             // Fallback: try file system (for development)
             string templatePath = GetDefaultsPath();
             if (currentGame == TreyarchCompiler.Enums.Games.T8)
@@ -6391,7 +6645,7 @@ namespace T7CompilerGUI.Forms
                 if (File.Exists(bo3MainPath))
                     return File.ReadAllText(bo3MainPath);
             }
-            
+
             return "";
         }
 
@@ -6403,7 +6657,7 @@ namespace T7CompilerGUI.Forms
                 if (!string.IsNullOrEmpty(content))
                     return content;
             }
-            
+
             // Fallback: try file system (for development)
             string templatePath = GetDefaultsPath();
             if (currentGame == TreyarchCompiler.Enums.Games.T8)
@@ -6412,7 +6666,7 @@ namespace T7CompilerGUI.Forms
                 if (File.Exists(bo4HeadersPath))
                     return File.ReadAllText(bo4HeadersPath);
             }
-            
+
             // T7 doesn't use headers file, it uses multiple files (options, util, functions/*)
             return @"// Headers file
 // Add your function declarations and includes here";
@@ -6430,9 +6684,9 @@ namespace T7CompilerGUI.Forms
             {
                 Directory.CreateDirectory(outputDir);
             }
-            
+
             string contentToWrite = "";
-            
+
             // First, try to read from embedded resources
             string embeddedContent = ReadEmbeddedTemplate(templateFileName);
             if (!string.IsNullOrEmpty(embeddedContent))
@@ -6454,7 +6708,7 @@ namespace T7CompilerGUI.Forms
                     contentToWrite = fallbackContent ?? "";
                 }
             }
-            
+
             // Always write the content (overwrite if file exists to ensure default content is set)
             File.WriteAllText(outputPath, contentToWrite);
         }
@@ -6462,33 +6716,6 @@ namespace T7CompilerGUI.Forms
         #endregion
 
         #region Additional UI Features
-
-        private void UpdateCompilerMenu_Click(object sender, EventArgs e)
-        {
-            var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
-                this,
-                "This will delete the current compiler and reinstall it. Continue?",
-                "Update Compiler",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-            
-            if (result == DialogResult.Yes)
-            {
-                try
-                {
-                    // Use temp folder instead of hardcoded path
-                    string tempCompilerPath = Path.Combine(Path.GetTempPath(), "t7compiler");
-                    if (Directory.Exists(tempCompilerPath))
-                        Directory.Delete(tempCompilerPath, true);
-                    
-                    CompilerActions.InstallCompiler(@"https://gsc.dev/t7c_package");
-                }
-                catch (Exception ex)
-                {
-                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Error updating compiler: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-        }
 
         private void ForceHostMenu_Click(object sender, EventArgs e)
         {
@@ -6501,7 +6728,7 @@ namespace T7CompilerGUI.Forms
                     "Info",
                     MessageBoxButtons.OKCancel,
                     MessageBoxIcon.Information);
-                
+
                 if (result == DialogResult.OK)
                 {
                     BlackOps3.ApplyHostDvars();
@@ -6530,13 +6757,13 @@ namespace T7CompilerGUI.Forms
         private void InjectPrecompiledScript(TreyarchCompiler.Enums.Games game)
         {
             string gameName = game == TreyarchCompiler.Enums.Games.T7 ? "Black Ops 3" : "Black Ops 4";
-            
+
             using (var dialog = new OpenFileDialog())
             {
                 dialog.Title = $"{gameName} - Precompiled Script";
                 dialog.Filter = "Compiled Scripts (*.gsc;*.gscc)|*.gsc;*.gscc|All Files (*.*)|*.*";
                 dialog.FilterIndex = 1;
-                
+
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     if (!dialog.FileName.EndsWith(".gsc") && !dialog.FileName.EndsWith(".gscc"))
@@ -6545,7 +6772,7 @@ namespace T7CompilerGUI.Forms
                         InjectPrecompiledScript(game);
                         return;
                     }
-                    
+
                     // Use MainForm's inject logic - find MainForm instance and use its public method
                     MainForm mainForm = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
                     if (mainForm != null)
@@ -6556,17 +6783,17 @@ namespace T7CompilerGUI.Forms
                             replacePath = "scripts\\shared\\duplicaterender_mgr.gsc";
                         else
                             replacePath = "scripts\\zm_common\\load.gsc";
-                        
+
                         // Use MainForm's public InjectPrecompiledScript method
                         mainForm.InjectPrecompiledScript(dialog.FileName, game, replacePath);
                     }
                     else
                     {
                         // Fallback: Show error message
-                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this, 
-                            "MainForm not available. Please use the Inject tab in the main window.", 
-                            "Error", 
-                            MessageBoxButtons.OK, 
+                        ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                            "MainForm not available. Please use the Inject tab in the main window.",
+                            "Error",
+                            MessageBoxButtons.OK,
                             MessageBoxIcon.Warning);
                     }
                 }
@@ -6583,26 +6810,16 @@ namespace T7CompilerGUI.Forms
                     ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"{processName} is not running.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
-                
-                var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
-                    this,
-                    $"Are you sure you want to kill {processName}?",
-                    "Confirm",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-                
-                if (result == DialogResult.Yes)
+
+                foreach (var process in processes)
                 {
-                    foreach (var process in processes)
+                    try
                     {
-                        try
-                        {
-                            process.Kill();
-                        }
-                        catch { }
+                        process.Kill();
                     }
-                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"{processName} killed successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    catch { }
                 }
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"{processName} killed successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -6614,12 +6831,202 @@ namespace T7CompilerGUI.Forms
 
         #region Cleanup
 
+        /// <summary>
+        /// Properly cleans up all resources for a tab (editor, tab page, file contents)
+        /// This ensures memory is freed when tabs are closed
+        /// </summary>
+        private void CleanupTabResources(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                return;
+
+            // Dispose editor and remove from dictionary
+            if (openEditors.ContainsKey(filePath))
+            {
+                var editor = openEditors[filePath];
+                if (editor != null && !editor.IsDisposed)
+                {
+                    // Note: All event handlers (TextChanged, PreviewKeyDown, etc.) are cleaned up
+                    // automatically when the editor is disposed. AvalonEditWrapper.Dispose() handles
+                    // cleanup of ElementHost, TextEditor, and all WPF resources including event handlers.
+                    // The editor's Dispose() method ensures all resources are properly released.
+                    editor.Dispose();
+                }
+                openEditors.Remove(filePath);
+            }
+
+            // Remove tab page reference
+            if (editorTabs.ContainsKey(filePath))
+            {
+                var tabPage = editorTabs[filePath];
+                if (tabPage != null && !tabPage.IsDisposed)
+                {
+                    // TabPage will dispose its child controls (including the editor if still attached)
+                    tabPage.Dispose();
+                }
+                editorTabs.Remove(filePath);
+            }
+
+            // Remove file contents from memory - this can be large for big files
+            if (fileContents.ContainsKey(filePath))
+            {
+                fileContents.Remove(filePath);
+            }
+        }
+
+        /// <summary>
+        /// Recursively disposes a control and all its child controls to prevent memory leaks
+        /// </summary>
+        private void DisposeControlRecursive(Control control)
+        {
+            if (control == null || control.IsDisposed)
+                return;
+
+            try
+            {
+                // Dispose all child controls first
+                var children = new List<Control>();
+                foreach (Control child in control.Controls)
+                {
+                    children.Add(child);
+                }
+                control.Controls.Clear(); // Remove from parent first
+
+                // Dispose children recursively
+                foreach (var child in children)
+                {
+                    DisposeControlRecursive(child);
+                }
+
+                // Dispose the control itself
+                control.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error disposing control {control.Name}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Clean up resources when form is disposed
+        /// </summary>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                // Dispose components first (from designer)
+                if (components != null)
+                {
+                    components.Dispose();
+                    components = null;
+                }
+
+                // Stop and dispose timers
+                if (themeCheckTimer != null)
+                {
+                    themeCheckTimer.Stop();
+                    themeCheckTimer.Dispose();
+                    themeCheckTimer = null;
+                }
+
+                if (tabUpdateTimer != null)
+                {
+                    tabUpdateTimer.Stop();
+                    tabUpdateTimer.Dispose();
+                    tabUpdateTimer = null;
+                }
+
+                // Dispose status bar timer
+                if (statusBarTimer != null)
+                {
+                    statusBarTimer.Stop();
+                    statusBarTimer.Dispose();
+                    statusBarTimer = null;
+                }
+
+                // Dispose rainbow timer
+                if (rainbowTimer != null)
+                {
+                    rainbowTimer.Stop();
+                    rainbowTimer.Dispose();
+                    rainbowTimer = null;
+                }
+
+                // Dispose file watcher
+                if (fileWatcher != null)
+                {
+                    fileWatcher.EnableRaisingEvents = false;
+                    // Unsubscribe from all events before disposing
+                    fileWatcher.Changed -= FileWatcher_Changed;
+                    fileWatcher.Created -= FileWatcher_Created;
+                    fileWatcher.Deleted -= FileWatcher_Deleted;
+                    fileWatcher.Renamed -= FileWatcher_Renamed;
+                    fileWatcher.Dispose();
+                    fileWatcher = null;
+                }
+
+                // Clean up all tabs properly to free memory
+                var keysToCleanup = new List<string>(openEditors.Keys);
+                foreach (var key in keysToCleanup)
+                {
+                    CleanupTabResources(key);
+                }
+
+                // Ensure dictionaries are cleared (CleanupTabResources should have done this, but double-check)
+                openEditors.Clear();
+                editorTabs.Clear();
+                fileContents.Clear();
+
+                // Clear hash map
+                hashToFunctionMap?.Clear();
+
+                // Clear keyboard shortcuts dictionary
+                codeEditorKeybinds?.Clear();
+
+                // Unsubscribe from tab control events
+                if (tabControl != null)
+                {
+                    tabControl.SelectedIndexChanged -= TabControl_SelectedIndexChanged;
+                }
+
+                // Unsubscribe from form events (lambda handlers will be cleaned up automatically when form is disposed)
+                // Note: Lambda event handlers on the form itself don't cause memory leaks as they're disposed with the form
+
+                // Ensure status bar timer is disposed
+                if (statusBarTimer != null)
+                {
+                    statusBarTimer.Stop();
+                    statusBarTimer.Dispose();
+                    statusBarTimer = null;
+                }
+
+                // CRITICAL: Dispose all file button controls when form is disposed
+                // This ensures memory is fully released after closing the editor
+                if (fileButtonsPanel != null && fileButtonsPanel.Controls.Count > 0)
+                {
+                    var controlsToDispose = new List<Control>();
+                    foreach (Control control in fileButtonsPanel.Controls)
+                    {
+                        controlsToDispose.Add(control);
+                    }
+                    fileButtonsPanel.Controls.Clear(); // Clear first to remove from parent
+                    foreach (var control in controlsToDispose)
+                    {
+                        // Dispose container and all child controls (buttons)
+                        DisposeControlRecursive(control);
+                    }
+                }
+            }
+
+            base.Dispose(disposing);
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             // Always check for unsaved changes by comparing all editors against saved content
             // This ensures we catch any changes even if the TextChanged handler didn't fire
             CheckForUnsavedChanges();
-            
+
             if (hasChanges)
             {
                 var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
@@ -6633,48 +7040,55 @@ namespace T7CompilerGUI.Forms
                 {
                     // Cancel the close event temporarily so we can save first
                     e.Cancel = true;
-                    
+
                     try
                     {
                         // Ensure message box is fully dismissed and form regains focus
                         this.Activate();
                         this.BringToFront();
                         this.Focus();
-                        
+
                         // Process all pending messages to ensure message box is fully closed
                         Application.DoEvents();
                         System.Threading.Thread.Sleep(50); // Brief pause to ensure message box is dismissed
                         Application.DoEvents();
-                        
+
                         this.Cursor = Cursors.WaitCursor;
                         this.Update();
                         Application.DoEvents();
-                        
+
                         // Save files (don't update title - form is closing)
                         SaveAllFiles(updateTitle: false);
-                        
+
                         // Process events after save
                         Application.DoEvents();
-                        
+
                         this.Cursor = Cursors.Default;
                         this.Update();
                         Application.DoEvents();
-                        
+
                         // Close the form synchronously on the UI thread
-                        // Use a timer to close after a brief delay to ensure all UI updates complete
-                        var closeTimer = new System.Windows.Forms.Timer { Interval = 50 };
-                        closeTimer.Tick += (s, args) => {
-                            closeTimer.Stop();
-                            closeTimer.Dispose();
-                            this.Close();
-                        };
+                        // Use a tracked timer to close after a brief delay to ensure all UI updates complete
+                        System.Windows.Forms.Timer closeTimer = null;
+                        closeTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 50, (s, args) =>
+                        {
+                            try
+                            {
+                                closeTimer.Stop();
+                                this.Close();
+                            }
+                            catch
+                            {
+                                // Ignore errors during close
+                            }
+                        });
                         closeTimer.Start();
                     }
                     catch (Exception ex)
                     {
                         this.Cursor = Cursors.Default;
                         e.Cancel = true; // Keep form open on error
-                        
+
                         // If save fails, ask user if they still want to close
                         var errorResult = ReaLTaiizor.Controls.PoisonMessageBox.Show(
                             this,
@@ -6682,21 +7096,28 @@ namespace T7CompilerGUI.Forms
                             "Save Error",
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Warning);
-                        
+
                         if (errorResult == DialogResult.Yes)
                         {
-                            // User wants to close anyway - use timer to close
-                            var closeTimer = new System.Windows.Forms.Timer { Interval = 50 };
-                            closeTimer.Tick += (s, args) => {
-                                closeTimer.Stop();
-                                closeTimer.Dispose();
-                                this.Close();
-                            };
+                            // User wants to close anyway - use tracked timer to close
+                            System.Windows.Forms.Timer closeTimer = null;
+                            closeTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 50, (s, args) =>
+                            {
+                                try
+                                {
+                                    closeTimer.Stop();
+                                    this.Close();
+                                }
+                                catch
+                                {
+                                    // Ignore errors during close
+                                }
+                            });
                             closeTimer.Start();
                         }
                         // If No, form stays open (e.Cancel = true)
                     }
-                    
+
                     return; // Exit early since we're handling close programmatically
                 }
                 else if (result == DialogResult.Cancel)
@@ -6713,12 +7134,6 @@ namespace T7CompilerGUI.Forms
 
             // Cleanup timers
             // Auto-save timer is disabled (manual save only)
-            // if (autoSaveTimer != null)
-            // {
-            //     autoSaveTimer.Stop();
-            //     autoSaveTimer.Dispose();
-            // }
-
             if (themeCheckTimer != null)
             {
                 themeCheckTimer.Stop();
@@ -6748,10 +7163,211 @@ namespace T7CompilerGUI.Forms
                 statusBarTimer.Dispose();
             }
 
-            base.OnFormClosing(e);
-    }
+            // Save last project path if a project is open
+            if (folderOpened && !string.IsNullOrEmpty(projectPath) && Directory.Exists(projectPath))
+            {
+                SaveLastProjectPath(projectPath);
+            }
 
-    #endregion
+            // Use PoisonFormHelper for standardized cleanup (disposes tracked resources)
+            ReaLTaiizorExt.PoisonFormHelper.CleanupForm(this);
+            
+            base.OnFormClosing(e);
+        }
+
+        /// <summary>
+        /// Saves the last project path to config file
+        /// </summary>
+        private void SaveLastProjectPath(string path)
+        {
+            try
+            {
+                // Use the same unified config file as MainForm (T7CompilerGUI.conf)
+                string configPath = GetConfigPath();
+
+                XDocument config;
+                if (File.Exists(configPath))
+                {
+                    config = XDocument.Load(configPath);
+                }
+                else
+                {
+                    config = new XDocument(new XElement("T7CompilerConfig"));
+                }
+
+                XElement root = config.Element("T7CompilerConfig");
+                if (root == null)
+                {
+                    root = new XElement("T7CompilerConfig");
+                    config.Add(root);
+                }
+
+                XElement appSettings = root.Element("Application");
+                if (appSettings == null)
+                {
+                    appSettings = new XElement("Application");
+                    root.Add(appSettings);
+                }
+
+                XElement codeEditorLastProject = appSettings.Element("CodeEditorLastProject");
+                if (codeEditorLastProject == null)
+                {
+                    codeEditorLastProject = new XElement("CodeEditorLastProject");
+                    appSettings.Add(codeEditorLastProject);
+                }
+
+                codeEditorLastProject.Value = path;
+                config.Save(configPath);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save last project path: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gets the last project path from config file (uses same unified config as MainForm: T7CompilerGUI.conf)
+        /// </summary>
+        private string GetLastProjectPath()
+        {
+            try
+            {
+                // Use the same unified config file as MainForm (T7CompilerGUI.conf)
+                string configPath = GetConfigPath();
+
+                if (string.IsNullOrEmpty(configPath) || !File.Exists(configPath))
+                    return null;
+
+                XDocument config = XDocument.Load(configPath);
+                XElement root = config.Element("T7CompilerConfig");
+                if (root == null)
+                    return null;
+
+                XElement appSettings = root.Element("Application");
+                if (appSettings == null)
+                    return null;
+
+                XElement codeEditorLastProject = appSettings.Element("CodeEditorLastProject");
+                if (codeEditorLastProject == null || string.IsNullOrWhiteSpace(codeEditorLastProject.Value))
+                    return null;
+
+                string path = codeEditorLastProject.Value.Trim();
+                if (Directory.Exists(path))
+                    return path;
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load last project path: {ex.Message}");
+                return null;
+            }
+        }
+
+
+        /// <summary>
+        /// Checks for last project and asks user if they want to load it
+        /// </summary>
+        private void CheckAndLoadLastProject()
+        {
+            try
+            {
+                // Check if form is disposed or not fully initialized
+                if (this.IsDisposed || !this.IsHandleCreated)
+                {
+                    // Form not ready, skip loading
+                    return;
+                }
+
+                // Use a tracked delay timer instead of BeginInvoke to ensure form is fully ready
+                System.Windows.Forms.Timer loadTimer = null;
+                loadTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 100, (s, e) =>
+                {
+                    loadTimer.Stop();
+
+                    try
+                    {
+                        // Double-check form is still valid
+                        if (this.IsDisposed || !this.IsHandleCreated)
+                        {
+                            return;
+                        }
+
+                        string lastProjectPath = GetLastProjectPath();
+                        if (string.IsNullOrEmpty(lastProjectPath) || !Directory.Exists(lastProjectPath))
+                        {
+                            // No last project, create default
+                            CreateDefaultProjectOnStartup();
+                            return;
+                        }
+
+                        // Ask user if they want to load the last project
+                        var result = ReaLTaiizor.Controls.PoisonMessageBox.Show(
+                            this,
+                            $"Do you want to load the last project?\n\n{lastProjectPath}",
+                            "Load Last Project?",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question);
+
+                        if (result == DialogResult.Yes)
+                        {
+                            // Load the last project
+                            if (Directory.Exists(lastProjectPath))
+                            {
+                                OpenFolder(lastProjectPath);
+                            }
+                            else
+                            {
+                                // Path no longer exists, create default
+                                CreateDefaultProjectOnStartup();
+                            }
+                        }
+                        else
+                        {
+                            // User declined, create default project
+                            CreateDefaultProjectOnStartup();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error in CheckAndLoadLastProject: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                        // Fallback to default project on error
+                        try
+                        {
+                            if (!this.IsDisposed && this.IsHandleCreated)
+                            {
+                                CreateDefaultProjectOnStartup();
+                            }
+                        }
+                        catch (Exception ex2)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error creating default project: {ex2.Message}");
+                        }
+                    }
+                });
+
+                loadTimer.Start();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error setting up CheckAndLoadLastProject: {ex.Message}");
+                // Fallback to default project on error
+                try
+                {
+                    if (!this.IsDisposed && this.IsHandleCreated)
+                    {
+                        CreateDefaultProjectOnStartup();
+                    }
+                }
+                catch (Exception ex2)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error creating default project: {ex2.Message}");
+                }
+            }
+        }
+
+        #endregion
     }
 }
 

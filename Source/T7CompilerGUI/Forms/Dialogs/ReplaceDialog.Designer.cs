@@ -45,7 +45,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // lblSearch
             // 
-            this.lblSearch.Location = new System.Drawing.Point(23, 60);
+            this.lblSearch.Location = new System.Drawing.Point(23, 51);
             this.lblSearch.Name = "lblSearch";
             this.lblSearch.Size = new System.Drawing.Size(360, 20);
             this.lblSearch.TabIndex = 0;
@@ -67,7 +67,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtSearch.CustomButton.UseSelectable = true;
             this.txtSearch.CustomButton.Visible = false;
             this.txtSearch.Lines = new string[0];
-            this.txtSearch.Location = new System.Drawing.Point(23, 85);
+            this.txtSearch.Location = new System.Drawing.Point(23, 76);
             this.txtSearch.MaxLength = 32767;
             this.txtSearch.Name = "txtSearch";
             this.txtSearch.PasswordChar = '\0';
@@ -85,7 +85,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // lblReplace
             // 
-            this.lblReplace.Location = new System.Drawing.Point(23, 115);
+            this.lblReplace.Location = new System.Drawing.Point(23, 157);
             this.lblReplace.Name = "lblReplace";
             this.lblReplace.Size = new System.Drawing.Size(360, 20);
             this.lblReplace.TabIndex = 2;
@@ -107,7 +107,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtReplace.CustomButton.UseSelectable = true;
             this.txtReplace.CustomButton.Visible = false;
             this.txtReplace.Lines = new string[0];
-            this.txtReplace.Location = new System.Drawing.Point(23, 140);
+            this.txtReplace.Location = new System.Drawing.Point(23, 182);
             this.txtReplace.MaxLength = 32767;
             this.txtReplace.Name = "txtReplace";
             this.txtReplace.PasswordChar = '\0';
@@ -125,9 +125,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // chkMatchCase
             // 
-            this.chkMatchCase.Location = new System.Drawing.Point(23, 170);
+            this.chkMatchCase.Location = new System.Drawing.Point(23, 105);
             this.chkMatchCase.Name = "chkMatchCase";
-            this.chkMatchCase.Size = new System.Drawing.Size(150, 20);
+            this.chkMatchCase.Size = new System.Drawing.Size(87, 20);
             this.chkMatchCase.TabIndex = 4;
             this.chkMatchCase.Text = "Match case";
             this.chkMatchCase.UseSelectable = true;
@@ -135,9 +135,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // chkWholeWord
             // 
-            this.chkWholeWord.Location = new System.Drawing.Point(183, 170);
+            this.chkWholeWord.Location = new System.Drawing.Point(23, 131);
             this.chkWholeWord.Name = "chkWholeWord";
-            this.chkWholeWord.Size = new System.Drawing.Size(150, 20);
+            this.chkWholeWord.Size = new System.Drawing.Size(87, 20);
             this.chkWholeWord.TabIndex = 5;
             this.chkWholeWord.Text = "Whole word";
             this.chkWholeWord.UseSelectable = true;
@@ -145,9 +145,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // chkReplaceAll
             // 
-            this.chkReplaceAll.Location = new System.Drawing.Point(23, 195);
+            this.chkReplaceAll.Location = new System.Drawing.Point(23, 211);
             this.chkReplaceAll.Name = "chkReplaceAll";
-            this.chkReplaceAll.Size = new System.Drawing.Size(150, 20);
+            this.chkReplaceAll.Size = new System.Drawing.Size(87, 20);
             this.chkReplaceAll.TabIndex = 6;
             this.chkReplaceAll.Text = "Replace all";
             this.chkReplaceAll.UseSelectable = true;
@@ -163,6 +163,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.btnReplace.Text = "Replace";
             this.btnReplace.UseSelectable = true;
             this.btnReplace.UseStyleColors = true;
+            this.btnReplace.Click += new System.EventHandler(this.BtnReplace_Click);
             // 
             // btnCancel
             // 
@@ -174,6 +175,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseSelectable = true;
             this.btnCancel.UseStyleColors = true;
+            this.btnCancel.Click += new System.EventHandler(this.BtnCancel_Click);
             // 
             // ReplaceDialog
             // 

@@ -78,7 +78,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.mainPanel.Location = new System.Drawing.Point(20, 60);
             this.mainPanel.Name = "mainPanel";
             this.mainPanel.Padding = new System.Windows.Forms.Padding(20, 20, 30, 20);
-            this.mainPanel.Size = new System.Drawing.Size(660, 185);
+            this.mainPanel.Size = new System.Drawing.Size(660, 177);
             this.mainPanel.TabIndex = 0;
             this.mainPanel.UseStyleColors = true;
             this.mainPanel.VerticalScrollbar = true;
@@ -306,10 +306,10 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.buttonPanel.HorizontalScrollbarBarColor = true;
             this.buttonPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.buttonPanel.HorizontalScrollbarSize = 10;
-            this.buttonPanel.Location = new System.Drawing.Point(20, 245);
+            this.buttonPanel.Location = new System.Drawing.Point(20, 237);
             this.buttonPanel.Name = "buttonPanel";
             this.buttonPanel.Padding = new System.Windows.Forms.Padding(10, 10, 20, 10);
-            this.buttonPanel.Size = new System.Drawing.Size(660, 55);
+            this.buttonPanel.Size = new System.Drawing.Size(660, 43);
             this.buttonPanel.TabIndex = 1;
             this.buttonPanel.UseStyleColors = true;
             this.buttonPanel.VerticalScrollbarBarColor = true;
@@ -319,7 +319,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // btnOK
             // 
             this.btnOK.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOK.Location = new System.Drawing.Point(550, 13);
+            this.btnOK.Location = new System.Drawing.Point(550, 6);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(100, 30);
             this.btnOK.TabIndex = 0;
@@ -330,7 +330,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // btnCancel
             // 
             this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnCancel.Location = new System.Drawing.Point(444, 13);
+            this.btnCancel.Location = new System.Drawing.Point(444, 6);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(100, 30);
             this.btnCancel.TabIndex = 1;
@@ -340,10 +340,10 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // ConfigLocationsDialog
             // 
-            this.ClientSize = new System.Drawing.Size(700, 320);
+            this.ClientSize = new System.Drawing.Size(700, 300);
             this.Controls.Add(this.mainPanel);
             this.Controls.Add(this.buttonPanel);
-            this.MinimumSize = new System.Drawing.Size(600, 320);
+            this.MinimumSize = new System.Drawing.Size(700, 300);
             this.Name = "ConfigLocationsDialog";
             this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.DropShadow;

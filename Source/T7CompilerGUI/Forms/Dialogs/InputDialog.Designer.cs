@@ -35,7 +35,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // lblPrompt
             // 
-            this.lblPrompt.Location = new System.Drawing.Point(2, 50);
+            this.lblPrompt.Location = new System.Drawing.Point(23, 54);
             this.lblPrompt.Name = "lblPrompt";
             this.lblPrompt.Size = new System.Drawing.Size(61, 20);
             this.lblPrompt.TabIndex = 0;
@@ -48,7 +48,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // 
             this.txtInput.CustomButton.Image = null;
-            this.txtInput.CustomButton.Location = new System.Drawing.Point(338, 1);
+            this.txtInput.CustomButton.Location = new System.Drawing.Point(342, 1);
             this.txtInput.CustomButton.Name = "";
             this.txtInput.CustomButton.Size = new System.Drawing.Size(21, 21);
             this.txtInput.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -57,7 +57,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtInput.CustomButton.UseSelectable = true;
             this.txtInput.CustomButton.Visible = false;
             this.txtInput.Lines = new string[0];
-            this.txtInput.Location = new System.Drawing.Point(14, 68);
+            this.txtInput.Location = new System.Drawing.Point(23, 77);
             this.txtInput.MaxLength = 32767;
             this.txtInput.Name = "txtInput";
             this.txtInput.PasswordChar = '\0';
@@ -66,7 +66,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtInput.SelectionLength = 0;
             this.txtInput.SelectionStart = 0;
             this.txtInput.ShortcutsEnabled = true;
-            this.txtInput.Size = new System.Drawing.Size(373, 23);
+            this.txtInput.Size = new System.Drawing.Size(364, 23);
             this.txtInput.TabIndex = 1;
             this.txtInput.UseSelectable = true;
             this.txtInput.UseStyleColors = true;
@@ -76,24 +76,26 @@ namespace T7CompilerGUI.Forms.Dialogs
             // btnOK
             // 
             this.btnOK.DialogResult = System.Windows.Forms.DialogResult.OK;
-            this.btnOK.Location = new System.Drawing.Point(195, 97);
+            this.btnOK.Location = new System.Drawing.Point(195, 106);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(93, 30);
             this.btnOK.TabIndex = 2;
             this.btnOK.Text = "OK";
             this.btnOK.UseSelectable = true;
             this.btnOK.UseStyleColors = true;
+            this.btnOK.Click += new System.EventHandler(this.BtnOK_Click);
             // 
             // btnCancel
             // 
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(294, 97);
+            this.btnCancel.Location = new System.Drawing.Point(294, 106);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(93, 30);
             this.btnCancel.TabIndex = 3;
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseSelectable = true;
             this.btnCancel.UseStyleColors = true;
+            this.btnCancel.Click += new System.EventHandler(this.BtnCancel_Click);
             // 
             // InputDialog
             // 
@@ -101,7 +103,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(400, 150);
+            this.ClientSize = new System.Drawing.Size(400, 159);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnOK);
             this.Controls.Add(this.txtInput);

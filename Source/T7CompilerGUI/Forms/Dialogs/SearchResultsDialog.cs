@@ -6,6 +6,8 @@ using System.Windows.Forms;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Manager;
 using ReaLTaiizor.Drawing.Poison;
+using ReaLTaiizor.Extension.Poison;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms.Dialogs
 {
@@ -52,10 +54,14 @@ namespace T7CompilerGUI.Forms.Dialogs
             
             InitializeComponent();
             
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
             if (styleManager != null)
             {
-                this.StyleManager = styleManager;
-                ApplyPoisonStyling();
+                // Use PoisonFormHelper for standardized form initialization
+                // This handles StyleManager application, button effects, and form icon loading
+                ReaLTaiizor.Extension.Poison.PoisonFormHelper.InitializeForm(this, styleManager);
             }
             
             PopulateResults();
@@ -85,28 +91,11 @@ namespace T7CompilerGUI.Forms.Dialogs
         {
             if (styleManager == null) return;
             
-            if (lblResultsCount != null)
-            {
-                lblResultsCount.StyleManager = styleManager;
-                lblResultsCount.UseStyleColors = true;
-            }
-            
-            if (lstResults != null && styleManager != null)
+            // ListBox doesn't support StyleManager, so set colors manually
+            if (lstResults != null)
             {
                 lstResults.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
                 lstResults.ForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
-            }
-            
-            if (btnGoTo != null)
-            {
-                btnGoTo.StyleManager = styleManager;
-                btnGoTo.UseStyleColors = true;
-            }
-            
-            if (btnCancel != null)
-            {
-                btnCancel.StyleManager = styleManager;
-                btnCancel.UseStyleColors = true;
             }
         }
         

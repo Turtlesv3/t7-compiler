@@ -17,6 +17,23 @@ namespace T7CompilerGUI.Forms.Dialogs
         private PoisonButton btnClear;
         private PoisonButton btnCancel;
         private PoisonButton btnOK;
+        
+        // Constants for dynamically created keybind row controls
+        // These sizes can be customized in the Designer
+        private const int KEYBIND_ROW_START_Y = 10;
+        private const int KEYBIND_ROW_HEIGHT = 40;
+        private const int KEYBIND_ROW_SPACING = 5;
+        private const int KEYBIND_LABEL_X = 10;
+        private const int KEYBIND_LABEL_WIDTH = 200;
+        private const int KEYBIND_LABEL_HEIGHT = 25;
+        private const int KEYBIND_TEXTBOX_X = 220;
+        private const int KEYBIND_TEXTBOX_WIDTH = 190;
+        private const int KEYBIND_TEXTBOX_HEIGHT = 25;
+        private const int KEYBIND_BUTTON_X = 420;
+        private const int KEYBIND_BUTTON_WIDTH = 90;
+        private const int KEYBIND_BUTTON_HEIGHT = 25;
+
+        #region Component Designer generated code
 
         private void InitializeComponent()
         {
@@ -42,6 +59,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.panel.Padding = new System.Windows.Forms.Padding(20, 20, 30, 20);
             this.panel.Size = new System.Drawing.Size(534, 399);
             this.panel.TabIndex = 0;
+            this.panel.UseStyleColors = true;
             this.panel.VerticalScrollbar = true;
             this.panel.VerticalScrollbarBarColor = true;
             this.panel.VerticalScrollbarHighlightOnWheel = false;
@@ -62,6 +80,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.buttonPanel.Padding = new System.Windows.Forms.Padding(10, 10, 20, 10);
             this.buttonPanel.Size = new System.Drawing.Size(534, 50);
             this.buttonPanel.TabIndex = 1;
+            this.buttonPanel.UseStyleColors = true;
             this.buttonPanel.VerticalScrollbarBarColor = true;
             this.buttonPanel.VerticalScrollbarHighlightOnWheel = false;
             this.buttonPanel.VerticalScrollbarSize = 10;
@@ -129,6 +148,8 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.ResumeLayout(false);
 
         }
+
+        #endregion
     }
 }
 

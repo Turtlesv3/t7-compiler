@@ -11,6 +11,8 @@ using ReaLTaiizor.Controls;
 using ReaLTaiizor.Drawing.Poison;
 using ReaLTaiizor.Enum.Poison;
 using ReaLTaiizor.Manager;
+using ReaLTaiizor.Extension.Poison;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 using T7CompilerGUI.Controls;
 
 namespace T7CompilerGUI.Forms.Dialogs
@@ -21,6 +23,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         private Forms.MainForm parentForm;
         private string gscConfPath;
         private System.Windows.Forms.Timer syncTimer; // Timer to sync with StyleManager
+        private System.Windows.Forms.Timer rainbowTimer; // Timer to update UI when rainbow is active
         
         private List<string> availableDefs;
         private List<string> availableNamespaces;
@@ -42,26 +45,37 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Initialize designer-generated controls
             InitializeComponent();
             
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
             // Scan project for symbols before setting up controls
             ScanProjectForSymbols();
             SetupControls();
             
-            // Load config after controls are set up (but before form is shown for immediate display)
-            // Use BeginInvoke to ensure controls are fully initialized
-            this.Load += (s, e) => 
-            {
-                // Load config when form loads (ensures controls are ready)
-                LoadGscConf();
-            };
+            // Load config immediately after controls are set up (before form is shown)
+            // This ensures symbols are displayed when dialog opens
+            LoadGscConf();
             
-            PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
+            // Use PoisonFormHelper for standardized form initialization (includes SetupAllButtonEffectsRecursive)
+            if (styleManager != null)
+            {
+                ReaLTaiizorExt.PoisonFormHelper.InitializeForm(this, styleManager);
+            }
             
             // Subscribe to StyleManager updates to keep in sync
             if (styleManager != null)
             {
                 // Sync on form shown and force layout update
+                // Also rescan and reload config to ensure it's up-to-date with current project
                 this.Shown += (s, e) => 
                 {
+                    // Rescan project in case it changed since dialog was created
+                    ScanProjectForSymbols();
+                    SetupControls();
+                    // Reload config to refresh symbol states
+                    LoadGscConf();
+                    
+                    // Sync controls with StyleManager
                     SyncAllControlsWithStyleManager();
                     // Force layout update to ensure proper display
                     this.PerformLayout();
@@ -69,13 +83,24 @@ namespace T7CompilerGUI.Forms.Dialogs
                     this.Update();
                 };
                 
-                // Setup timer to periodically sync with StyleManager (for rainbow theme updates)
-                syncTimer = new System.Windows.Forms.Timer
-                {
-                    Interval = 100 // Check every 100ms
-                };
-                syncTimer.Tick += (s, e) => SyncAllControlsWithStyleManager();
+                // Setup tracked timer to periodically sync with StyleManager (for rainbow theme updates)
+                syncTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 100, (s, e) => SyncAllControlsWithStyleManager());
                 syncTimer.Start();
+                
+                // Setup tracked rainbow update timer - updates all controls when rainbow is active
+                rainbowTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 16, (s, e) =>
+                {
+                    if (IsRainbowStyleActive())
+                    {
+                        // Invalidate all controls recursively to update rainbow colors
+                        ReaLTaiizorExt.PoisonControlHelper.RefreshAllControls(this);
+                        
+                        // Also invalidate the form itself for border updates
+                        this.Invalidate(true);
+                        this.Update();
+                    }
+                });
+                rainbowTimer.Start();
             }
             else
             {
@@ -93,11 +118,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         {
             // Controls are now created in InitializeComponent (Designer file)
             // This method just wires up event handlers and sets dynamic properties
-            
-            if (styleManager != null)
-            {
-                this.StyleManager = styleManager;
-            }
+            // StyleManager is applied by PoisonFormHelper.InitializeForm() in constructor
             
             // Set dynamic text properties - preserve Designer text and append dynamic content
             // Get base text from Designer and append filename
@@ -139,9 +160,13 @@ namespace T7CompilerGUI.Forms.Dialogs
                 HasChanges = true;
             };
             
-            // availableDefs already includes both symbols from #ifdef/#ifndef and namespaces
-            // So we just use availableDefs directly (it's already a combined list)
-            List<string> allSymbols = availableDefs.OrderBy(s => s).ToList();
+            // availableDefs contains only symbols from #ifdef/#ifndef (namespaces are excluded during scanning)
+            // Filter out any remaining namespaces or "namespace" symbol just to be safe
+            List<string> allSymbols = availableDefs
+                .Where(s => !availableNamespaces.Contains(s, StringComparer.OrdinalIgnoreCase) &&
+                           s.ToUpper() != "NAMESPACE")
+                .OrderBy(s => s)
+                .ToList();
             
             // Update label text with count - preserve Designer text and append count
             // Get base text from Designer, removing any previously appended count
@@ -240,13 +265,18 @@ namespace T7CompilerGUI.Forms.Dialogs
                                 if (!string.IsNullOrEmpty(symbolName))
                                 {
                                     // Exclude game mode symbols (MP, ZM, SP) and game symbols (BO3, BO4) as they're handled separately
-                                    // Also exclude SERIOUS as it's always included
+                                    // Also exclude namespace (if found) as it's always included
+                                    // Exclude "namespace" - namespaces are not conditional compilation symbols, even if they appear in ifdef blocks
                                     string upperSymbol = symbolName.ToUpper();
+                                    bool isNamespace = availableNamespaces.Any(ns => ns.Equals(symbolName, StringComparison.OrdinalIgnoreCase));
                                     if (upperSymbol != "MP" && upperSymbol != "ZM" && upperSymbol != "SP" &&
-                                        upperSymbol != "BO3" && upperSymbol != "BO4" && upperSymbol != "SERIOUS")
+                                        upperSymbol != "BO3" && upperSymbol != "BO4" && !isNamespace &&
+                                        upperSymbol != "NAMESPACE")
                                     {
                                         // Only add if it's not a constant definition (like mANIM_NONE, mBG_COLOR, etc.)
-                                        if (!constantDefines.Contains(symbolName))
+                                        // Also exclude if it's a namespace (namespaces are not conditional compilation symbols)
+                                        if (!constantDefines.Contains(symbolName) && 
+                                            !namespaces.Contains(symbolName, StringComparer.OrdinalIgnoreCase))
                                         {
                                             symbols.Add(symbolName);
                                         }
@@ -358,7 +388,6 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void BtnCancel_Click(object sender, EventArgs e)
         {
-            PoisonControlHelper.ResetButtonState(sender);
             this.DialogResult = DialogResult.Cancel;
             this.Close();
         }
@@ -420,14 +449,19 @@ namespace T7CompilerGUI.Forms.Dialogs
                 // Use the game symbol we loaded from gsc.conf, or default to BO3
                 string gameSymbol = !string.IsNullOrEmpty(originalGameSymbol) ? originalGameSymbol : "BO3";
                 
-                // Add game symbol and SERIOUS (always included, like in code editor)
+                // Add game symbol and namespace (if found, always included, like in code editor)
                 if (!symbols.Contains(gameSymbol, StringComparer.OrdinalIgnoreCase))
                 {
                     symbols.Add(gameSymbol);
                 }
-                if (!symbols.Contains("SERIOUS", StringComparer.OrdinalIgnoreCase))
+                // Add namespace from source files (first one found)
+                if (availableNamespaces.Count > 0)
                 {
-                    symbols.Add("SERIOUS");
+                    string namespaceSymbol = availableNamespaces[0]; // Use first namespace found
+                    if (!symbols.Contains(namespaceSymbol, StringComparer.OrdinalIgnoreCase))
+                    {
+                        symbols.Add(namespaceSymbol);
+                    }
                 }
                 
                 // Read existing file to preserve other settings
@@ -480,115 +514,43 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void SyncAllControlsWithStyleManager()
         {
-            if (styleManager == null) return;
+            if (styleManager == null || this.IsDisposed || !this.IsHandleCreated) return;
             
-            // Sync form properties
-            if (this.StyleManager != styleManager)
+            try
             {
-                this.StyleManager = styleManager;
-            }
-            if (this.Theme != styleManager.Theme)
-            {
-                this.Theme = styleManager.Theme;
-            }
-            if (this.Style != styleManager.Style)
-            {
-                this.Style = styleManager.Style;
-            }
-            
-            // Sync all controls recursively
-            SyncControlsRecursive(this);
-            
-            // Update listbox colors (CheckedListBox doesn't support StyleManager, so we set colors manually)
-            // But only if they're not already set correctly to avoid unnecessary updates
-            if (lstOtherSymbols != null && styleManager != null)
-            {
-                var expectedBackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
-                var expectedForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                // Use PoisonControlHelper to sync all controls recursively
+                // This handles StyleManager, Theme, Style, and UseStyleColors automatically
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
                 
-                if (lstOtherSymbols.BackColor != expectedBackColor)
-                    lstOtherSymbols.BackColor = expectedBackColor;
-                if (lstOtherSymbols.ForeColor != expectedForeColor)
-                    lstOtherSymbols.ForeColor = expectedForeColor;
+                // Update listbox colors (CheckedListBox doesn't support StyleManager, so we set colors manually)
+                // But only if they're not already set correctly to avoid unnecessary updates
+                if (lstOtherSymbols != null && styleManager != null)
+                {
+                    var expectedBackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                    var expectedForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                    
+                    if (lstOtherSymbols.BackColor != expectedBackColor)
+                        lstOtherSymbols.BackColor = expectedBackColor;
+                    if (lstOtherSymbols.ForeColor != expectedForeColor)
+                        lstOtherSymbols.ForeColor = expectedForeColor;
+                }
             }
-        }
-        
-        private void SyncControlsRecursive(Control parent)
-        {
-            if (parent == null || styleManager == null) return;
-            
-            foreach (Control ctrl in parent.Controls)
+            catch
             {
-                // Sync IPoisonControl controls
-                if (ctrl is ReaLTaiizor.Interface.Poison.IPoisonControl poisonCtrl)
-                {
-                    if (poisonCtrl.StyleManager != styleManager)
-                    {
-                        poisonCtrl.StyleManager = styleManager;
-                    }
-                    
-                    // Ensure Style and Theme are Default to follow StyleManager
-                    var styleProp = ctrl.GetType().GetProperty("Style");
-                    var themeProp = ctrl.GetType().GetProperty("Theme");
-                    
-                    if (styleProp != null && styleProp.CanWrite)
-                    {
-                        var currentStyle = styleProp.GetValue(ctrl);
-                        if (currentStyle == null || currentStyle.ToString() != "Default")
-                        {
-                            styleProp.SetValue(ctrl, ReaLTaiizor.Enum.Poison.ColorStyle.Default);
-                        }
-                    }
-                    
-                    if (themeProp != null && themeProp.CanWrite)
-                    {
-                        var currentTheme = themeProp.GetValue(ctrl);
-                        if (currentTheme == null || currentTheme.ToString() != "Default")
-                        {
-                            themeProp.SetValue(ctrl, ReaLTaiizor.Enum.Poison.ThemeStyle.Default);
-                        }
-                    }
-                    
-                    // Ensure UseStyleColors is enabled
-                    var useStyleColorsProp = ctrl.GetType().GetProperty("UseStyleColors");
-                    if (useStyleColorsProp != null && useStyleColorsProp.CanWrite)
-                    {
-                        useStyleColorsProp.SetValue(ctrl, true);
-                    }
-                    
-                    ctrl.Invalidate();
-                }
-                
-                // Sync IPoisonComponent controls (like menus)
-                if (ctrl is ReaLTaiizor.Interface.Poison.IPoisonComponent poisonComponent)
-                {
-                    if (poisonComponent.StyleManager != styleManager)
-                    {
-                        poisonComponent.StyleManager = styleManager;
-                    }
-                    ctrl.Invalidate();
-                }
-                
-                // Recursively sync child controls
-                if (ctrl.HasChildren)
-                {
-                    SyncControlsRecursive(ctrl);
-                }
+                // Silently ignore errors during sync (form might be disposing)
             }
         }
         
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            // Stop and dispose sync timer
-            if (syncTimer != null)
-            {
-                syncTimer.Stop();
-                syncTimer.Dispose();
-                syncTimer = null;
-            }
-            
             base.OnFormClosed(e);
         }
+        
+        private bool IsRainbowStyleActive()
+        {
+            return parentForm != null && parentForm.IsRainbowStyleActive();
+        }
+        
     }
 }
 

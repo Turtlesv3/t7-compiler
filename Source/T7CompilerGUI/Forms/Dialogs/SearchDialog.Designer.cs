@@ -39,9 +39,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // lblSearch
             // 
-            this.lblSearch.Location = new System.Drawing.Point(23, 50);
+            this.lblSearch.Location = new System.Drawing.Point(19, 56);
             this.lblSearch.Name = "lblSearch";
-            this.lblSearch.Size = new System.Drawing.Size(360, 20);
+            this.lblSearch.Size = new System.Drawing.Size(77, 20);
             this.lblSearch.TabIndex = 0;
             this.lblSearch.Text = "Search for:";
             this.lblSearch.UseStyleColors = true;
@@ -52,7 +52,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // 
             this.txtSearch.CustomButton.Image = null;
-            this.txtSearch.CustomButton.Location = new System.Drawing.Point(338, 1);
+            this.txtSearch.CustomButton.Location = new System.Drawing.Point(332, 1);
             this.txtSearch.CustomButton.Name = "";
             this.txtSearch.CustomButton.Size = new System.Drawing.Size(21, 21);
             this.txtSearch.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -61,7 +61,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtSearch.CustomButton.UseSelectable = true;
             this.txtSearch.CustomButton.Visible = false;
             this.txtSearch.Lines = new string[0];
-            this.txtSearch.Location = new System.Drawing.Point(23, 75);
+            this.txtSearch.Location = new System.Drawing.Point(19, 81);
             this.txtSearch.MaxLength = 32767;
             this.txtSearch.Name = "txtSearch";
             this.txtSearch.PasswordChar = '\0';
@@ -70,7 +70,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.txtSearch.SelectionLength = 0;
             this.txtSearch.SelectionStart = 0;
             this.txtSearch.ShortcutsEnabled = true;
-            this.txtSearch.Size = new System.Drawing.Size(350, 23);
+            this.txtSearch.Size = new System.Drawing.Size(354, 23);
             this.txtSearch.TabIndex = 1;
             this.txtSearch.UseSelectable = true;
             this.txtSearch.UseStyleColors = true;
@@ -79,9 +79,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // chkMatchCase
             // 
-            this.chkMatchCase.Location = new System.Drawing.Point(23, 105);
+            this.chkMatchCase.Location = new System.Drawing.Point(23, 110);
             this.chkMatchCase.Name = "chkMatchCase";
-            this.chkMatchCase.Size = new System.Drawing.Size(150, 20);
+            this.chkMatchCase.Size = new System.Drawing.Size(83, 20);
             this.chkMatchCase.TabIndex = 2;
             this.chkMatchCase.Text = "Match case";
             this.chkMatchCase.UseSelectable = true;
@@ -89,9 +89,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // chkWholeWord
             // 
-            this.chkWholeWord.Location = new System.Drawing.Point(183, 105);
+            this.chkWholeWord.Location = new System.Drawing.Point(23, 136);
             this.chkWholeWord.Name = "chkWholeWord";
-            this.chkWholeWord.Size = new System.Drawing.Size(150, 20);
+            this.chkWholeWord.Size = new System.Drawing.Size(87, 20);
             this.chkWholeWord.TabIndex = 3;
             this.chkWholeWord.Text = "Whole word";
             this.chkWholeWord.UseSelectable = true;
@@ -107,6 +107,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.btnFind.Text = "Find";
             this.btnFind.UseSelectable = true;
             this.btnFind.UseStyleColors = true;
+            this.btnFind.Click += new System.EventHandler(this.BtnFind_Click);
             // 
             // btnCancel
             // 
@@ -118,6 +119,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseSelectable = true;
             this.btnCancel.UseStyleColors = true;
+            this.btnCancel.Click += new System.EventHandler(this.BtnCancel_Click);
             // 
             // SearchDialog
             // 

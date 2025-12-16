@@ -21,10 +21,14 @@ using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
 using System.Drawing;
+using T7CompilerGUI.Helpers; // For PoisonWpfHelper
+using ReaLTaiizor.Drawing.Poison;
 using ScrollViewer = System.Windows.Controls.ScrollViewer;
 using Border = System.Windows.Controls.Border;
 using Grid = System.Windows.Controls.Grid;
 using Rectangle = System.Windows.Shapes.Rectangle;
+using ScrollBar = System.Windows.Controls.Primitives.ScrollBar;
+using Track = System.Windows.Controls.Primitives.Track;
 
 namespace T7CompilerGUI.Controls
 {
@@ -32,16 +36,29 @@ namespace T7CompilerGUI.Controls
     /// Wraps AvalonEdit TextEditor in an ElementHost for use in WinForms
     /// Provides a similar interface to ScintillaNET for easier migration
     /// </summary>
-    public class AvalonEditWrapper : System.Windows.Forms.UserControl
+    public partial class AvalonEditWrapper : System.Windows.Forms.UserControl
     {
-        private System.Windows.Forms.Integration.ElementHost elementHost;
-        private TextEditor textEditor;
-        // SearchPanel disabled - using custom search dialog instead
-        // private SearchPanel searchPanel;
         private TextMarkerService textMarkerService;
         private FoldingManager foldingManager;
         private BraceFoldingStrategy foldingStrategy;
         private ReaLTaiizor.Manager.PoisonStyleManager styleManager;
+
+        // Scrollbar customization properties - allow external control over scrollbar appearance
+        /// <summary>
+        /// Gets or sets whether to use Poison theme colors for scrollbar thumb
+        /// When true, uses theme accent color; when false, uses custom ScrollbarThumbColor
+        /// </summary>
+        public bool UsePoisonScrollbarTheme { get; set; } = true;
+        
+        /// <summary>
+        /// Gets or sets custom scrollbar thumb color (only used if UsePoisonScrollbarTheme is false)
+        /// </summary>
+        public System.Drawing.Color? ScrollbarThumbColor { get; set; } = null;
+        
+        /// <summary>
+        /// Gets or sets scrollbar thumb opacity (0.0 to 1.0)
+        /// </summary>
+        public double ScrollbarThumbOpacity { get; set; } = 1.0;
 
         public TextEditor Editor => textEditor;
         
@@ -197,42 +214,67 @@ namespace T7CompilerGUI.Controls
         public AvalonEditWrapper()
         {
             InitializeComponent();
+            SetupEditor();
         }
 
-        private void InitializeComponent()
+        private void SetupEditor()
         {
-            this.SuspendLayout();
+            // Enable line numbers (line number margin)
+            textEditor.ShowLineNumbers = true;
             
-            // Disable AutoScroll to prevent unwanted scrollbars
-            this.AutoScroll = false;
-
-            // Create ElementHost
-            elementHost = new System.Windows.Forms.Integration.ElementHost
+            // Configure scrollbar visibility for invisible thumb-only style
+            // Use Auto so scrollbars appear when needed, but we'll style them to be invisible except for thumb
+            textEditor.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto;
+            
+            // Vertical scrollbar should be Auto - we'll make it invisible except for thumb via styling
+            textEditor.VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto;
+            
+            // Set font to Consolas (monospace) - standard for code editors
+            // This matches the original behavior and provides better code readability
+            textEditor.FontFamily = new System.Windows.Media.FontFamily("Consolas");
+            
+            // Ensure theme is applied when editor is fully loaded
+            // This is critical for WPF elements that load asynchronously
+            textEditor.Loaded += (s, e) =>
             {
-                Dock = DockStyle.Fill,
-                Child = null,
-                BackColor = System.Drawing.Color.Transparent // Make transparent so Poison background shows through
+                if (styleManager != null)
+                {
+                    // Re-apply theme when editor is loaded to ensure all WPF elements are themed
+                    // Use Background priority to avoid blocking UI updates
+                    textEditor.Dispatcher?.BeginInvoke(
+                        System.Windows.Threading.DispatcherPriority.Background,
+                        new Action(() => ApplyPoisonTheme()));
+                }
             };
-
-            // Create AvalonEdit TextEditor
-            textEditor = new TextEditor
+            
+            // Also apply theme when TextArea is loaded (more specific timing for margins)
+            // Use low priority to avoid blocking UI updates
+            textEditor.TextArea.Loaded += (s, e) =>
             {
-                ShowLineNumbers = true,
-                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
-                FontSize = 12,
-                WordWrap = false,
-                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Hidden,
-                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Hidden,
-                Options = {
-                    EnableEmailHyperlinks = false,
-                    EnableHyperlinks = false,
-                    EnableTextDragDrop = true,
-                    AllowScrollBelowDocument = false,
-                    CutCopyWholeLine = true,
-                    IndentationSize = 4,
-                    ConvertTabsToSpaces = false,
-                    EnableRectangularSelection = true,
-                    EnableVirtualSpace = false
+                if (styleManager != null)
+                {
+                    textEditor.Dispatcher?.BeginInvoke(
+                        System.Windows.Threading.DispatcherPriority.Background,
+                        new Action(() =>
+                        {
+                            UpdateLineNumberMarginColors();
+                            UpdateScrollbarColors();
+                            // Force scrollbar refresh to ensure colors are applied
+                            RefreshScrollbar();
+                        }));
+                }
+            };
+            
+            // Also update scrollbar when layout changes (ensures it stays themed)
+            // Use PoisonWpfHelper for dispatcher operations
+            textEditor.LayoutUpdated += (s, e) =>
+            {
+                if (styleManager != null)
+                {
+                    // Use PoisonWpfHelper for dispatcher operations (cleaner API)
+                    PoisonWpfHelper.InvokeOnDispatcher(textEditor, 
+                        () => UpdateScrollbarColors(), 
+                        System.Windows.Threading.DispatcherPriority.Background);
                 }
             };
             
@@ -299,47 +341,30 @@ namespace T7CompilerGUI.Controls
             textEditor.TextArea.TextView.LineTransformers.Add(textMarkerService);
 
             // Configure line number margin and hide corner control
-            // The corner control appears at the intersection of line number margin and scrollbar area
-            // Hide it using multiple approaches to ensure it's caught
-            
-            // Approach 1: Hide when TextArea is loaded
-            textEditor.TextArea.Loaded += (s, e) =>
-            {
-                HideCornerControl();
-            };
-            
-            // Approach 2: Also hide after layout is updated (in case it appears later)
-            textEditor.TextArea.LayoutUpdated += (s, e) =>
-            {
-                HideCornerControl();
-            };
-            
-            // Approach 3: Hide when the editor is fully rendered
+            // Hide corner control immediately when editor is loaded (synchronous) and on layout updates
             textEditor.Loaded += (s, e) =>
             {
+                // Hide corner control immediately (synchronous) to prevent white box from appearing
                 HideCornerControl();
+                
+                // Also update scrollbar colors and hide corner again after scrollbars are styled
+                if (styleManager != null)
+                {
+                    textEditor.Dispatcher?.BeginInvoke(
+                        System.Windows.Threading.DispatcherPriority.Background,
+                        new Action(() =>
+                        {
+                            UpdateScrollbarColors(); // This also calls HideCornerControl internally
+                        }));
+                }
             };
             
-            // Approach 4: Hide using Dispatcher to ensure visual tree is fully built
-            textEditor.Loaded += (s, e) =>
-            {
-                // Use Dispatcher to ensure visual tree is fully built
-                System.Windows.Application.Current?.Dispatcher.BeginInvoke(
-                    System.Windows.Threading.DispatcherPriority.Loaded,
-                    new Action(() => {
-                        HideCornerControl();
-                        // Also try again after a short delay to catch late-rendered elements
-                        System.Windows.Application.Current?.Dispatcher.BeginInvoke(
-                            System.Windows.Threading.DispatcherPriority.Background,
-                            new Action(() => {
-                                HideCornerControl();
-                            }));
-                    }));
-            };
-            
-            // Approach 5: Hide on every layout update to catch it if it reappears
+            // Also hide corner control when layout updates (in case scrollbars appear/disappear)
+            // Use Render priority so it happens before the frame is drawn (prevents visible white box)
             textEditor.LayoutUpdated += (s, e) =>
             {
+                // Hide corner control synchronously on layout updates to prevent it from appearing
+                // This ensures the corner stays hidden even during resize or scrollbar appearance
                 HideCornerControl();
             };
 
@@ -350,12 +375,6 @@ namespace T7CompilerGUI.Controls
 
             // Enable brace matching (built into AvalonEdit via highlighting)
             // Brace matching is automatically enabled when syntax highlighting is loaded
-
-            // Set ElementHost child
-            elementHost.Child = textEditor;
-
-            // Add ElementHost to this control
-            this.Controls.Add(elementHost);
 
             // Wire up events
             textEditor.TextChanged += (s, e) => {
@@ -372,8 +391,6 @@ namespace T7CompilerGUI.Controls
 
             // Initial folding update
             UpdateFoldings();
-
-            this.ResumeLayout(false);
         }
 
         private void UpdateFoldings()
@@ -420,6 +437,8 @@ namespace T7CompilerGUI.Controls
             MouseDoubleClick?.Invoke(this, winFormsArgs);
         }
 
+        // Note: Key conversion is now available in PoisonWpfHelper.ConvertWpfKey
+        // Keeping this method for backward compatibility, but new code should use PoisonWpfHelper
         private Keys ConvertWpfKeyToWinFormsKey(System.Windows.Input.Key key)
         {
             // Convert common keys
@@ -541,6 +560,7 @@ namespace T7CompilerGUI.Controls
         /// <summary>
         /// Sets the background color and a default foreground color
         /// Syntax highlighting will override the default foreground for specific tokens
+        /// This method is used as a fallback when StyleManager is not available
         /// </summary>
         public void SetColors(System.Drawing.Color backgroundColor, System.Drawing.Color foregroundColor)
         {
@@ -555,7 +575,7 @@ namespace T7CompilerGUI.Controls
             // This ensures text is visible even if syntax highlighting doesn't cover everything
             if (styleManager != null)
             {
-                // Use theme-appropriate default text color
+                // Use theme-appropriate default text color from PoisonPaint
                 System.Drawing.Color defaultTextColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
                 textEditor.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(
                     defaultTextColor.A, defaultTextColor.R, defaultTextColor.G, defaultTextColor.B));
@@ -568,255 +588,172 @@ namespace T7CompilerGUI.Controls
             }
         }
         
-        // Helper methods to find visual children in WPF
-        private static T FindVisualChild<T>(System.Windows.DependencyObject parent, Func<T, bool> predicate = null) where T : System.Windows.DependencyObject
-        {
-            if (parent == null) return null;
-            
-            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
-            {
-                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
-                if (child is T t && (predicate == null || predicate(t)))
-                    return t;
-                
-                var childOfChild = FindVisualChild<T>(child, predicate);
-                if (childOfChild != null)
-                    return childOfChild;
-            }
-            return null;
-        }
+        // Note: Visual tree helper methods are now in PoisonWpfHelper
+        // Legacy methods removed - use PoisonWpfHelper.FindVisualChild<T> and PoisonWpfHelper.FindVisualChildren<T> instead
+        // This reduces code duplication and provides a centralized WPF helper
         
-        private static IEnumerable<T> FindVisualChildren<T>(System.Windows.DependencyObject parent) where T : System.Windows.DependencyObject
-        {
-            if (parent == null) yield break;
-            
-            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
-            {
-                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
-                if (child is T t)
-                    yield return t;
-                
-                foreach (var childOfChild in FindVisualChildren<T>(child))
-                    yield return childOfChild;
-            }
-        }
-        
-        // Helper method to hide the corner control (white L bracket)
+        // Note: Corner control hiding is now handled by PoisonWpfHelper.HideScrollViewerCorner
+        /// <summary>
+        /// Efficiently hides the corner control using multiple approaches for maximum compatibility
+        /// The corner control is the small box where horizontal and vertical scrollbars meet
+        /// </summary>
         private void HideCornerControl()
         {
             if (textEditor == null) return;
             
+            // Find the ScrollViewer in the visual tree
+            var scrollViewer = PoisonWpfHelper.FindVisualChild<ScrollViewer>(textEditor);
+            if (scrollViewer == null) return;
+            
+            // Ensure template is applied before trying to hide corner control
+            // This prevents the white box from appearing
             try
             {
-                // Search the entire visual tree starting from textEditor (not just TextArea)
-                // The corner control is in the ScrollViewer, which is a parent of TextArea
-                var allBorders = FindVisualChildren<System.Windows.Controls.Border>(textEditor).ToList();
-                
-                // Also search in TextArea specifically
-                if (textEditor.TextArea != null)
-                {
-                    allBorders.AddRange(FindVisualChildren<Border>(textEditor.TextArea).ToList());
-                }
-                
-                foreach (var border in allBorders)
-                {
-                    // Hide any border that could be the corner control
-                    // Check by size (small borders at corners), name, or position
-                    bool isCornerControl = false;
-                    
-                    // Check by name first (most reliable)
-                    if (border.Name != null)
-                    {
-                        string name = border.Name.ToLowerInvariant();
-                        if (name.Contains("corner") || name == "part_cornercontrol" || name.Contains("part_"))
-                        {
-                            isCornerControl = true;
-                        }
-                    }
-                    
-                    // Check by size (corner controls are typically small)
-                    if (!isCornerControl && (border.Width < 30 && border.Height < 30))
-                    {
-                        // Check if it's positioned at a corner (top-right area where line numbers end)
-                        try
-                        {
-                            if (textEditor.TextArea != null)
-                            {
-                                var position = border.TransformToAncestor(textEditor.TextArea).Transform(new System.Windows.Point(0, 0));
-                                
-                                // Line number margin is typically 40-60 pixels wide
-                                // Corner control appears at top-right of line number area (around X=40-70, Y=0-30)
-                                if (position.X >= 30 && position.X <= 80 && position.Y >= 0 && position.Y <= 30)
-                                {
-                                    isCornerControl = true;
-                                }
-                            }
-                        }
-                        catch
-                        {
-                            // If we can't determine position, check if it's a small border with no name
-                            // (corner controls often have no explicit name)
-                            if (string.IsNullOrEmpty(border.Name) && border.Width < 20 && border.Height < 20)
-                            {
-                                isCornerControl = true;
-                            }
-                        }
-                    }
-                    
-                    if (isCornerControl)
-                    {
-                        border.Visibility = System.Windows.Visibility.Collapsed;
-                        border.IsHitTestVisible = false;
-                        border.Opacity = 0;
-                        border.Width = 0;
-                        border.Height = 0;
-                        border.Margin = new System.Windows.Thickness(0);
-                    }
-                }
-                
-                // Also search for ScrollViewer and hide its corner control directly
-                // The corner control is PART_CornerControl in WPF's ScrollViewer template
-                var scrollViewer = FindVisualChild<ScrollViewer>(textEditor);
-                if (scrollViewer != null)
-                {
-                    // Method 1: Use Template.FindName to find PART_CornerControl (proper WPF way)
-                    if (scrollViewer.Template != null)
-                    {
-                        var cornerControl = scrollViewer.Template.FindName("PART_CornerControl", scrollViewer) as System.Windows.FrameworkElement;
-                        if (cornerControl != null)
-                        {
-                            cornerControl.Visibility = System.Windows.Visibility.Collapsed;
-                            cornerControl.IsHitTestVisible = false;
-                            cornerControl.Opacity = 0;
-                            cornerControl.Width = 0;
-                            cornerControl.Height = 0;
-                        }
-                    }
-                    
-                    // Method 2: Search visual tree for any element named PART_CornerControl
-                    var allElements = FindVisualChildren<System.Windows.FrameworkElement>(scrollViewer).ToList();
-                    foreach (var child in allElements)
-                    {
-                        if (child.Name != null && 
-                            (child.Name.Equals("PART_CornerControl", StringComparison.OrdinalIgnoreCase) ||
-                             child.Name.ToLowerInvariant().Contains("corner")))
-                        {
-                            child.Visibility = System.Windows.Visibility.Collapsed;
-                            child.IsHitTestVisible = false;
-                            child.Opacity = 0;
-                            child.Width = 0;
-                            child.Height = 0;
-                        }
-                    }
-                    
-                    // Method 3: Hide small elements in the corner position (bottom-right where scrollbars meet)
-                    foreach (var child in allElements)
-                    {
-                        if (child.Width < 20 && child.Height < 20 && child.Width > 0 && child.Height > 0)
-                        {
-                            try
-                            {
-                                var position = child.TransformToAncestor(scrollViewer).Transform(new System.Windows.Point(0, 0));
-                                // Corner is at bottom-right where horizontal and vertical scrollbars meet
-                                if (position.X > scrollViewer.ActualWidth - 25 && position.Y > scrollViewer.ActualHeight - 25)
-                                {
-                                    child.Visibility = System.Windows.Visibility.Collapsed;
-                                    child.IsHitTestVisible = false;
-                                    child.Opacity = 0;
-                                }
-                            }
-                            catch
-                            {
-                                // If transform fails, hide small unnamed elements that might be corner
-                                if (string.IsNullOrEmpty(child.Name) || child.Name.Contains("Corner") || child.Name.Contains("PART_"))
-                                {
-                                    child.Visibility = System.Windows.Visibility.Collapsed;
-                                    child.IsHitTestVisible = false;
-                                    child.Opacity = 0;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Also search for Rectangle shapes (corner control might be a Rectangle)
-                var allRectangles = FindVisualChildren<Rectangle>(textEditor).ToList();
-                foreach (var rect in allRectangles)
-                {
-                    if (rect.Width < 30 && rect.Height < 30 && rect.Width > 0 && rect.Height > 0)
-                    {
-                        rect.Visibility = System.Windows.Visibility.Collapsed;
-                        rect.IsHitTestVisible = false;
-                        rect.Opacity = 0;
-                    }
-                }
-                
-                // Search for Grid controls that might contain the corner (corner is often in a Grid)
-                var allGrids = FindVisualChildren<System.Windows.Controls.Grid>(textEditor).ToList();
-                foreach (var grid in allGrids)
-                {
-                    // Look for small grids that might be the corner container
-                    if (grid.Width < 30 && grid.Height < 30 && grid.Width > 0 && grid.Height > 0)
-                    {
-                        // Hide the entire grid if it's at the corner position
-                        try
-                        {
-                            if (textEditor.TextArea != null)
-                            {
-                                var position = grid.TransformToAncestor(textEditor.TextArea).Transform(new System.Windows.Point(0, 0));
-                                if (position.X >= 30 && position.X <= 80 && position.Y >= 0 && position.Y <= 30)
-                                {
-                                    grid.Visibility = System.Windows.Visibility.Collapsed;
-                                    grid.IsHitTestVisible = false;
-                                    grid.Opacity = 0;
-                                }
-                            }
-                        }
-                        catch
-                        {
-                            // If we can't determine position, hide small unnamed grids
-                            if (string.IsNullOrEmpty(grid.Name))
-                            {
-                                grid.Visibility = System.Windows.Visibility.Collapsed;
-                                grid.IsHitTestVisible = false;
-                                grid.Opacity = 0;
-                            }
-                        }
-                    }
-                }
+                scrollViewer.ApplyTemplate();
             }
             catch
             {
-                // Ignore errors
+                // Template might already be applied or not available yet
             }
+            
+            // Use helper method which handles multiple hiding approaches
+            PoisonWpfHelper.HideScrollViewerCorner(scrollViewer);
+            
+            // Force immediate layout update to apply hiding before next render
+            // This prevents the white box from appearing in screenshots
+            scrollViewer.UpdateLayout();
         }
 
         /// <summary>
-        /// Applies Poison theme colors to the editor and SearchPanel
-        /// Only sets background - syntax highlighting controls text colors
+        /// Applies Poison theme colors to the editor using WPF resource dictionaries
+        /// This follows the proper WPF theming approach for AvalonEdit
         /// </summary>
         private void ApplyPoisonTheme()
         {
             if (textEditor == null || styleManager == null)
                 return;
 
-            // Get theme background color from PoisonPaint
-            System.Drawing.Color backgroundColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                // Get theme colors from PoisonPaint and convert to WPF
+                System.Drawing.Color backgroundColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                System.Drawing.Color foregroundColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                
+                // Use PoisonWpfHelper for color conversion
+                System.Windows.Media.Color wpfBgColor = PoisonWpfHelper.ToWpfColor(backgroundColor);
+                System.Windows.Media.Color wpfFgColor = PoisonWpfHelper.ToWpfColor(foregroundColor);
+                
+                // Set ElementHost background to match theme (prevents white boxes)
+                if (elementHost != null)
+                {
+                    elementHost.BackColor = backgroundColor;
+                }
+                
+                // Apply background and foreground to editor using helper brushes
+                textEditor.Background = PoisonWpfHelper.ToWpfBrush(backgroundColor);
+                textEditor.Foreground = PoisonWpfHelper.ToWpfBrush(foregroundColor);
+                
+                // Apply WPF resources using helper
+                PoisonWpfHelper.ApplyPoisonResources(textEditor, styleManager);
+                
+                // Create or update WPF resource dictionary for AvalonEdit components (legacy method)
+                ApplyWpfResources();
             
-            // Set ElementHost background to match theme (prevents white boxes)
-            if (elementHost != null)
+            // Update line number margin and scrollbar colors
+            // Use Background priority to avoid blocking UI updates
+            if (textEditor != null && textEditor.Dispatcher != null)
             {
-                elementHost.BackColor = backgroundColor;
+                textEditor.Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Background,
+                    new Action(() =>
+                    {
+                        UpdateLineNumberMarginColors();
+                        UpdateScrollbarColors();
+                        // Force refresh to ensure scrollbar is properly styled
+                        RefreshScrollbar();
+                    }));
             }
-            
-            // Apply only background to editor - syntax highlighting handles text colors
-            SetColors(backgroundColor, System.Drawing.Color.Transparent);
-            
-            // SearchPanel disabled - using custom search dialog instead
-            // SearchPanel styling code removed
-            
-            // Update line number margin colors
-            UpdateLineNumberMarginColors();
+            else
+            {
+                // Fallback: try immediately
+                UpdateLineNumberMarginColors();
+                UpdateScrollbarColors();
+                RefreshScrollbar();
+            }
+        }
+        
+        /// <summary>
+        /// Applies WPF resource dictionary with Poison theme colors for AvalonEdit components
+        /// This is the proper way to theme WPF controls like AvalonEdit
+        /// </summary>
+        private void ApplyWpfResources()
+        {
+            if (textEditor == null || styleManager == null)
+                return;
+
+            try
+            {
+                // Get theme colors
+                System.Drawing.Color backgroundColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                System.Drawing.Color foregroundColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                System.Drawing.Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
+                
+                // Calculate line number margin background (slightly different from editor)
+                int r = backgroundColor.R;
+                int g = backgroundColor.G;
+                int b = backgroundColor.B;
+                
+                if (styleManager.Theme == ReaLTaiizor.Enum.Poison.ThemeStyle.Dark)
+                {
+                    r = Math.Max(0, r - 10);
+                    g = Math.Max(0, g - 10);
+                    b = Math.Max(0, b - 10);
+                }
+                else
+                {
+                    r = Math.Min(255, r + 10);
+                    g = Math.Min(255, g + 10);
+                    b = Math.Min(255, b + 10);
+                }
+                
+                System.Windows.Media.Color marginBgColor = System.Windows.Media.Color.FromRgb((byte)r, (byte)g, (byte)b);
+                System.Windows.Media.Color marginFgColor = System.Windows.Media.Color.FromRgb(foregroundColor.R, foregroundColor.G, foregroundColor.B);
+                System.Windows.Media.Color wpfBgColor = System.Windows.Media.Color.FromRgb(backgroundColor.R, backgroundColor.G, backgroundColor.B);
+                
+                // Create resource dictionary with Poison theme colors
+                var resources = new System.Windows.ResourceDictionary
+                {
+                    ["PoisonBackgroundBrush"] = new SolidColorBrush(wpfBgColor),
+                    ["PoisonForegroundBrush"] = new SolidColorBrush(marginFgColor),
+                    ["PoisonMarginBackgroundBrush"] = new SolidColorBrush(marginBgColor),
+                    ["PoisonMarginForegroundBrush"] = new SolidColorBrush(marginFgColor),
+                    ["PoisonStyleColorBrush"] = new SolidColorBrush(System.Windows.Media.Color.FromRgb(styleColor.R, styleColor.G, styleColor.B))
+                };
+                
+                // Apply resources to the text editor
+                // Note: AvalonEdit doesn't directly use these, but we can reference them for custom styling
+                if (textEditor.Resources == null)
+                {
+                    textEditor.Resources = new System.Windows.ResourceDictionary();
+                }
+                
+                // Merge our Poison theme resources
+                foreach (var key in resources.Keys)
+                {
+                    textEditor.Resources[key] = resources[key];
+                }
+                
+                // Also apply to TextArea
+                if (textEditor.TextArea != null && textEditor.TextArea.Resources != null)
+                {
+                    foreach (var key in resources.Keys)
+                    {
+                        textEditor.TextArea.Resources[key] = resources[key];
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying WPF resources: {ex.Message}");
+            }
         }
         
         /// <summary>
@@ -830,8 +767,8 @@ namespace T7CompilerGUI.Controls
             try
             {
                 // Get theme colors
-                System.Drawing.Color backgroundColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
-                System.Drawing.Color foregroundColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                System.Drawing.Color backgroundColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                System.Drawing.Color foregroundColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
                 
                 // Line number margin uses a slightly different background
                 // Make it slightly darker/lighter than editor background
@@ -855,12 +792,422 @@ namespace T7CompilerGUI.Controls
                     b = Math.Min(255, b + 10);
                 }
                 
-                // Line number styling in AvalonEdit is typically done via XAML resources
-                // We've applied the main editor colors, which is the most important part
+                System.Windows.Media.Color marginBgColor = System.Windows.Media.Color.FromRgb((byte)r, (byte)g, (byte)b);
+                System.Windows.Media.Color marginFgColor = System.Windows.Media.Color.FromRgb(foregroundColor.R, foregroundColor.G, foregroundColor.B);
+                
+                // Apply colors to line number margin
+                // AvalonEdit's line number margin can be styled via TextArea.LeftMargins
+                // We use multiple approaches to ensure the styling works
+                // First, ensure line numbers are visible
+                if (textEditor != null)
+                {
+                    textEditor.ShowLineNumbers = true;
+                }
+                
+                if (textEditor.TextArea?.LeftMargins != null)
+                {
+                    foreach (var margin in textEditor.TextArea.LeftMargins)
+                    {
+                        // Find LineNumberMargin and apply colors
+                        string marginTypeName = margin.GetType().Name;
+                        if (marginTypeName.Contains("LineNumberMargin") || marginTypeName.Contains("LineNumber"))
+                        {
+                            // Ensure margin is visible and apply styling
+                            if (margin is System.Windows.FrameworkElement marginElement)
+                            {
+                                marginElement.Visibility = System.Windows.Visibility.Visible;
+                                
+                                // Approach 1: Set Background and Foreground properties directly via reflection
+                                var bgProperty = margin.GetType().GetProperty("Background");
+                                if (bgProperty != null && bgProperty.CanWrite)
+                                {
+                                    bgProperty.SetValue(margin, new SolidColorBrush(marginBgColor));
+                                }
+                                
+                                var fgProperty = margin.GetType().GetProperty("Foreground");
+                                if (fgProperty != null && fgProperty.CanWrite)
+                                {
+                                    fgProperty.SetValue(margin, new SolidColorBrush(marginFgColor));
+                                }
+                                
+                                // Approach 2: If it's a Control (which has Background property), set properties directly
+                                if (marginElement is System.Windows.Controls.Control control)
+                                {
+                                    control.Background = new SolidColorBrush(marginBgColor);
+                                    
+                                    // Also try to set via resources
+                                    if (control.Resources == null)
+                                    {
+                                        control.Resources = new System.Windows.ResourceDictionary();
+                                    }
+                                    control.Resources["Background"] = new SolidColorBrush(marginBgColor);
+                                    control.Resources["Foreground"] = new SolidColorBrush(marginFgColor);
+                                }
+                                else
+                                {
+                                    // Set resources for FrameworkElement (if not already a Control)
+                                    if (marginElement.Resources == null)
+                                    {
+                                        marginElement.Resources = new System.Windows.ResourceDictionary();
+                                    }
+                                    marginElement.Resources["Background"] = new SolidColorBrush(marginBgColor);
+                                    marginElement.Resources["Foreground"] = new SolidColorBrush(marginFgColor);
+                                }
+                                
+                                // Approach 3: Find and style all child TextBlocks (where line numbers are actually drawn)
+                                // Use PoisonWpfHelper for efficient visual tree traversal
+                                foreach (var tb in PoisonWpfHelper.FindVisualChildren<System.Windows.Controls.TextBlock>(marginElement))
+                                {
+                                    // Apply Poison theme foreground color to line numbers
+                                    tb.Foreground = new SolidColorBrush(marginFgColor);
+                                    tb.Background = System.Windows.Media.Brushes.Transparent;
+                                }
+                                
+                                // Also find and style any borders using PoisonWpfHelper
+                                foreach (var border in PoisonWpfHelper.FindVisualChildren<Border>(marginElement))
+                                {
+                                    // Style borders to match margin background
+                                    if (border.Background == null || border.Background is SolidColorBrush)
+                                    {
+                                        border.Background = new SolidColorBrush(marginBgColor);
+                                    }
+                                }
+                            }
+                            
+                            // Approach 4: Use AvalonEdit's LineNumberMargin specific properties if available
+                            try
+                            {
+                                // Try to access LineNumberMargin-specific styling
+                                var elementTypeProperty = margin.GetType().GetProperty("ElementGenerator");
+                                if (elementTypeProperty != null)
+                                {
+                                    // Line number margin uses an element generator, which we can't directly style
+                                    // But we've already styled the visual elements above
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore - property may not exist
+                            }
+                        }
+                    }
+                }
+                
+                // Also update scrollbar colors
+                UpdateScrollbarColors();
             }
-            catch
+            catch (Exception ex)
             {
-                // Line number margin styling may not be directly accessible
+                System.Diagnostics.Debug.WriteLine($"Error updating line number margin colors: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Updates scrollbar colors to match Poison theme
+        /// Uses WPF resource dictionary approach for proper theming
+        /// Made internal so it can be called externally or customized
+        /// </summary>
+        internal void UpdateScrollbarColors()
+        {
+            if (textEditor == null || styleManager == null)
+                return;
+
+            try
+            {
+                System.Drawing.Color backgroundColor = PoisonPaint.BackColor.Form(styleManager.Theme);
+                System.Drawing.Color foregroundColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                System.Drawing.Color styleColor = PoisonPaint.GetStyleColor(styleManager.Style);
+                
+                System.Windows.Media.Color scrollbarBgColor = System.Windows.Media.Color.FromRgb(backgroundColor.R, backgroundColor.G, backgroundColor.B);
+                System.Windows.Media.Color scrollbarFgColor = System.Windows.Media.Color.FromRgb(foregroundColor.R, foregroundColor.G, foregroundColor.B);
+                
+                // Calculate scrollbar track color (slightly different from background)
+                int r = backgroundColor.R;
+                int g = backgroundColor.G;
+                int b = backgroundColor.B;
+                
+                if (styleManager.Theme == ReaLTaiizor.Enum.Poison.ThemeStyle.Dark)
+                {
+                    // Dark theme: make track slightly lighter than background for visibility
+                    r = Math.Min(255, r + 20);
+                    g = Math.Min(255, g + 20);
+                    b = Math.Min(255, b + 20);
+                }
+                else
+                {
+                    // Light theme: make track slightly darker than background for visibility
+                    r = Math.Max(0, r - 20);
+                    g = Math.Max(0, g - 20);
+                    b = Math.Max(0, b - 20);
+                }
+                
+                System.Windows.Media.Color trackColor = System.Windows.Media.Color.FromRgb((byte)r, (byte)g, (byte)b);
+                
+                // Calculate thumb color - use Poison theme or custom color
+                System.Windows.Media.Color thumbColor;
+                if (UsePoisonScrollbarTheme && styleManager != null)
+                {
+                    // Use Poison theme accent color (Blue, Green, Purple, etc. based on Style)
+                    thumbColor = System.Windows.Media.Color.FromRgb(styleColor.R, styleColor.G, styleColor.B);
+                }
+                else if (ScrollbarThumbColor.HasValue)
+                {
+                    // Use custom color if specified
+                    var customColor = ScrollbarThumbColor.Value;
+                    thumbColor = System.Windows.Media.Color.FromRgb(customColor.R, customColor.G, customColor.B);
+                }
+                else
+                {
+                    // Fallback: use a neutral gray
+                    thumbColor = System.Windows.Media.Color.FromRgb(128, 128, 128);
+                }
+                
+                // Find ScrollViewer in the visual tree using PoisonWpfHelper
+                var scrollViewer = PoisonWpfHelper.FindVisualChild<ScrollViewer>(textEditor);
+                if (scrollViewer != null)
+                {
+                    // Make scrollviewer background transparent - no box around scrollbar
+                    scrollViewer.Background = System.Windows.Media.Brushes.Transparent;
+                    
+                    // Try to find and style scrollbar elements using PoisonWpfHelper
+                    var horizontalScrollBar = PoisonWpfHelper.FindVisualChild<ScrollBar>(
+                        scrollViewer, 
+                        sb => sb.Orientation == System.Windows.Controls.Orientation.Horizontal);
+                    var verticalScrollBar = PoisonWpfHelper.FindVisualChild<ScrollBar>(
+                        scrollViewer, 
+                        sb => sb.Orientation == System.Windows.Controls.Orientation.Vertical);
+                    
+                    // Configure horizontal scrollbar - hide it completely for code editors
+                    if (horizontalScrollBar != null)
+                    {
+                        // Hide horizontal scrollbar entirely for code editors
+                        horizontalScrollBar.Visibility = System.Windows.Visibility.Collapsed;
+                        horizontalScrollBar.IsEnabled = false;
+                        horizontalScrollBar.Opacity = 0;
+                        horizontalScrollBar.IsHitTestVisible = false;
+                        horizontalScrollBar.Background = System.Windows.Media.Brushes.Transparent;
+                    }
+                    
+                    // Style vertical scrollbar - make it invisible except for thumb (thumb-only style)
+                    if (verticalScrollBar != null)
+                    {
+                        // Keep scrollbar enabled and visible so it can be used, but style to show only thumb
+                        verticalScrollBar.Visibility = System.Windows.Visibility.Visible;
+                        verticalScrollBar.IsEnabled = true;
+                        verticalScrollBar.Opacity = 1.0;
+                        verticalScrollBar.IsHitTestVisible = true;
+                        // Make scrollbar background transparent - no white box around it
+                        verticalScrollBar.Background = System.Windows.Media.Brushes.Transparent;
+                        // Style the scrollbar to show only thumb (hide track and arrows)
+                        StyleScrollBar(verticalScrollBar, scrollbarBgColor, trackColor, scrollbarFgColor, thumbColor);
+                    }
+                    
+                    // Hide the corner control (the box where scrollbars meet) - do this after styling
+                    // This must be done even if horizontal scrollbar is hidden, as the corner may still appear
+                    // Hide it immediately (synchronous) to prevent white box from appearing
+                    HideCornerControl();
+                    
+                    // Force layout update to ensure corner control hiding is applied before next render
+                    scrollViewer.UpdateLayout();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error updating scrollbar colors: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Styles a WPF ScrollBar control with Poison theme colors
+        /// Made internal so it can be accessed/customized if needed
+        /// Hides track and arrows completely, only shows the draggable thumb
+        /// </summary>
+        internal void StyleScrollBar(ScrollBar scrollBar, System.Windows.Media.Color bgColor, System.Windows.Media.Color trackColor, System.Windows.Media.Color fgColor, System.Windows.Media.Color thumbColor)
+        {
+            if (scrollBar == null) return;
+            
+            try
+            {
+                // Make scrollbar background transparent - no box around it
+                scrollBar.Background = System.Windows.Media.Brushes.Transparent;
+                
+                // Make the entire scrollbar track background transparent
+                // This ensures no track background is visible, only the thumb
+                scrollBar.Opacity = 1.0; // Keep scrollbar visible for thumb
+                
+                // Style the scrollbar track
+                // Track is a FrameworkElement (not Control), so we style its child elements instead
+                var track = PoisonWpfHelper.FindVisualChild<Track>(scrollBar);
+                if (track != null)
+                {
+                    // Make track background completely transparent - no visible track
+                    // We only want the thumb visible, not the track background
+                    // Note: Track is a FrameworkElement, not a Control, so it doesn't have a Background property
+                    // We'll make it transparent by hiding its child elements (rectangles, borders) below
+                    // First, style the thumb (the draggable part) - this is what we want visible
+                    if (track.Thumb != null)
+                    {
+                        // Ensure thumb is visible first
+                        track.Thumb.Visibility = System.Windows.Visibility.Visible;
+                        track.Thumb.IsEnabled = true;
+                        track.Thumb.Opacity = ScrollbarThumbOpacity; // Use configurable opacity
+                        
+                        // Style the thumb with Poison theme or custom color
+                        var thumbBrush = new SolidColorBrush(thumbColor);
+                        thumbBrush.Opacity = ScrollbarThumbOpacity; // Use configurable opacity
+                        track.Thumb.Background = thumbBrush;
+                        track.Thumb.BorderBrush = thumbBrush;
+                        track.Thumb.BorderThickness = new System.Windows.Thickness(0); // No border
+                        
+                        // Ensure thumb has a minimum size so it's always visible
+                        if (track.Thumb.MinHeight == 0)
+                            track.Thumb.MinHeight = 10;
+                        if (track.Thumb.MinWidth == 0)
+                            track.Thumb.MinWidth = 10;
+                    }
+                    
+                    // Completely hide the decrease and increase buttons (arrows) - remove them completely
+                    if (track.DecreaseRepeatButton != null)
+                    {
+                        track.DecreaseRepeatButton.Visibility = System.Windows.Visibility.Collapsed;
+                        track.DecreaseRepeatButton.IsEnabled = false;
+                        track.DecreaseRepeatButton.Opacity = 0;
+                        track.DecreaseRepeatButton.Height = 0;
+                        track.DecreaseRepeatButton.Width = 0;
+                        track.DecreaseRepeatButton.IsHitTestVisible = false;
+                        // Also try to remove from visual tree if possible
+                        if (track.DecreaseRepeatButton.Parent != null)
+                        {
+                            try
+                            {
+                                var parent = track.DecreaseRepeatButton.Parent as System.Windows.Controls.Panel;
+                                parent?.Children.Remove(track.DecreaseRepeatButton);
+                            }
+                            catch { }
+                        }
+                    }
+                    if (track.IncreaseRepeatButton != null)
+                    {
+                        track.IncreaseRepeatButton.Visibility = System.Windows.Visibility.Collapsed;
+                        track.IncreaseRepeatButton.IsEnabled = false;
+                        track.IncreaseRepeatButton.Opacity = 0;
+                        track.IncreaseRepeatButton.Height = 0;
+                        track.IncreaseRepeatButton.Width = 0;
+                        track.IncreaseRepeatButton.IsHitTestVisible = false;
+                        // Also try to remove from visual tree if possible
+                        if (track.IncreaseRepeatButton.Parent != null)
+                        {
+                            try
+                            {
+                                var parent = track.IncreaseRepeatButton.Parent as System.Windows.Controls.Panel;
+                                parent?.Children.Remove(track.IncreaseRepeatButton);
+                            }
+                            catch { }
+                        }
+                    }
+                    
+                    // Hide all Rectangle elements in the track (the white box/track background)
+                    // Make them transparent so only the thumb is visible
+                    if (track is System.Windows.FrameworkElement trackElement2)
+                    {
+                        foreach (var rect in PoisonWpfHelper.FindVisualChildren<Rectangle>(trackElement2))
+                        {
+                            // Check if this rectangle is part of the thumb - if so, don't hide it
+                            // The thumb itself might contain rectangles, so we need to be careful
+                            var parent = System.Windows.Media.VisualTreeHelper.GetParent(rect);
+                            bool isPartOfThumb = false;
+                            
+                            // Check if rectangle is a child of the thumb
+                            while (parent != null)
+                            {
+                                if (parent == track.Thumb)
+                                {
+                                    isPartOfThumb = true;
+                                    break;
+                                }
+                                parent = System.Windows.Media.VisualTreeHelper.GetParent(parent);
+                            }
+                            
+                            // Only hide rectangles that are NOT part of the thumb (track background)
+                            if (!isPartOfThumb)
+                            {
+                                rect.Fill = System.Windows.Media.Brushes.Transparent;
+                                rect.Stroke = System.Windows.Media.Brushes.Transparent;
+                                rect.Opacity = 0;
+                                rect.Visibility = System.Windows.Visibility.Collapsed;
+                                rect.IsHitTestVisible = false; // Make sure it's not interactive
+                            }
+                        }
+                        
+                        // Also hide any Border elements that might create the box (but not thumb borders)
+                        foreach (var border in PoisonWpfHelper.FindVisualChildren<Border>(trackElement2))
+                        {
+                            // Check if border is part of thumb
+                            var parent = System.Windows.Media.VisualTreeHelper.GetParent(border);
+                            bool isPartOfThumb = false;
+                            
+                            while (parent != null)
+                            {
+                                if (parent == track.Thumb)
+                                {
+                                    isPartOfThumb = true;
+                                    break;
+                                }
+                                parent = System.Windows.Media.VisualTreeHelper.GetParent(parent);
+                            }
+                            
+                            // Only hide borders that are NOT part of the thumb (track background)
+                            if (!isPartOfThumb)
+                            {
+                                border.Background = System.Windows.Media.Brushes.Transparent;
+                                border.BorderBrush = System.Windows.Media.Brushes.Transparent;
+                                border.BorderThickness = new System.Windows.Thickness(0);
+                                border.Opacity = 0;
+                                border.Visibility = System.Windows.Visibility.Collapsed;
+                                border.IsHitTestVisible = false; // Make sure it's not interactive
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error styling scrollbar: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Forces a refresh of the scrollbar to ensure Poison theme colors are applied
+        /// </summary>
+        private void RefreshScrollbar()
+        {
+            if (textEditor == null || styleManager == null)
+                return;
+
+            try
+            {
+                // Re-apply scrollbar colors to ensure they're updated
+                UpdateScrollbarColors();
+                
+                // Also force a visual update using PoisonWpfHelper
+                var scrollViewer = PoisonWpfHelper.FindVisualChild<ScrollViewer>(textEditor);
+                if (scrollViewer != null)
+                {
+                    var verticalScrollBar = PoisonWpfHelper.FindVisualChild<ScrollBar>(
+                        scrollViewer, 
+                        sb => sb.Orientation == System.Windows.Controls.Orientation.Vertical);
+                    
+                    if (verticalScrollBar != null)
+                    {
+                        // Force scrollbar to refresh by invalidating and updating
+                        verticalScrollBar.InvalidateVisual();
+                        verticalScrollBar.UpdateLayout();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error refreshing scrollbar: {ex.Message}");
             }
         }
 
@@ -1039,7 +1386,7 @@ namespace T7CompilerGUI.Controls
 
             if (start < 0) start = 0;
             if (end > textEditor.Document.TextLength) end = textEditor.Document.TextLength;
-            if (start > end) { int temp = start; start = end; end = temp; }
+            if (start > end) { (start, end) = (end, start); }
 
             var startLoc = textEditor.Document.GetLocation(start);
             var endLoc = textEditor.Document.GetLocation(end);
@@ -1053,10 +1400,7 @@ namespace T7CompilerGUI.Controls
 
         public void ScrollCaret()
         {
-            if (textEditor != null)
-            {
-                textEditor.ScrollToLine(textEditor.TextArea.Caret.Line);
-            }
+            textEditor?.ScrollToLine(textEditor.TextArea.Caret.Line);
         }
 
         public void EmptyUndoBuffer()
@@ -1067,14 +1411,11 @@ namespace T7CompilerGUI.Controls
             }
         }
 
-        public void SetSelectionBackColor(bool useSelection, System.Drawing.Color color)
-        {
-            if (textEditor != null)
+        public void SetSelectionBackColor(bool _useSelection, System.Drawing.Color _color)
             {
                 // AvalonEdit uses a different selection highlighting system
                 // We can set the selection background via the highlighting system
                 // For now, this is handled by the default selection highlighting
-            }
         }
 
         public void GotoPosition(int position)
@@ -1161,9 +1502,11 @@ namespace T7CompilerGUI.Controls
                 if (start >= 0 && end > start)
                 {
                     // Create a marker for inactive code (grayed out)
-                    var marker = new TextMarker(start, end - start);
-                    marker.BackgroundColor = System.Windows.Media.Color.FromArgb(150, 128, 128, 128); // Semi-transparent gray
-                    marker.ForegroundColor = System.Windows.Media.Color.FromArgb(200, 128, 128, 128); // Grayed out text
+                    var marker = new TextMarker(start, end - start)
+                    {
+                        BackgroundColor = System.Windows.Media.Color.FromArgb(150, 128, 128, 128), // Semi-transparent gray
+                        ForegroundColor = System.Windows.Media.Color.FromArgb(200, 128, 128, 128) // Grayed out text
+                    };
                     textMarkerService.Add(marker);
                 }
             }
@@ -1199,7 +1542,7 @@ namespace T7CompilerGUI.Controls
         // Helper class to provide Lines collection compatibility
         public class EditorLinesCollection
         {
-            private ICSharpCode.AvalonEdit.Document.TextDocument document;
+            private readonly ICSharpCode.AvalonEdit.Document.TextDocument document;
 
             public EditorLinesCollection(ICSharpCode.AvalonEdit.Document.TextDocument doc)
             {
@@ -1222,8 +1565,8 @@ namespace T7CompilerGUI.Controls
 
         public class EditorLine
         {
-            private ICSharpCode.AvalonEdit.Document.DocumentLine line;
-            private ICSharpCode.AvalonEdit.Document.TextDocument document;
+            private readonly ICSharpCode.AvalonEdit.Document.DocumentLine line;
+            private readonly ICSharpCode.AvalonEdit.Document.TextDocument document;
 
             public EditorLine(ICSharpCode.AvalonEdit.Document.DocumentLine docLine, ICSharpCode.AvalonEdit.Document.TextDocument doc)
             {
@@ -1297,13 +1640,51 @@ namespace T7CompilerGUI.Controls
         {
             if (disposing)
             {
-                // SearchPanel disabled - no cleanup needed
-                // searchPanel?.Uninstall();
-                // FoldingManager doesn't implement IDisposable, just clear reference
+                // Clear text marker service (clears all markers to free memory)
+                if (textMarkerService != null)
+                {
+                    try
+                    {
+                        textMarkerService.Clear();
+                        // Remove from text area services if still attached
+                        if (textEditor?.TextArea != null && textEditor.TextArea.TextView != null)
+                        {
+                            var services = textEditor.TextArea.TextView.Services;
+                            if (services != null)
+                            {
+                                services.RemoveService(typeof(TextMarkerService));
+                            }
+                        }
+                    }
+                    catch { }
+                    textMarkerService = null;
+                }
+                
+                // Clear folding manager reference (doesn't implement IDisposable)
+                // The FoldingManager will be cleaned up when the document is disposed
                 foldingManager = null;
-                // TextEditor doesn't implement IDisposable, just clear references
+                foldingStrategy = null;
+                
+                // Clear style manager reference
+                styleManager = null;
+                
+                // Clear text editor reference (WPF object, will be cleaned up when ElementHost disposes)
+                // Event handlers attached to textEditor are lambdas that will be cleaned up automatically
+                // when ElementHost disposes and the WPF visual tree is torn down
                 textEditor = null;
-                elementHost?.Dispose();
+                
+                // Dispose ElementHost - this will dispose all WPF content including TextEditor
+                // This is critical for memory cleanup as WPF objects can hold references
+                // ElementHost.Dispose() will properly clean up the entire WPF visual tree
+                if (elementHost != null)
+                {
+                    try
+                    {
+                        elementHost.Dispose();
+                    }
+                    catch { }
+                    elementHost = null;
+                }
             }
             base.Dispose(disposing);
         }
@@ -1327,8 +1708,7 @@ namespace T7CompilerGUI.Controls
             if (manager == null || document == null)
                 return;
 
-            int firstErrorOffset;
-            var newFoldings = CreateNewFoldings(document, out firstErrorOffset);
+            var newFoldings = CreateNewFoldings(document, out int firstErrorOffset);
             manager.UpdateFoldings(newFoldings, firstErrorOffset);
         }
 

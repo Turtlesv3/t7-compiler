@@ -34,6 +34,8 @@ namespace T7CompilerGUI.Forms.Dialogs
             base.Dispose(disposing);
         }
 
+        #region Component Designer generated code
+
         private void InitializeComponent()
         {
             this.mainPanel = new ReaLTaiizor.Controls.PoisonPanel();
@@ -46,8 +48,8 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.lstOtherSymbols = new System.Windows.Forms.CheckedListBox();
             this.lblInfo = new ReaLTaiizor.Controls.PoisonLabel();
             this.buttonPanel = new ReaLTaiizor.Controls.PoisonPanel();
-            this.btnCancel = new ReaLTaiizor.Controls.PoisonButton();
             this.btnOK = new ReaLTaiizor.Controls.PoisonButton();
+            this.btnCancel = new ReaLTaiizor.Controls.PoisonButton();
             this.mainPanel.SuspendLayout();
             this.buttonPanel.SuspendLayout();
             this.SuspendLayout();
@@ -71,8 +73,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.mainPanel.Location = new System.Drawing.Point(20, 60);
             this.mainPanel.Name = "mainPanel";
             this.mainPanel.Padding = new System.Windows.Forms.Padding(20, 15, 20, 20);
-            this.mainPanel.Size = new System.Drawing.Size(293, 304);
+            this.mainPanel.Size = new System.Drawing.Size(267, 310);
             this.mainPanel.TabIndex = 0;
+            this.mainPanel.UseStyleColors = true;
             this.mainPanel.VerticalScrollbar = true;
             this.mainPanel.VerticalScrollbarBarColor = true;
             this.mainPanel.VerticalScrollbarHighlightOnWheel = false;
@@ -146,18 +149,18 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             this.lstOtherSymbols.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.lstOtherSymbols.CheckOnClick = true;
-            this.lstOtherSymbols.Location = new System.Drawing.Point(23, 132);
+            this.lstOtherSymbols.Location = new System.Drawing.Point(13, 132);
             this.lstOtherSymbols.Name = "lstOtherSymbols";
-            this.lstOtherSymbols.Size = new System.Drawing.Size(247, 137);
+            this.lstOtherSymbols.Size = new System.Drawing.Size(241, 137);
             this.lstOtherSymbols.TabIndex = 8;
             // 
             // lblInfo
             // 
             this.lblInfo.FontSize = ReaLTaiizor.Extension.Poison.PoisonLabelSize.Small;
             this.lblInfo.FontWeight = ReaLTaiizor.Extension.Poison.PoisonLabelWeight.Regular;
-            this.lblInfo.Location = new System.Drawing.Point(4, 272);
+            this.lblInfo.Location = new System.Drawing.Point(23, 272);
             this.lblInfo.Name = "lblInfo";
-            this.lblInfo.Size = new System.Drawing.Size(272, 32);
+            this.lblInfo.Size = new System.Drawing.Size(197, 32);
             this.lblInfo.TabIndex = 9;
             this.lblInfo.Text = "Select a game mode and any additional symbols to include in your build.";
             this.lblInfo.UseStyleColors = true;
@@ -165,53 +168,54 @@ namespace T7CompilerGUI.Forms.Dialogs
             // 
             // buttonPanel
             // 
-            this.buttonPanel.Controls.Add(this.btnCancel);
             this.buttonPanel.Controls.Add(this.btnOK);
+            this.buttonPanel.Controls.Add(this.btnCancel);
             this.buttonPanel.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.buttonPanel.HorizontalScrollbarBarColor = true;
             this.buttonPanel.HorizontalScrollbarHighlightOnWheel = false;
             this.buttonPanel.HorizontalScrollbarSize = 10;
-            this.buttonPanel.Location = new System.Drawing.Point(20, 364);
+            this.buttonPanel.Location = new System.Drawing.Point(20, 370);
             this.buttonPanel.Name = "buttonPanel";
             this.buttonPanel.Padding = new System.Windows.Forms.Padding(10);
-            this.buttonPanel.Size = new System.Drawing.Size(293, 47);
+            this.buttonPanel.Size = new System.Drawing.Size(267, 41);
             this.buttonPanel.TabIndex = 1;
+            this.buttonPanel.UseStyleColors = true;
             this.buttonPanel.VerticalScrollbarBarColor = true;
             this.buttonPanel.VerticalScrollbarHighlightOnWheel = false;
             this.buttonPanel.VerticalScrollbarSize = 10;
             // 
-            // btnCancel
-            // 
-            this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnCancel.Location = new System.Drawing.Point(23, 6);
-            this.btnCancel.Name = "btnCancel";
-            this.btnCancel.Size = new System.Drawing.Size(100, 30);
-            this.btnCancel.TabIndex = 2;
-            this.btnCancel.Text = "Cancel";
-            this.btnCancel.UseSelectable = true;
-            this.btnCancel.UseStyleColors = true;
-            this.btnCancel.Click += new System.EventHandler(this.BtnCancel_Click);
-            // 
             // btnOK
             // 
             this.btnOK.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOK.Location = new System.Drawing.Point(170, 6);
+            this.btnOK.Location = new System.Drawing.Point(172, 6);
             this.btnOK.Name = "btnOK";
-            this.btnOK.Size = new System.Drawing.Size(100, 30);
+            this.btnOK.Size = new System.Drawing.Size(82, 30);
             this.btnOK.TabIndex = 3;
             this.btnOK.Text = "Save";
             this.btnOK.UseSelectable = true;
             this.btnOK.UseStyleColors = true;
             this.btnOK.Click += new System.EventHandler(this.BtnOK_Click);
             // 
+            // btnCancel
+            // 
+            this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnCancel.Location = new System.Drawing.Point(13, 6);
+            this.btnCancel.Name = "btnCancel";
+            this.btnCancel.Size = new System.Drawing.Size(82, 30);
+            this.btnCancel.TabIndex = 2;
+            this.btnCancel.Text = "Cancel";
+            this.btnCancel.UseSelectable = true;
+            this.btnCancel.UseStyleColors = true;
+            this.btnCancel.Click += new System.EventHandler(this.BtnCancel_Click);
+            // 
             // GscConfEditorDialog
             // 
-            this.ClientSize = new System.Drawing.Size(333, 431);
+            this.ClientSize = new System.Drawing.Size(307, 431);
             this.Controls.Add(this.mainPanel);
             this.Controls.Add(this.buttonPanel);
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.MinimumSize = new System.Drawing.Size(333, 431);
+            this.MinimumSize = new System.Drawing.Size(307, 431);
             this.Name = "GscConfEditorDialog";
             this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.DropShadow;
@@ -223,6 +227,8 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.ResumeLayout(false);
 
         }
+
+        #endregion
     }
 }
 

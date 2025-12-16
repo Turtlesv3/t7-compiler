@@ -10,7 +10,7 @@ using ReaLTaiizor.Enum.Poison;
 using ReaLTaiizor.Manager;
 using ReaLTaiizor.Drawing.Poison;
 using ReaLTaiizor.Interface.Poison;
-using T7CompilerGUI.Controls;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms.Dialogs
 {
@@ -34,7 +34,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         // Helper to get current rainbow color
         private Color GetCurrentRainbowColor()
         {
-            return parentForm != null ? parentForm.currentRainbowColor : Color.Red;
+            return parentForm != null ? parentForm.currentRainbowColor : ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(ReaLTaiizor.Enum.Poison.ColorStyle.Red);
         }
         
         public class KeybindInfo
@@ -88,6 +88,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Initialize designer-generated controls
             InitializeComponent();
             
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
             // PoisonForm already sets ControlStyles in its constructor (OptimizedDoubleBuffer, ResizeRedraw, etc.)
             // We don't need to override them - PoisonForm handles smooth resizing internally
             
@@ -95,9 +98,6 @@ namespace T7CompilerGUI.Forms.Dialogs
             InitializeKeybinds();
             
             this.Load += KeybindDialog_Load;
-            
-            // Setup hover and pressed effects for buttons
-            SetupButtonEffects();
             
             // Setup rainbow update timer if parent form is available
             SetupRainbowUpdateTimer();
@@ -108,10 +108,8 @@ namespace T7CompilerGUI.Forms.Dialogs
                 // When StyleManager updates, sync all controls
                 this.Shown += (s, e) => SyncAllControlsWithStyleManager();
                 
-                // Also sync periodically to catch any changes
-                syncTimer = new System.Windows.Forms.Timer();
-                syncTimer.Interval = 100; // Check every 100ms
-                syncTimer.Tick += (s, e) => SyncAllControlsWithStyleManager();
+                // Also sync periodically to catch any changes using tracked timer
+                syncTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 100, (s, e) => SyncAllControlsWithStyleManager());
                 syncTimer.Start();
             }
         }
@@ -120,17 +118,15 @@ namespace T7CompilerGUI.Forms.Dialogs
         {
             if (parentForm == null) return;
             
-            // Create a timer to invalidate buttons when rainbow is active
-            rainbowUpdateTimer = new System.Windows.Forms.Timer();
-            rainbowUpdateTimer.Interval = 16; // ~60 FPS to match rainbow animation
-            rainbowUpdateTimer.Tick += (s, e) =>
+            // Create a tracked timer to invalidate buttons when rainbow is active
+            rainbowUpdateTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 16, (s, e) =>
             {
                 if (IsRainbowStyleActive())
                 {
                     // Invalidate all buttons to update rainbow colors
                     InvalidateAllButtons(this);
                 }
-            };
+            });
             
             // Always start the timer - it will only invalidate when rainbow is active
             rainbowUpdateTimer.Start();
@@ -138,29 +134,17 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void InvalidateAllButtons(Control parent)
         {
-            foreach (Control ctrl in parent.Controls)
+            // Use helper to refresh all controls (includes invalidation)
+            if (parent != null)
             {
-                if (ctrl is PoisonButton)
-                {
-                    ctrl.Invalidate();
-                }
-                
-                if (ctrl.HasChildren)
-                {
-                    InvalidateAllButtons(ctrl);
-                }
+                ReaLTaiizorExt.PoisonControlHelper.RefreshAllControls(parent);
             }
         }
         
         private void SetupControls()
         {
             // Controls are now created in InitializeComponent (Designer file)
-            // This method just wires up event handlers and sets dynamic properties
-            
-            if (styleManager != null)
-            {
-                this.StyleManager = styleManager;
-            }
+            // This method just wires up event handlers if needed
             
             // Button event handlers are now wired up in Designer
             // Button positions are set using Anchor property in Designer
@@ -176,53 +160,44 @@ namespace T7CompilerGUI.Forms.Dialogs
             panel.Controls.Clear();
             keybindRows.Clear();
             
-            int yPos = 10;
-            const int rowHeight = 40;
-            const int spacing = 5;
+            // Use constants from Designer file for sizes and positions
+            int yPos = KEYBIND_ROW_START_Y;
             
             foreach (var kvp in keybinds.OrderBy(k => k.Value.Action))
             {
                 var row = new KeybindRow { info = kvp.Value };
                 
-                // Action label - inherits from StyleManager automatically
-                row.lblAction = new PoisonLabel
-                {
-                    Text = kvp.Value.Action + ":",
-                    Location = new Point(10, yPos),
-                    Size = new Size(200, 25),
-                    AutoSize = false,
-                    Style = ColorStyle.Default,
-                    Theme = ThemeStyle.Default,
-                    UseStyleColors = true
-                };
+                // Action label - use enhanced helper
+                row.lblAction = ReaLTaiizorExt.PoisonControlHelper.CreateLabel(
+                    kvp.Value.Action + ":",
+                    styleManager,
+                    true,
+                    ContentAlignment.MiddleLeft);
+                row.lblAction.Location = new Point(KEYBIND_LABEL_X, yPos);
+                row.lblAction.Size = new Size(KEYBIND_LABEL_WIDTH, KEYBIND_LABEL_HEIGHT);
+                row.lblAction.AutoSize = false;
                 
-                // Keybind textbox (read-only display) - inherits from StyleManager automatically
-                row.txtKeybind = new PoisonTextBox
-                {
-                    Text = kvp.Value.ToString(),
-                    Location = new Point(220, yPos),
-                    Size = new Size(190, 25),
-                    ReadOnly = true,
-                    WaterMark = "Click 'Change' to set",
-                    Style = ColorStyle.Default,
-                    Theme = ThemeStyle.Default
-                };
+                // Keybind textbox (read-only display) - use enhanced helper
+                row.txtKeybind = ReaLTaiizorExt.PoisonControlHelper.CreateTextBox(
+                    kvp.Value.ToString(),
+                    styleManager,
+                    true);
+                row.txtKeybind.Location = new Point(KEYBIND_TEXTBOX_X, yPos);
+                row.txtKeybind.Size = new Size(KEYBIND_TEXTBOX_WIDTH, KEYBIND_TEXTBOX_HEIGHT);
+                row.txtKeybind.ReadOnly = true;
+                row.txtKeybind.WaterMark = "Click 'Change' to set";
                 
-                // Change button - inherits from StyleManager automatically
-                row.btnChange = new PoisonButton
-                {
-                    Text = "Change",
-                    Location = new Point(420, yPos),
-                    Size = new Size(90, 25),
-                    Style = ColorStyle.Default,
-                    Theme = ThemeStyle.Default,
-                    UseStyleColors = true
-                };
-                row.btnChange.Click += (s, e) => 
-                {
-                    ResetButtonState(s);
-                    StartCapturingKeybind(row);
-                };
+                // Change button - use enhanced helper for better styling and effects
+                row.btnChange = ReaLTaiizorExt.PoisonControlHelper.CreateButton(
+                    "Change",
+                    styleManager,
+                    (s, e) => 
+                    {
+                        StartCapturingKeybind(row);
+                    },
+                    true);
+                row.btnChange.Location = new Point(KEYBIND_BUTTON_X, yPos);
+                row.btnChange.Size = new Size(KEYBIND_BUTTON_WIDTH, KEYBIND_BUTTON_HEIGHT);
                 
                 panel.Controls.Add(row.lblAction);
                 panel.Controls.Add(row.txtKeybind);
@@ -233,7 +208,7 @@ namespace T7CompilerGUI.Forms.Dialogs
                 // Setup hover and pressed effects
                 SetupButtonHoverEffects(row.btnChange);
                 
-                yPos += rowHeight + spacing;
+                yPos += KEYBIND_ROW_HEIGHT + KEYBIND_ROW_SPACING;
             }
         }
         
@@ -248,7 +223,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             if (styleManager == null) return;
             
             // Set form background color based on theme
-            this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+            this.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
             
             // Update all panels and controls
             UpdateAllControlsRecursive(this);
@@ -260,90 +235,16 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void SyncAllControlsWithStyleManager()
         {
-            if (styleManager == null) return;
+            if (styleManager == null || this.IsDisposed || !this.IsHandleCreated) return;
             
-            // Sync form properties
-            if (this.StyleManager != styleManager)
+            try
             {
-                this.StyleManager = styleManager;
+                // Use helper to sync all controls - handles Theme, Style, UseStyleColors automatically
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
             }
-            if (this.Theme != styleManager.Theme)
+            catch
             {
-                this.Theme = styleManager.Theme;
-            }
-            if (this.Style != styleManager.Style)
-            {
-                this.Style = styleManager.Style;
-            }
-            
-            // Sync all controls recursively
-            SyncControlsRecursive(this);
-            
-            // Update theme backgrounds
-            UpdateThemeBackgrounds();
-        }
-        
-        private void SyncControlsRecursive(Control parent)
-        {
-            if (parent == null || styleManager == null) return;
-            
-            foreach (Control ctrl in parent.Controls)
-            {
-                // Sync IPoisonControl controls
-                if (ctrl is IPoisonControl poisonCtrl)
-                {
-                    if (poisonCtrl.StyleManager != styleManager)
-                    {
-                        poisonCtrl.StyleManager = styleManager;
-                    }
-                    
-                    // Ensure Style and Theme are Default to follow StyleManager
-                    var styleProp = ctrl.GetType().GetProperty("Style");
-                    var themeProp = ctrl.GetType().GetProperty("Theme");
-                    
-                    if (styleProp != null && styleProp.CanWrite)
-                    {
-                        var currentStyle = styleProp.GetValue(ctrl);
-                        if (currentStyle == null || currentStyle.ToString() != "Default")
-                        {
-                            styleProp.SetValue(ctrl, ColorStyle.Default);
-                        }
-                    }
-                    
-                    if (themeProp != null && themeProp.CanWrite)
-                    {
-                        var currentTheme = themeProp.GetValue(ctrl);
-                        if (currentTheme == null || currentTheme.ToString() != "Default")
-                        {
-                            themeProp.SetValue(ctrl, ThemeStyle.Default);
-                        }
-                    }
-                    
-                    // Ensure UseStyleColors is enabled
-                    var useStyleColorsProp = ctrl.GetType().GetProperty("UseStyleColors");
-                    if (useStyleColorsProp != null && useStyleColorsProp.CanWrite)
-                    {
-                        useStyleColorsProp.SetValue(ctrl, true);
-                    }
-                    
-                    ctrl.Invalidate();
-                }
-                
-                // Sync IPoisonComponent controls (like menus)
-                if (ctrl is IPoisonComponent poisonComponent)
-                {
-                    if (poisonComponent.StyleManager != styleManager)
-                    {
-                        poisonComponent.StyleManager = styleManager;
-                    }
-                    ctrl.Invalidate();
-                }
-                
-                // Recursively sync child controls
-                if (ctrl.HasChildren)
-                {
-                    SyncControlsRecursive(ctrl);
-                }
+                // Silently ignore errors during sync (form might be disposing)
             }
         }
         
@@ -354,7 +255,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Update panels background
             if (parent is PoisonPanel panel)
             {
-                panel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                panel.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
             }
             
             // Recursively update all child controls
@@ -366,8 +267,12 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void SetupButtonEffects()
         {
-            // Use centralized helper to setup hover/pressed effects for all buttons in the form
-            PoisonControlHelper.SetupAllButtonEffectsRecursive(this);
+            // Use PoisonFormHelper for standardized form initialization (includes SetupAllButtonEffectsRecursive)
+            // This is called after controls are set up, so InitializeForm can be called here
+            if (styleManager != null)
+            {
+                ReaLTaiizorExt.PoisonFormHelper.InitializeForm(this, styleManager);
+            }
         }
         
         private void SetupButtonHoverEffects(PoisonButton poisonBtn)
@@ -393,7 +298,7 @@ namespace T7CompilerGUI.Forms.Dialogs
                 }
                 else if (poisonBtn.Style != ColorStyle.Default)
                 {
-                    styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(poisonBtn.Style);
+                    styleColor = PoisonPaint.GetStyleColor(poisonBtn.Style);
                 }
                 else
                 {
@@ -403,7 +308,10 @@ namespace T7CompilerGUI.Forms.Dialogs
                 if (isHovered && !isPressed && poisonBtn.Enabled)
                 {
                     // Use the style/rainbow color with transparency for hover overlay
-                    using (SolidBrush brush = new SolidBrush(Color.FromArgb(80, styleColor)))
+                    // Use PoisonPaint to blend style color with background for semi-transparent effect
+                    Color bgColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    Color semiTransparentStyle = ReaLTaiizor.Drawing.Poison.PoisonPaint.BlendColors(bgColor, styleColor, 0.3);
+                    using (SolidBrush brush = new SolidBrush(semiTransparentStyle))
                     {
                         e.Graphics.FillRectangle(brush, poisonBtn.ClientRectangle);
                     }
@@ -411,7 +319,10 @@ namespace T7CompilerGUI.Forms.Dialogs
                 else if (isHovered && isPressed && poisonBtn.Enabled)
                 {
                     // Use a more opaque style/rainbow color for pressed state
-                    using (SolidBrush brush = new SolidBrush(Color.FromArgb(120, styleColor)))
+                    // Use PoisonPaint to blend style color with background for more opaque effect
+                    Color bgColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    Color moreOpaqueStyle = ReaLTaiizor.Drawing.Poison.PoisonPaint.BlendColors(bgColor, styleColor, 0.5);
+                    using (SolidBrush brush = new SolidBrush(moreOpaqueStyle))
                     {
                         e.Graphics.FillRectangle(brush, poisonBtn.ClientRectangle);
                     }
@@ -445,10 +356,10 @@ namespace T7CompilerGUI.Forms.Dialogs
                         );
                         
                         // Get background color to erase original text
-                        Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(poisonBtn.Theme);
+                        Color backColor = PoisonPaint.BackColor.Button.Normal(poisonBtn.Theme);
                         if (!poisonBtn.Enabled)
                         {
-                            backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Disabled(poisonBtn.Theme);
+                            backColor = PoisonPaint.BackColor.Button.Disabled(poisonBtn.Theme);
                         }
                         
                         // Erase original text by filling text area
@@ -582,28 +493,22 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void BtnCancel_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             this.DialogResult = DialogResult.Cancel;
         }
 
         private void BtnOK_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             this.DialogResult = DialogResult.OK;
         }
 
         private void BtnReset_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            // Reset to default keybinds
             keybinds = GetDefaultKeybinds();
             InitializeKeybinds();
         }
         
         private void BtnClear_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            // Clear all keybinds (set to None)
             foreach (var kvp in keybinds.ToList())
             {
                 keybinds[kvp.Key] = new KeybindInfo(kvp.Value.Action, Keys.None, false, false, false);
@@ -611,11 +516,6 @@ namespace T7CompilerGUI.Forms.Dialogs
             InitializeKeybinds();
         }
         
-        private void ResetButtonState(object sender)
-        {
-            // Use centralized helper
-            PoisonControlHelper.ResetButtonState(sender);
-        }
         
         public static Dictionary<string, KeybindInfo> GetDefaultKeybinds()
         {
@@ -635,6 +535,9 @@ namespace T7CompilerGUI.Forms.Dialogs
         {
             if (disposing)
             {
+                // Use PoisonFormHelper for standardized cleanup (disposes tracked resources)
+                ReaLTaiizorExt.PoisonFormHelper.CleanupForm(this);
+                
                 // Dispose components (from Designer.cs)
                 if (components != null)
                 {

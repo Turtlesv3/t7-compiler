@@ -52,6 +52,7 @@ namespace T7CompilerGUI.Forms
         private PoisonButton btnInject;
         private PoisonButton btnResetParseTree;
         private PoisonButton btnLaunchBO3;
+        private PoisonButton btnKillBO3;
         private ReaLTaiizor.Controls.PoisonPanel panelLog;
         private ReaLTaiizor.Controls.PoisonProgressSpinner progressSpinner;
         private ReaLTaiizor.Controls.PoisonProgressBar progressBar;
@@ -95,9 +96,16 @@ namespace T7CompilerGUI.Forms
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
+            {
+                // Dispose timers to prevent memory leaks
+                if (components != null)
             {
                 components.Dispose();
+                }
+                
+                // Note: Timer disposal is handled in MainForm.cs Dispose override
+                // This is just the designer-generated Dispose method
             }
             base.Dispose(disposing);
         }
@@ -150,6 +158,7 @@ namespace T7CompilerGUI.Forms
             this.btnInject = new ReaLTaiizor.Controls.PoisonButton();
             this.btnResetParseTree = new ReaLTaiizor.Controls.PoisonButton();
             this.btnLaunchBO3 = new ReaLTaiizor.Controls.PoisonButton();
+            this.btnKillBO3 = new ReaLTaiizor.Controls.PoisonButton();
             this.tabSettings = new ReaLTaiizor.Controls.PoisonTabPage();
             this.lblSettingsTheme = new ReaLTaiizor.Controls.PoisonLabel();
             this.toggleSettingsTheme = new ReaLTaiizor.Controls.PoisonToggle();
@@ -190,21 +199,22 @@ namespace T7CompilerGUI.Forms
             // 
             // txtLog
             // 
+            this.txtLog.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.poisonStyleExtender.SetApplyPoisonTheme(this.txtLog, true);
-            this.txtLog.AllowDrop = false;
             this.txtLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.txtLog.Dock = System.Windows.Forms.DockStyle.Fill;
             this.txtLog.Font = new System.Drawing.Font("Consolas", 9F);
             this.txtLog.Location = new System.Drawing.Point(0, 0);
             this.txtLog.Name = "txtLog";
             this.txtLog.ReadOnly = true;
-            this.txtLog.ScrollBars = System.Windows.Forms.RichTextBoxScrollBars.None;
-            this.txtLog.Size = new System.Drawing.Size(613, 220);
+            this.txtLog.ScrollBars = System.Windows.Forms.RichTextBoxScrollBars.Vertical;
+            this.txtLog.Size = new System.Drawing.Size(612, 209);
             this.txtLog.TabIndex = 0;
             this.txtLog.Text = "";
             this.txtLog.WordWrap = false;
-            this.txtLog.MouseDown += new System.Windows.Forms.MouseEventHandler(this.txtLog_MouseDown);
             this.txtLog.QueryContinueDrag += new System.Windows.Forms.QueryContinueDragEventHandler(this.txtLog_QueryContinueDrag);
+            this.txtLog.MouseDown += new System.Windows.Forms.MouseEventHandler(this.txtLog_MouseDown);
             // 
             // platformMenu
             // 
@@ -274,7 +284,7 @@ namespace T7CompilerGUI.Forms
             // lblOpcodeMasking
             // 
             this.lblOpcodeMasking.AutoSize = true;
-            this.lblOpcodeMasking.Location = new System.Drawing.Point(0, 92);
+            this.lblOpcodeMasking.Location = new System.Drawing.Point(6, 92);
             this.lblOpcodeMasking.Name = "lblOpcodeMasking";
             this.lblOpcodeMasking.Size = new System.Drawing.Size(112, 19);
             this.lblOpcodeMasking.TabIndex = 18;
@@ -285,17 +295,19 @@ namespace T7CompilerGUI.Forms
             // 
             this.chkOpcodeMasking.AutoSize = true;
             this.chkOpcodeMasking.DisplayStatus = false;
-            this.chkOpcodeMasking.Location = new System.Drawing.Point(128, 92);
+            this.chkOpcodeMasking.Location = new System.Drawing.Point(122, 97);
+            this.chkOpcodeMasking.MinimumSize = new System.Drawing.Size(35, 12);
             this.chkOpcodeMasking.Name = "chkOpcodeMasking";
-            this.chkOpcodeMasking.Size = new System.Drawing.Size(50, 19);
+            this.chkOpcodeMasking.Size = new System.Drawing.Size(35, 14);
             this.chkOpcodeMasking.TabIndex = 19;
             this.chkOpcodeMasking.Text = "Off";
             this.chkOpcodeMasking.UseSelectable = true;
+            this.chkOpcodeMasking.UseStyleColors = true;
             // 
             // lblSaveOpcodeMap
             // 
             this.lblSaveOpcodeMap.AutoSize = true;
-            this.lblSaveOpcodeMap.Location = new System.Drawing.Point(0, 64);
+            this.lblSaveOpcodeMap.Location = new System.Drawing.Point(-4, 69);
             this.lblSaveOpcodeMap.Name = "lblSaveOpcodeMap";
             this.lblSaveOpcodeMap.Size = new System.Drawing.Size(122, 19);
             this.lblSaveOpcodeMap.TabIndex = 16;
@@ -308,12 +320,14 @@ namespace T7CompilerGUI.Forms
             this.chkSaveOpcodeMap.Checked = true;
             this.chkSaveOpcodeMap.CheckState = System.Windows.Forms.CheckState.Checked;
             this.chkSaveOpcodeMap.DisplayStatus = false;
-            this.chkSaveOpcodeMap.Location = new System.Drawing.Point(128, 64);
+            this.chkSaveOpcodeMap.Location = new System.Drawing.Point(122, 74);
+            this.chkSaveOpcodeMap.MinimumSize = new System.Drawing.Size(35, 12);
             this.chkSaveOpcodeMap.Name = "chkSaveOpcodeMap";
-            this.chkSaveOpcodeMap.Size = new System.Drawing.Size(50, 19);
+            this.chkSaveOpcodeMap.Size = new System.Drawing.Size(35, 14);
             this.chkSaveOpcodeMap.TabIndex = 17;
             this.chkSaveOpcodeMap.Text = "On";
             this.chkSaveOpcodeMap.UseSelectable = true;
+            this.chkSaveOpcodeMap.UseStyleColors = true;
             // 
             // tabControl
             // 
@@ -326,14 +340,14 @@ namespace T7CompilerGUI.Forms
             this.tabControl.HotTrack = true;
             this.tabControl.Location = new System.Drawing.Point(23, 55);
             this.tabControl.Name = "tabControl";
-            this.tabControl.SelectedIndex = 1;
-            this.tabControl.Size = new System.Drawing.Size(615, 189);
+            this.tabControl.SelectedIndex = 0;
+            this.tabControl.Size = new System.Drawing.Size(614, 189);
             this.tabControl.TabIndex = 22;
             this.tabControl.UseSelectable = true;
+            this.tabControl.UseStyleColors = true;
             // 
             // tabCompile
             // 
-            this.tabCompile.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.tabCompile.Controls.Add(this.btnGscConfMode);
             this.tabCompile.Controls.Add(this.lblProjectFolder);
             this.tabCompile.Controls.Add(this.txtProjectFolder);
@@ -352,14 +366,19 @@ namespace T7CompilerGUI.Forms
             this.tabCompile.Controls.Add(this.btnCodeEditor);
             this.tabCompile.HorizontalScrollbarBarColor = true;
             this.tabCompile.HorizontalScrollbarHighlightOnWheel = false;
+            this.tabCompile.HorizontalScrollbarInvisible = true;
+            this.tabCompile.HorizontalScrollbarOpacity = 0D;
             this.tabCompile.HorizontalScrollbarSize = 3;
             this.tabCompile.Location = new System.Drawing.Point(4, 38);
             this.tabCompile.Name = "tabCompile";
-            this.tabCompile.Size = new System.Drawing.Size(607, 147);
+            this.tabCompile.Size = new System.Drawing.Size(606, 147);
             this.tabCompile.TabIndex = 0;
             this.tabCompile.Text = "Compile";
+            this.tabCompile.UseStyleColors = true;
             this.tabCompile.VerticalScrollbarBarColor = true;
             this.tabCompile.VerticalScrollbarHighlightOnWheel = false;
+            this.tabCompile.VerticalScrollbarInvisible = true;
+            this.tabCompile.VerticalScrollbarOpacity = 0D;
             this.tabCompile.VerticalScrollbarSize = 3;
             this.tabCompile.Click += new System.EventHandler(this.tabCompile_Click);
             // 
@@ -367,15 +386,15 @@ namespace T7CompilerGUI.Forms
             // 
             this.btnGscConfMode.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnGscConfMode.AutoSize = true;
-            this.btnGscConfMode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.btnGscConfMode.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnGscConfMode.Highlight = true;
-            this.btnGscConfMode.Location = new System.Drawing.Point(383, 121);
+            this.btnGscConfMode.Location = new System.Drawing.Point(382, 121);
             this.btnGscConfMode.Name = "btnGscConfMode";
+            this.btnGscConfMode.SelectedItem = null;
             this.btnGscConfMode.Size = new System.Drawing.Size(118, 23);
             this.btnGscConfMode.TabIndex = 22;
             this.btnGscConfMode.Text = "GSC Config";
             this.btnGscConfMode.UseSelectable = true;
+            this.btnGscConfMode.UseStyleColors = true;
             this.btnGscConfMode.Click += new System.EventHandler(this.btnGscConfMode_Click);
             // 
             // txtProjectFolder
@@ -383,12 +402,11 @@ namespace T7CompilerGUI.Forms
             this.txtProjectFolder.AllowDrop = true;
             this.txtProjectFolder.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtProjectFolder.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             // 
             // 
             // 
             this.txtProjectFolder.CustomButton.Image = null;
-            this.txtProjectFolder.CustomButton.Location = new System.Drawing.Point(294, 2);
+            this.txtProjectFolder.CustomButton.Location = new System.Drawing.Point(297, 2);
             this.txtProjectFolder.CustomButton.Name = "";
             this.txtProjectFolder.CustomButton.Size = new System.Drawing.Size(17, 17);
             this.txtProjectFolder.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -396,7 +414,6 @@ namespace T7CompilerGUI.Forms
             this.txtProjectFolder.CustomButton.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Light;
             this.txtProjectFolder.CustomButton.UseSelectable = true;
             this.txtProjectFolder.CustomButton.Visible = false;
-            this.txtProjectFolder.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.txtProjectFolder.Lines = new string[0];
             this.txtProjectFolder.Location = new System.Drawing.Point(98, 8);
             this.txtProjectFolder.MaxLength = 32767;
@@ -408,9 +425,10 @@ namespace T7CompilerGUI.Forms
             this.txtProjectFolder.SelectionLength = 0;
             this.txtProjectFolder.SelectionStart = 0;
             this.txtProjectFolder.ShortcutsEnabled = true;
-            this.txtProjectFolder.Size = new System.Drawing.Size(318, 22);
+            this.txtProjectFolder.Size = new System.Drawing.Size(317, 22);
             this.txtProjectFolder.TabIndex = 6;
             this.txtProjectFolder.UseSelectable = true;
+            this.txtProjectFolder.UseStyleColors = true;
             this.txtProjectFolder.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
             this.txtProjectFolder.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
             this.txtProjectFolder.TextChanged += new System.EventHandler(this.txtProjectFolder_TextChanged);
@@ -420,42 +438,40 @@ namespace T7CompilerGUI.Forms
             // btnSelectProjectFolder
             // 
             this.btnSelectProjectFolder.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnSelectProjectFolder.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.btnSelectProjectFolder.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnSelectProjectFolder.Highlight = true;
-            this.btnSelectProjectFolder.Location = new System.Drawing.Point(506, 8);
+            this.btnSelectProjectFolder.Location = new System.Drawing.Point(505, 8);
             this.btnSelectProjectFolder.Name = "btnSelectProjectFolder";
             this.btnSelectProjectFolder.Size = new System.Drawing.Size(88, 22);
             this.btnSelectProjectFolder.TabIndex = 7;
             this.btnSelectProjectFolder.Text = "Browse...";
             this.btnSelectProjectFolder.UseSelectable = true;
+            this.btnSelectProjectFolder.UseStyleColors = true;
             this.btnSelectProjectFolder.Click += new System.EventHandler(this.btnSelectProjectFolder_Click);
             // 
             // btnRecentProjects
             // 
             this.btnRecentProjects.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnRecentProjects.AutoSize = true;
-            this.btnRecentProjects.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             this.btnRecentProjects.ContextMenuStrip = this.recentProjectsMenu;
-            this.btnRecentProjects.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
-            this.btnRecentProjects.Location = new System.Drawing.Point(422, 8);
+            this.btnRecentProjects.Location = new System.Drawing.Point(421, 8);
             this.btnRecentProjects.Name = "btnRecentProjects";
+            this.btnRecentProjects.SelectedItem = null;
             this.btnRecentProjects.Size = new System.Drawing.Size(79, 23);
             this.btnRecentProjects.SplitMenuStrip = this.recentProjectsMenu;
             this.btnRecentProjects.TabIndex = 8;
             this.btnRecentProjects.Text = "Recent";
             this.btnRecentProjects.UseSelectable = true;
+            this.btnRecentProjects.UseStyleColors = true;
             // 
             // txtOutputFile
             // 
             this.txtOutputFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtOutputFile.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             // 
             // 
             // 
             this.txtOutputFile.CustomButton.Image = null;
-            this.txtOutputFile.CustomButton.Location = new System.Drawing.Point(379, 2);
+            this.txtOutputFile.CustomButton.Location = new System.Drawing.Point(401, 2);
             this.txtOutputFile.CustomButton.Name = "";
             this.txtOutputFile.CustomButton.Size = new System.Drawing.Size(17, 17);
             this.txtOutputFile.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -463,7 +479,6 @@ namespace T7CompilerGUI.Forms
             this.txtOutputFile.CustomButton.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Light;
             this.txtOutputFile.CustomButton.UseSelectable = true;
             this.txtOutputFile.CustomButton.Visible = false;
-            this.txtOutputFile.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.txtOutputFile.Lines = new string[0];
             this.txtOutputFile.Location = new System.Drawing.Point(79, 36);
             this.txtOutputFile.MaxLength = 32767;
@@ -474,9 +489,10 @@ namespace T7CompilerGUI.Forms
             this.txtOutputFile.SelectionLength = 0;
             this.txtOutputFile.SelectionStart = 0;
             this.txtOutputFile.ShortcutsEnabled = true;
-            this.txtOutputFile.Size = new System.Drawing.Size(422, 22);
+            this.txtOutputFile.Size = new System.Drawing.Size(421, 22);
             this.txtOutputFile.TabIndex = 9;
             this.txtOutputFile.UseSelectable = true;
+            this.txtOutputFile.UseStyleColors = true;
             this.txtOutputFile.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
             this.txtOutputFile.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
             this.txtOutputFile.TextChanged += new System.EventHandler(this.txtOutputFile_TextChanged);
@@ -485,15 +501,14 @@ namespace T7CompilerGUI.Forms
             // btnSelectOutputFile
             // 
             this.btnSelectOutputFile.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnSelectOutputFile.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.btnSelectOutputFile.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnSelectOutputFile.Highlight = true;
-            this.btnSelectOutputFile.Location = new System.Drawing.Point(507, 36);
+            this.btnSelectOutputFile.Location = new System.Drawing.Point(506, 36);
             this.btnSelectOutputFile.Name = "btnSelectOutputFile";
             this.btnSelectOutputFile.Size = new System.Drawing.Size(88, 22);
             this.btnSelectOutputFile.TabIndex = 10;
             this.btnSelectOutputFile.Text = "Browse...";
             this.btnSelectOutputFile.UseSelectable = true;
+            this.btnSelectOutputFile.UseStyleColors = true;
             this.btnSelectOutputFile.Click += new System.EventHandler(this.btnSelectOutputFile_Click);
             // 
             // btnPlatform
@@ -501,33 +516,37 @@ namespace T7CompilerGUI.Forms
             this.btnPlatform.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnPlatform.AutoSize = true;
             this.btnPlatform.ContextMenuStrip = this.platformMenu;
-            this.btnPlatform.Location = new System.Drawing.Point(452, 64);
+            this.btnPlatform.Location = new System.Drawing.Point(451, 64);
             this.btnPlatform.Name = "btnPlatform";
+            this.btnPlatform.SelectedItem = null;
             this.btnPlatform.Size = new System.Drawing.Size(49, 23);
             this.btnPlatform.SplitMenuStrip = this.platformMenu;
             this.btnPlatform.TabIndex = 18;
             this.btnPlatform.Text = "PC";
             this.btnPlatform.UseSelectable = true;
+            this.btnPlatform.UseStyleColors = true;
             // 
             // btnGame
             // 
             this.btnGame.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnGame.AutoSize = true;
             this.btnGame.ContextMenuStrip = this.gameMenu;
-            this.btnGame.Location = new System.Drawing.Point(422, 92);
+            this.btnGame.Location = new System.Drawing.Point(421, 92);
             this.btnGame.Name = "btnGame";
+            this.btnGame.SelectedItem = null;
             this.btnGame.Size = new System.Drawing.Size(79, 23);
             this.btnGame.SplitMenuStrip = this.gameMenu;
             this.btnGame.TabIndex = 20;
             this.btnGame.Text = "T7 (BO3)";
             this.btnGame.UseSelectable = true;
+            this.btnGame.UseStyleColors = true;
             // 
             // btnCompile
             // 
             this.btnCompile.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnCompile.Enabled = false;
             this.btnCompile.Highlight = true;
-            this.btnCompile.Location = new System.Drawing.Point(507, 64);
+            this.btnCompile.Location = new System.Drawing.Point(506, 64);
             this.btnCompile.Name = "btnCompile";
             this.btnCompile.Size = new System.Drawing.Size(88, 80);
             this.btnCompile.TabIndex = 12;
@@ -539,20 +558,18 @@ namespace T7CompilerGUI.Forms
             // btnCodeEditor
             // 
             this.btnCodeEditor.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnCodeEditor.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.btnCodeEditor.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnCodeEditor.Highlight = true;
-            this.btnCodeEditor.Location = new System.Drawing.Point(344, 64);
+            this.btnCodeEditor.Location = new System.Drawing.Point(343, 64);
             this.btnCodeEditor.Name = "btnCodeEditor";
             this.btnCodeEditor.Size = new System.Drawing.Size(102, 23);
             this.btnCodeEditor.TabIndex = 19;
             this.btnCodeEditor.Text = "Open Code Editor";
             this.btnCodeEditor.UseSelectable = true;
+            this.btnCodeEditor.UseStyleColors = true;
             this.btnCodeEditor.Click += new System.EventHandler(this.btnCodeEditor_Click);
             // 
             // tabInject
             // 
-            this.tabInject.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
             this.tabInject.Controls.Add(this.lblInjectFile);
             this.tabInject.Controls.Add(this.lblInjectPath);
             this.tabInject.Controls.Add(this.lblInjectGame);
@@ -567,17 +584,22 @@ namespace T7CompilerGUI.Forms
             this.tabInject.Controls.Add(this.btnInject);
             this.tabInject.Controls.Add(this.btnResetParseTree);
             this.tabInject.Controls.Add(this.btnLaunchBO3);
-            this.tabInject.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(192)))), ((int)(((byte)(192)))), ((int)(((byte)(255)))));
+            this.tabInject.Controls.Add(this.btnKillBO3);
             this.tabInject.HorizontalScrollbarBarColor = true;
             this.tabInject.HorizontalScrollbarHighlightOnWheel = false;
+            this.tabInject.HorizontalScrollbarInvisible = true;
+            this.tabInject.HorizontalScrollbarOpacity = 0D;
             this.tabInject.HorizontalScrollbarSize = 3;
             this.tabInject.Location = new System.Drawing.Point(4, 38);
             this.tabInject.Name = "tabInject";
-            this.tabInject.Size = new System.Drawing.Size(607, 147);
+            this.tabInject.Size = new System.Drawing.Size(606, 147);
             this.tabInject.TabIndex = 1;
             this.tabInject.Text = "Inject";
+            this.tabInject.UseStyleColors = true;
             this.tabInject.VerticalScrollbarBarColor = true;
             this.tabInject.VerticalScrollbarHighlightOnWheel = false;
+            this.tabInject.VerticalScrollbarInvisible = true;
+            this.tabInject.VerticalScrollbarOpacity = 0D;
             this.tabInject.VerticalScrollbarSize = 3;
             // 
             // lblInjectFile
@@ -625,11 +647,13 @@ namespace T7CompilerGUI.Forms
             this.chkNoRuntime.AutoSize = true;
             this.chkNoRuntime.DisplayStatus = false;
             this.chkNoRuntime.Location = new System.Drawing.Point(96, 92);
+            this.chkNoRuntime.MinimumSize = new System.Drawing.Size(35, 12);
             this.chkNoRuntime.Name = "chkNoRuntime";
-            this.chkNoRuntime.Size = new System.Drawing.Size(50, 19);
+            this.chkNoRuntime.Size = new System.Drawing.Size(35, 14);
             this.chkNoRuntime.TabIndex = 8;
             this.chkNoRuntime.Text = "Off";
             this.chkNoRuntime.UseSelectable = true;
+            this.chkNoRuntime.UseStyleColors = true;
             // 
             // lblHotReload
             // 
@@ -647,11 +671,13 @@ namespace T7CompilerGUI.Forms
             this.btnHotReload.ContextMenuStrip = this.hotReloadMenu;
             this.btnHotReload.Location = new System.Drawing.Point(244, 92);
             this.btnHotReload.Name = "btnHotReload";
+            this.btnHotReload.SelectedItem = null;
             this.btnHotReload.Size = new System.Drawing.Size(64, 23);
             this.btnHotReload.SplitMenuStrip = this.hotReloadMenu;
             this.btnHotReload.TabIndex = 10;
             this.btnHotReload.Text = "None";
             this.btnHotReload.UseSelectable = true;
+            this.btnHotReload.UseStyleColors = true;
             // 
             // hotReloadMenu
             // 
@@ -665,7 +691,6 @@ namespace T7CompilerGUI.Forms
             this.txtInjectFile.AllowDrop = true;
             this.txtInjectFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtInjectFile.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             // 
             // 
             // 
@@ -678,7 +703,6 @@ namespace T7CompilerGUI.Forms
             this.txtInjectFile.CustomButton.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Light;
             this.txtInjectFile.CustomButton.UseSelectable = true;
             this.txtInjectFile.CustomButton.Visible = false;
-            this.txtInjectFile.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.txtInjectFile.Lines = new string[0];
             this.txtInjectFile.Location = new System.Drawing.Point(96, 8);
             this.txtInjectFile.MaxLength = 32767;
@@ -693,6 +717,7 @@ namespace T7CompilerGUI.Forms
             this.txtInjectFile.Size = new System.Drawing.Size(405, 22);
             this.txtInjectFile.TabIndex = 1;
             this.txtInjectFile.UseSelectable = true;
+            this.txtInjectFile.UseStyleColors = true;
             this.txtInjectFile.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
             this.txtInjectFile.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
             this.txtInjectFile.TextChanged += new System.EventHandler(this.txtInjectFile_TextChanged);
@@ -702,8 +727,6 @@ namespace T7CompilerGUI.Forms
             // btnSelectInjectFile
             // 
             this.btnSelectInjectFile.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnSelectInjectFile.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.btnSelectInjectFile.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnSelectInjectFile.Highlight = true;
             this.btnSelectInjectFile.Location = new System.Drawing.Point(506, 8);
             this.btnSelectInjectFile.Name = "btnSelectInjectFile";
@@ -711,11 +734,11 @@ namespace T7CompilerGUI.Forms
             this.btnSelectInjectFile.TabIndex = 2;
             this.btnSelectInjectFile.Text = "Browse...";
             this.btnSelectInjectFile.UseSelectable = true;
+            this.btnSelectInjectFile.UseStyleColors = true;
             this.btnSelectInjectFile.Click += new System.EventHandler(this.btnSelectInjectFile_Click);
             // 
             // txtInjectPath
             // 
-            this.txtInjectPath.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             // 
             // 
             // 
@@ -728,7 +751,6 @@ namespace T7CompilerGUI.Forms
             this.txtInjectPath.CustomButton.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Light;
             this.txtInjectPath.CustomButton.UseSelectable = true;
             this.txtInjectPath.CustomButton.Visible = false;
-            this.txtInjectPath.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.txtInjectPath.Lines = new string[] {
         "scripts/shared/duplicaterender_mgr.gsc"};
             this.txtInjectPath.Location = new System.Drawing.Point(96, 36);
@@ -744,6 +766,7 @@ namespace T7CompilerGUI.Forms
             this.txtInjectPath.TabIndex = 4;
             this.txtInjectPath.Text = "scripts/shared/duplicaterender_mgr.gsc";
             this.txtInjectPath.UseSelectable = true;
+            this.txtInjectPath.UseStyleColors = true;
             this.txtInjectPath.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
             this.txtInjectPath.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
             this.txtInjectPath.TextChanged += new System.EventHandler(this.txtInjectPath_TextChanged);
@@ -754,11 +777,13 @@ namespace T7CompilerGUI.Forms
             this.btnInjectGame.ContextMenuStrip = this.injectGameMenu;
             this.btnInjectGame.Location = new System.Drawing.Point(96, 64);
             this.btnInjectGame.Name = "btnInjectGame";
+            this.btnInjectGame.SelectedItem = null;
             this.btnInjectGame.Size = new System.Drawing.Size(82, 23);
             this.btnInjectGame.SplitMenuStrip = this.injectGameMenu;
             this.btnInjectGame.TabIndex = 6;
             this.btnInjectGame.Text = "T7 (BO3)";
             this.btnInjectGame.UseSelectable = true;
+            this.btnInjectGame.UseStyleColors = true;
             // 
             // btnInject
             // 
@@ -776,8 +801,6 @@ namespace T7CompilerGUI.Forms
             // btnResetParseTree
             // 
             this.btnResetParseTree.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnResetParseTree.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.btnResetParseTree.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnResetParseTree.Highlight = true;
             this.btnResetParseTree.Location = new System.Drawing.Point(507, 64);
             this.btnResetParseTree.Name = "btnResetParseTree";
@@ -785,6 +808,7 @@ namespace T7CompilerGUI.Forms
             this.btnResetParseTree.TabIndex = 10;
             this.btnResetParseTree.Text = "Reset Tree";
             this.btnResetParseTree.UseSelectable = true;
+            this.btnResetParseTree.UseStyleColors = true;
             this.btnResetParseTree.Click += new System.EventHandler(this.btnResetParseTree_Click);
             // 
             // btnLaunchBO3
@@ -800,9 +824,21 @@ namespace T7CompilerGUI.Forms
             this.btnLaunchBO3.UseStyleColors = true;
             this.btnLaunchBO3.Click += new System.EventHandler(this.btnLaunchBO3_Click);
             // 
+            // btnKillBO3
+            // 
+            this.btnKillBO3.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnKillBO3.Highlight = true;
+            this.btnKillBO3.Location = new System.Drawing.Point(507, 118);
+            this.btnKillBO3.Name = "btnKillBO3";
+            this.btnKillBO3.Size = new System.Drawing.Size(88, 24);
+            this.btnKillBO3.TabIndex = 12;
+            this.btnKillBO3.Text = "Kill Process";
+            this.btnKillBO3.UseSelectable = true;
+            this.btnKillBO3.UseStyleColors = true;
+            this.btnKillBO3.Click += new System.EventHandler(this.btnKillBO3_Click);
+            // 
             // tabSettings
             // 
-            this.tabSettings.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.tabSettings.Controls.Add(this.lblSettingsTheme);
             this.tabSettings.Controls.Add(this.toggleSettingsTheme);
             this.tabSettings.Controls.Add(this.lblSettingsColorStyle);
@@ -812,14 +848,19 @@ namespace T7CompilerGUI.Forms
             this.tabSettings.Controls.Add(this.btnSettingsBrowseOutputPath);
             this.tabSettings.HorizontalScrollbarBarColor = true;
             this.tabSettings.HorizontalScrollbarHighlightOnWheel = false;
+            this.tabSettings.HorizontalScrollbarInvisible = true;
+            this.tabSettings.HorizontalScrollbarOpacity = 0D;
             this.tabSettings.HorizontalScrollbarSize = 3;
             this.tabSettings.Location = new System.Drawing.Point(4, 38);
             this.tabSettings.Name = "tabSettings";
-            this.tabSettings.Size = new System.Drawing.Size(607, 147);
+            this.tabSettings.Size = new System.Drawing.Size(606, 147);
             this.tabSettings.TabIndex = 2;
             this.tabSettings.Text = "Settings";
+            this.tabSettings.UseStyleColors = true;
             this.tabSettings.VerticalScrollbarBarColor = true;
             this.tabSettings.VerticalScrollbarHighlightOnWheel = false;
+            this.tabSettings.VerticalScrollbarInvisible = true;
+            this.tabSettings.VerticalScrollbarOpacity = 0D;
             this.tabSettings.VerticalScrollbarSize = 3;
             // 
             // lblSettingsTheme
@@ -838,11 +879,13 @@ namespace T7CompilerGUI.Forms
             this.toggleSettingsTheme.Checked = true;
             this.toggleSettingsTheme.CheckState = System.Windows.Forms.CheckState.Checked;
             this.toggleSettingsTheme.Location = new System.Drawing.Point(92, 11);
+            this.toggleSettingsTheme.MinimumSize = new System.Drawing.Size(35, 12);
             this.toggleSettingsTheme.Name = "toggleSettingsTheme";
-            this.toggleSettingsTheme.Size = new System.Drawing.Size(80, 19);
+            this.toggleSettingsTheme.Size = new System.Drawing.Size(48, 14);
             this.toggleSettingsTheme.TabIndex = 2;
-            this.toggleSettingsTheme.Text = "Dark";
+            this.toggleSettingsTheme.Text = "On";
             this.toggleSettingsTheme.UseSelectable = true;
+            this.toggleSettingsTheme.UseStyleColors = true;
             this.toggleSettingsTheme.CheckedChanged += new System.EventHandler(this.toggleSettingsTheme_CheckedChanged);
             // 
             // lblSettingsColorStyle
@@ -861,6 +904,7 @@ namespace T7CompilerGUI.Forms
             this.btnSettingsColorStyle.ContextMenuStrip = this.settingsColorStyleMenu;
             this.btnSettingsColorStyle.Location = new System.Drawing.Point(92, 44);
             this.btnSettingsColorStyle.Name = "btnSettingsColorStyle";
+            this.btnSettingsColorStyle.SelectedItem = null;
             this.btnSettingsColorStyle.Size = new System.Drawing.Size(83, 23);
             this.btnSettingsColorStyle.SplitMenuStrip = this.settingsColorStyleMenu;
             this.btnSettingsColorStyle.TabIndex = 5;
@@ -887,7 +931,7 @@ namespace T7CompilerGUI.Forms
             // 
             // 
             this.txtSettingsDefaultOutputPath.CustomButton.Image = null;
-            this.txtSettingsDefaultOutputPath.CustomButton.Location = new System.Drawing.Point(365, 1);
+            this.txtSettingsDefaultOutputPath.CustomButton.Location = new System.Drawing.Point(364, 1);
             this.txtSettingsDefaultOutputPath.CustomButton.Name = "";
             this.txtSettingsDefaultOutputPath.CustomButton.Size = new System.Drawing.Size(21, 21);
             this.txtSettingsDefaultOutputPath.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -906,9 +950,10 @@ namespace T7CompilerGUI.Forms
             this.txtSettingsDefaultOutputPath.SelectionLength = 0;
             this.txtSettingsDefaultOutputPath.SelectionStart = 0;
             this.txtSettingsDefaultOutputPath.ShortcutsEnabled = true;
-            this.txtSettingsDefaultOutputPath.Size = new System.Drawing.Size(387, 23);
+            this.txtSettingsDefaultOutputPath.Size = new System.Drawing.Size(386, 23);
             this.txtSettingsDefaultOutputPath.TabIndex = 7;
             this.txtSettingsDefaultOutputPath.UseSelectable = true;
+            this.txtSettingsDefaultOutputPath.UseStyleColors = true;
             this.txtSettingsDefaultOutputPath.WaterMark = "Select output folder...";
             this.txtSettingsDefaultOutputPath.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
             this.txtSettingsDefaultOutputPath.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
@@ -917,7 +962,7 @@ namespace T7CompilerGUI.Forms
             // btnSettingsBrowseOutputPath
             // 
             this.btnSettingsBrowseOutputPath.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnSettingsBrowseOutputPath.Location = new System.Drawing.Point(536, 78);
+            this.btnSettingsBrowseOutputPath.Location = new System.Drawing.Point(535, 78);
             this.btnSettingsBrowseOutputPath.Name = "btnSettingsBrowseOutputPath";
             this.btnSettingsBrowseOutputPath.Size = new System.Drawing.Size(71, 23);
             this.btnSettingsBrowseOutputPath.TabIndex = 8;
@@ -928,19 +973,23 @@ namespace T7CompilerGUI.Forms
             // 
             // tabAbout
             // 
-            this.tabAbout.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.tabAbout.Controls.Add(this.lblVersion);
             this.tabAbout.Controls.Add(this.lblAbout);
             this.tabAbout.HorizontalScrollbarBarColor = true;
             this.tabAbout.HorizontalScrollbarHighlightOnWheel = false;
+            this.tabAbout.HorizontalScrollbarInvisible = true;
+            this.tabAbout.HorizontalScrollbarOpacity = 0D;
             this.tabAbout.HorizontalScrollbarSize = 3;
             this.tabAbout.Location = new System.Drawing.Point(4, 38);
             this.tabAbout.Name = "tabAbout";
-            this.tabAbout.Size = new System.Drawing.Size(607, 147);
+            this.tabAbout.Size = new System.Drawing.Size(606, 147);
             this.tabAbout.TabIndex = 3;
             this.tabAbout.Text = "About";
+            this.tabAbout.UseStyleColors = true;
             this.tabAbout.VerticalScrollbarBarColor = true;
             this.tabAbout.VerticalScrollbarHighlightOnWheel = false;
+            this.tabAbout.VerticalScrollbarInvisible = true;
+            this.tabAbout.VerticalScrollbarOpacity = 0D;
             this.tabAbout.VerticalScrollbarSize = 3;
             // 
             // lblVersion
@@ -968,16 +1017,16 @@ namespace T7CompilerGUI.Forms
             // 
             this.btnRecentFiles.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnRecentFiles.AutoSize = true;
-            this.btnRecentFiles.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             this.btnRecentFiles.ContextMenuStrip = this.recentFilesMenu;
-            this.btnRecentFiles.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.btnRecentFiles.Location = new System.Drawing.Point(420, 8);
             this.btnRecentFiles.Name = "btnRecentFiles";
+            this.btnRecentFiles.SelectedItem = null;
             this.btnRecentFiles.Size = new System.Drawing.Size(80, 22);
             this.btnRecentFiles.SplitMenuStrip = this.recentFilesMenu;
             this.btnRecentFiles.TabIndex = 3;
             this.btnRecentFiles.Text = "Recent";
             this.btnRecentFiles.UseSelectable = true;
+            this.btnRecentFiles.UseStyleColors = true;
             // 
             // settingsContextMenu
             // 
@@ -986,29 +1035,35 @@ namespace T7CompilerGUI.Forms
             // 
             // panelLog
             // 
-            this.panelLog.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.panelLog.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.panelLog.AutoScroll = true;
-            this.panelLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.panelLog.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.panelLog.Controls.Add(this.txtLog);
             this.panelLog.HorizontalScrollbar = true;
             this.panelLog.HorizontalScrollbarBarColor = true;
             this.panelLog.HorizontalScrollbarHighlightOnWheel = false;
+            this.panelLog.HorizontalScrollbarInvisible = true;
+            this.panelLog.HorizontalScrollbarOpacity = 0D;
             this.panelLog.HorizontalScrollbarSize = 10;
             this.panelLog.Location = new System.Drawing.Point(23, 246);
+            this.panelLog.MinimumSize = new System.Drawing.Size(2, 50);
             this.panelLog.Name = "panelLog";
-            this.panelLog.Size = new System.Drawing.Size(615, 222);
+            this.panelLog.Size = new System.Drawing.Size(614, 211);
             this.panelLog.TabIndex = 14;
+            this.panelLog.UseStyleColors = true;
             this.panelLog.VerticalScrollbar = true;
             this.panelLog.VerticalScrollbarBarColor = true;
             this.panelLog.VerticalScrollbarHighlightOnWheel = false;
+            this.panelLog.VerticalScrollbarInvisible = true;
+            this.panelLog.VerticalScrollbarOpacity = 0D;
             this.panelLog.VerticalScrollbarSize = 10;
             // 
             // progressSpinner
             // 
             this.progressSpinner.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.progressSpinner.Location = new System.Drawing.Point(592, 29);
+            this.progressSpinner.Location = new System.Drawing.Point(591, 29);
             this.progressSpinner.Maximum = 100;
             this.progressSpinner.Name = "progressSpinner";
             this.progressSpinner.Size = new System.Drawing.Size(30, 29);
@@ -1039,7 +1094,6 @@ namespace T7CompilerGUI.Forms
             // 
             this.panelLogControls.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.panelLogControls.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.panelLogControls.Controls.Add(this.btnLogClear);
             this.panelLogControls.Controls.Add(this.btnLogCopy);
             this.panelLogControls.Controls.Add(this.btnLogSave);
@@ -1050,8 +1104,9 @@ namespace T7CompilerGUI.Forms
             this.panelLogControls.HorizontalScrollbarSize = 10;
             this.panelLogControls.Location = new System.Drawing.Point(23, 468);
             this.panelLogControls.Name = "panelLogControls";
-            this.panelLogControls.Size = new System.Drawing.Size(615, 35);
+            this.panelLogControls.Size = new System.Drawing.Size(614, 35);
             this.panelLogControls.TabIndex = 24;
+            this.panelLogControls.UseStyleColors = true;
             this.panelLogControls.VerticalScrollbarBarColor = true;
             this.panelLogControls.VerticalScrollbarHighlightOnWheel = false;
             this.panelLogControls.VerticalScrollbarSize = 10;
@@ -1064,6 +1119,7 @@ namespace T7CompilerGUI.Forms
             this.btnLogClear.TabIndex = 0;
             this.btnLogClear.Text = "Clear";
             this.btnLogClear.UseSelectable = true;
+            this.btnLogClear.UseStyleColors = true;
             this.btnLogClear.Click += new System.EventHandler(this.btnLogClear_Click);
             // 
             // btnLogCopy
@@ -1074,6 +1130,7 @@ namespace T7CompilerGUI.Forms
             this.btnLogCopy.TabIndex = 1;
             this.btnLogCopy.Text = "Copy";
             this.btnLogCopy.UseSelectable = true;
+            this.btnLogCopy.UseStyleColors = true;
             this.btnLogCopy.Click += new System.EventHandler(this.btnLogCopy_Click);
             // 
             // btnLogSave
@@ -1084,6 +1141,7 @@ namespace T7CompilerGUI.Forms
             this.btnLogSave.TabIndex = 2;
             this.btnLogSave.Text = "Save";
             this.btnLogSave.UseSelectable = true;
+            this.btnLogSave.UseStyleColors = true;
             this.btnLogSave.Click += new System.EventHandler(this.btnLogSave_Click);
             // 
             // lblLogSearch
@@ -1104,7 +1162,7 @@ namespace T7CompilerGUI.Forms
             // 
             // 
             this.txtLogSearch.CustomButton.Image = null;
-            this.txtLogSearch.CustomButton.Location = new System.Drawing.Point(281, 1);
+            this.txtLogSearch.CustomButton.Location = new System.Drawing.Point(280, 1);
             this.txtLogSearch.CustomButton.Name = "";
             this.txtLogSearch.CustomButton.Size = new System.Drawing.Size(21, 21);
             this.txtLogSearch.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
@@ -1123,9 +1181,10 @@ namespace T7CompilerGUI.Forms
             this.txtLogSearch.SelectionLength = 0;
             this.txtLogSearch.SelectionStart = 0;
             this.txtLogSearch.ShortcutsEnabled = true;
-            this.txtLogSearch.Size = new System.Drawing.Size(303, 23);
+            this.txtLogSearch.Size = new System.Drawing.Size(302, 23);
             this.txtLogSearch.TabIndex = 4;
             this.txtLogSearch.UseSelectable = true;
+            this.txtLogSearch.UseStyleColors = true;
             this.txtLogSearch.WaterMark = "Search log...";
             this.txtLogSearch.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
             this.txtLogSearch.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
@@ -1137,9 +1196,8 @@ namespace T7CompilerGUI.Forms
             | System.Windows.Forms.AnchorStyles.Right)));
             this.lblGameStatus.Location = new System.Drawing.Point(23, 505);
             this.lblGameStatus.Name = "lblGameStatus";
-            this.lblGameStatus.Size = new System.Drawing.Size(615, 19);
+            this.lblGameStatus.Size = new System.Drawing.Size(614, 19);
             this.lblGameStatus.TabIndex = 50;
-            this.lblGameStatus.Font = new System.Drawing.Font("Consolas", 9F);
             this.lblGameStatus.Text = "BO3: Not Running | BO4: Not Running";
             this.lblGameStatus.UseCustomFont = true;
             this.lblGameStatus.UseStyleColors = true;
@@ -1150,79 +1208,22 @@ namespace T7CompilerGUI.Forms
             this.ApplyImageInvert = true;
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
-            this.ClientSize = new System.Drawing.Size(661, 550);
+            this.ClientSize = new System.Drawing.Size(660, 550);
             this.Controls.Add(this.lblGameStatus);
             this.Controls.Add(this.panelLogControls);
             this.Controls.Add(this.tabControl);
             this.Controls.Add(this.panelLog);
             this.Controls.Add(this.progressSpinner);
             this.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
-            this.MinimumSize = new System.Drawing.Size(500, 550);
-            // Load icon - try multiple locations
-            System.Drawing.Icon formIcon = null;
-            
-            // Try 1: Embedded resource
-            try
-            {
-                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
-                // Try different possible resource names
-                var resourceNames = new[] { "T7CompilerGUI.Resources.t7gui.ico", "t7gui.ico", "Resources.t7gui.ico" };
-                foreach (var resourceName in resourceNames)
-                {
-                    using (var stream = assembly.GetManifestResourceStream(resourceName))
-                    {
-                        if (stream != null)
-                        {
-                            formIcon = new System.Drawing.Icon(stream);
-                            break;
-                        }
-                    }
-                }
-            }
-            catch { }
-            
-            // Try 2: Resources folder relative to executable
-            if (formIcon == null)
-            {
-                try
-                {
-                    string iconPath = System.IO.Path.Combine(Application.StartupPath, "Resources", "t7gui.ico");
-                    if (System.IO.File.Exists(iconPath))
-                    {
-                        formIcon = new System.Drawing.Icon(iconPath);
-                    }
-                }
-                catch { }
-            }
-            
-            // Try 3: Resources folder relative to assembly location
-            if (formIcon == null)
-            {
-                try
-                {
-                    string iconPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "Resources", "t7gui.ico");
-                    if (System.IO.File.Exists(iconPath))
-                    {
-                        formIcon = new System.Drawing.Icon(iconPath);
-                    }
-                }
-                catch { }
-            }
-            
-            if (formIcon != null)
-            {
-                this.Icon = formIcon;
-            }
+            this.MinimumSize = new System.Drawing.Size(500, 396);
             this.Name = "MainForm";
             this.PoisonBorderStyle = ReaLTaiizor.Enum.Poison.FormBorderStyle.FixedSingle;
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.AeroShadow;
             this.StyleManager = this.poisonStyleManager;
             this.Text = "T7 GSC Compiler";
+            // ResizeBegin and ResizeEnd handlers removed - controls handle their own rendering automatically
             this.DragDrop += new System.Windows.Forms.DragEventHandler(this.MainForm_DragDrop);
             this.DragEnter += new System.Windows.Forms.DragEventHandler(this.MainForm_DragEnter);
-            this.ResizeBegin += new System.EventHandler(this.MainForm_ResizeBegin);
-            this.ResizeEnd += new System.EventHandler(this.MainForm_ResizeEnd);
             ((System.ComponentModel.ISupportInitialize)(this.poisonStyleManager)).EndInit();
             this.tabControl.ResumeLayout(false);
             this.tabCompile.ResumeLayout(false);

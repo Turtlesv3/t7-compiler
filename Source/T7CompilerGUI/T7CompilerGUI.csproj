@@ -20,6 +20,21 @@
     <AssemblyVersion>3.6.9.0</AssemblyVersion>
     <FileVersion>3.6.9.0</FileVersion>
     <Version>3.6.9</Version>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -93,7 +108,10 @@
   </PropertyGroup>
   <!-- ReaLTaiizor UI Library -->
   <ItemGroup>
-    <PackageReference Include="ReaLTaiizor" Version="3.8.1.4" />
+    <!-- Using local NuGet package (version 3.8.1.5 from Libs\ReaLTaiizor) -->
+    <PackageReference Include="ReaLTaiizor">
+      <Version>3.8.1.6</Version>
+    </PackageReference>
     <PackageReference Include="Vanara.PInvoke.Shell32" Version="4.2.1" />
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
   </ItemGroup>
@@ -124,11 +142,9 @@
     <Compile Include="Forms\MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Forms\MainForm.WindowsAPI.cs">
-      <DependentUpon>MainForm.cs</DependentUpon>
-    </Compile>
     <Compile Include="Forms\MainForm.Helpers.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -158,20 +174,24 @@
     <Compile Include="Forms\Dialogs\NewFileDialog.Designer.cs">
       <DependentUpon>NewFileDialog.cs</DependentUpon>
     </Compile>
-    <Compile Include="Controls\PoisonControlHelper.cs" />
     <Compile Include="Controls\AvalonEditWrapper.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Controls\AvalonEditWrapper.Designer.cs">
+      <DependentUpon>AvalonEditWrapper.cs</DependentUpon>
+    </Compile>
     <Compile Include="Controls\TextMarkerService.cs" />
+    <Compile Include="Controls\LaunchGameTaskControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\LaunchGameTaskControl.Designer.cs">
+      <DependentUpon>LaunchGameTaskControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\CodeEditorForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Forms\CodeEditorForm.Designer.cs">
       <DependentUpon>CodeEditorForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="Forms\CodeEditorForm.Improvements.cs">
-      <DependentUpon>CodeEditorForm.cs</DependentUpon>
-      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Forms\CodeEditorForm.MenuRenderer.cs">
       <DependentUpon>CodeEditorForm.cs</DependentUpon>
@@ -206,15 +226,46 @@
     <Compile Include="Forms\Dialogs\SearchResultsDialog.Designer.cs">
       <DependentUpon>SearchResultsDialog.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\Dialogs\AdvancedSettingsDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Dialogs\AdvancedSettingsDialog.Designer.cs">
+      <DependentUpon>AdvancedSettingsDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Helpers\FormIconHelper.cs" />
+    <Compile Include="Helpers\PathHelper.cs" />
+    <Compile Include="Helpers\PoisonWpfHelper.cs" />
     <Compile Include="Games\BlackOps3.cs" />
     <Compile Include="Games\BlackOps4.cs" />
     <Compile Include="Helpers\WindowHelper.cs" />
     <Compile Include="Helpers\FileHelper.cs" />
     <Compile Include="Helpers\ModernFolderDialog.cs" />
     <Compile Include="Helpers\GscSyntaxParser.cs" />
-    <Compile Include="Actions\CompilerActions.cs" />
+    <Compile Include="Models\GscConfSettings.cs" />
+    <Compile Include="Models\CompilationInput.cs" />
+    <Compile Include="Models\CompilationResult.cs" />
+    <Compile Include="Models\CompilationError.cs" />
+    <Compile Include="Models\InjectionInput.cs" />
+    <Compile Include="Models\InjectionResult.cs" />
+    <Compile Include="Models\ApplicationSettings.cs" />
+    <Compile Include="Models\SelectionState.cs" />
+    <Compile Include="Models\WindowStateSettings.cs" />
+    <Compile Include="Models\InjectionStateSettings.cs" />
+    <Compile Include="Models\ConfigData.cs" />
+    <Compile Include="Services\GscConfParser.cs" />
+    <Compile Include="Services\CompilationService.cs" />
+    <Compile Include="Services\CompilationErrorParser.cs" />
+    <Compile Include="Services\InjectionService.cs" />
+    <Compile Include="Services\RecentItemsManager.cs" />
+    <Compile Include="Services\SettingsManager.cs" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Controls\AvalonEditWrapper.resx">
+      <DependentUpon>AvalonEditWrapper.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\LaunchGameTaskControl.resx">
+      <DependentUpon>LaunchGameTaskControl.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Forms\CodeEditorForm.resx">
       <DependentUpon>CodeEditorForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -289,6 +340,16 @@
   <ItemGroup>
     <!-- Database files are copied by CopyDatabaseFiles target, not via None Include -->
     <!-- These are kept for reference only, but CopyToOutputDirectory is handled by the target -->
+    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.8 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Resources\t7gui.ico">

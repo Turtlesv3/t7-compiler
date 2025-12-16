@@ -4,6 +4,9 @@ using System.Windows.Forms;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Controls;
 using ReaLTaiizor.Manager;
+using ReaLTaiizor.Extension.Poison;
+using ReaLTaiizor.Drawing.Poison;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 
 namespace T7CompilerGUI.Forms.Dialogs
 {
@@ -20,42 +23,15 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.styleManager = styleManager;
             InitializeComponent();
             
-            // Set StyleManager if provided
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
+            // Set StyleManager if provided and apply to all controls
             if (styleManager != null)
             {
-                this.StyleManager = styleManager;
-                
-                // Apply StyleManager to all Poison controls
-                if (lblFileName != null)
-                {
-                    lblFileName.StyleManager = styleManager;
-                    lblFileName.UseStyleColors = true;
-                }
-                if (txtFileName != null)
-                {
-                    txtFileName.StyleManager = styleManager;
-                    txtFileName.UseStyleColors = true;
-                }
-                if (lblFileType != null)
-                {
-                    lblFileType.StyleManager = styleManager;
-                    lblFileType.UseStyleColors = true;
-                }
-                if (cmbFileType != null)
-                {
-                    cmbFileType.StyleManager = styleManager;
-                    cmbFileType.UseStyleColors = true;
-                }
-                if (btnCreate != null)
-                {
-                    btnCreate.StyleManager = styleManager;
-                    btnCreate.UseStyleColors = true;
-                }
-                if (btnCancel != null)
-                {
-                    btnCancel.StyleManager = styleManager;
-                    btnCancel.UseStyleColors = true;
-                }
+                // Use PoisonFormHelper for standardized form initialization
+                // This handles StyleManager application, button effects, and form icon loading
+                ReaLTaiizor.Extension.Poison.PoisonFormHelper.InitializeForm(this, styleManager);
             }
             
             // Set default selection after InitializeComponent

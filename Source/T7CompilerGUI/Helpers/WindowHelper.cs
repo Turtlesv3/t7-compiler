@@ -6,6 +6,7 @@ namespace T7CompilerGUI.Helpers
 {
     public static class WindowHelper
     {
+        // Windows API - ReaLTaiizor's Native classes are internal, so we need our own DllImports
         const int SW_RESTORE = 9;
 
         [DllImport("User32.dll")]

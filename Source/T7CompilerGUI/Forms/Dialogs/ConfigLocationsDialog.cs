@@ -11,6 +11,8 @@ using ReaLTaiizor.Enum.Poison;
 using ReaLTaiizor.Manager;
 using ReaLTaiizor.Interface.Poison;
 using ReaLTaiizor.Drawing.Poison;
+using ReaLTaiizor.Extension.Poison;
+using ReaLTaiizorExt = ReaLTaiizor.Extension.Poison;
 using T7CompilerGUI.Controls;
 using T7CompilerGUI.Helpers;
 
@@ -33,7 +35,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         // Helper to get current rainbow color
         private Color GetCurrentRainbowColor()
         {
-            return parentForm != null ? parentForm.currentRainbowColor : Color.Red;
+            return parentForm != null ? parentForm.currentRainbowColor : ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(ReaLTaiizor.Enum.Poison.ColorStyle.Red);
         }
         
         public string ConfigPath { get; private set; }
@@ -57,36 +59,36 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Initialize designer-generated controls
             InitializeComponent();
             
+            // Load form icon
+            T7CompilerGUI.Helpers.FormIconHelper.LoadFormIcon(this);
+            
             // PoisonForm already sets ControlStyles in its constructor (OptimizedDoubleBuffer, ResizeRedraw, etc.)
             // We don't need to override them - PoisonForm handles smooth resizing internally
             
-            SetupControls();
             LoadCurrentPaths();
             
             this.Load += ConfigLocationsDialog_Load;
             
-            // Setup hover and pressed effects for buttons
-            SetupButtonEffects();
+            // Use PoisonFormHelper for standardized form initialization (includes SetupAllButtonEffectsRecursive)
+            if (styleManager != null)
+            {
+                ReaLTaiizorExt.PoisonFormHelper.InitializeForm(this, styleManager);
+            }
             
             // Setup rainbow update timer if parent form is available
             SetupRainbowUpdateTimer();
             
-            // Subscribe to StyleManager updates to keep in sync
+            // Subscribe to StyleManager updates to keep in sync (for rainbow theme updates)
             if (styleManager != null)
             {
-                // When dialog is shown, sync all controls
-                this.Shown += (s, e) => SyncAllControlsWithStyleManager();
-                
-                // Also sync periodically to catch any changes
-                syncTimer = new System.Windows.Forms.Timer();
-                syncTimer.Interval = 100; // Check every 100ms
-                syncTimer.Tick += (s, e) => 
+                // Sync periodically to catch any changes using tracked timer
+                syncTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 100, (s, e) => 
                 {
                     if (!this.IsDisposed && this.IsHandleCreated)
                     {
                         SyncAllControlsWithStyleManager();
                     }
-                };
+                });
                 syncTimer.Start();
             }
         }
@@ -95,17 +97,15 @@ namespace T7CompilerGUI.Forms.Dialogs
         {
             if (parentForm == null) return;
             
-            // Create a timer to invalidate buttons when rainbow is active
-            rainbowUpdateTimer = new System.Windows.Forms.Timer();
-            rainbowUpdateTimer.Interval = 16; // ~60 FPS to match rainbow animation
-            rainbowUpdateTimer.Tick += (s, e) =>
+            // Create a tracked timer to invalidate buttons when rainbow is active
+            rainbowUpdateTimer = ReaLTaiizorExt.PoisonFormHelper.CreateTrackedTimer(this, 16, (s, e) =>
             {
                 if (IsRainbowStyleActive())
                 {
                     // Invalidate all buttons to update rainbow colors
                     InvalidateAllButtons(this);
                 }
-            };
+            });
             
             // Always start the timer - it will only invalidate when rainbow is active
             rainbowUpdateTimer.Start();
@@ -113,29 +113,17 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void InvalidateAllButtons(Control parent)
         {
-            foreach (Control ctrl in parent.Controls)
+            // Use helper to refresh all controls (includes invalidation)
+            if (parent != null)
             {
-                if (ctrl is PoisonButton)
-                {
-                    ctrl.Invalidate();
-                }
-                
-                if (ctrl.HasChildren)
-                {
-                    InvalidateAllButtons(ctrl);
-                }
+                ReaLTaiizorExt.PoisonControlHelper.RefreshAllControls(parent);
             }
         }
         
         private void SetupControls()
         {
             // Controls are now created in InitializeComponent (Designer file)
-            // This method just wires up event handlers and sets dynamic properties
-            
-            if (styleManager != null)
-            {
-                this.StyleManager = styleManager;
-            }
+            // This method just wires up event handlers
             
             // Null check all controls before wiring up events
             if (btnBrowseConfig != null)
@@ -152,96 +140,8 @@ namespace T7CompilerGUI.Forms.Dialogs
                 btnOK.Click += BtnOK_Click;
             if (btnCancel != null)
                 btnCancel.Click += BtnCancel_Click;
-            
-            // Setup button hover effects after controls are created using centralized helper
-            if (btnBrowseConfig != null)
-                PoisonControlHelper.SetupButtonEffects(btnBrowseConfig);
-            if (btnBrowseTemp != null)
-                PoisonControlHelper.SetupButtonEffects(btnBrowseTemp);
-            if (btnBrowseDll != null)
-                PoisonControlHelper.SetupButtonEffects(btnBrowseDll);
-            if (btnBrowseAppDataRoaming != null)
-                PoisonControlHelper.SetupButtonEffects(btnBrowseAppDataRoaming);
-            if (btnOK != null)
-                PoisonControlHelper.SetupButtonEffects(btnOK);
-            if (btnCancel != null)
-                PoisonControlHelper.SetupButtonEffects(btnCancel);
         }
         
-        /// <summary>
-        /// Shortens a path by replacing common user directories with environment variables
-        /// </summary>
-        private string ShortenPath(string path)
-        {
-            if (string.IsNullOrEmpty(path))
-                return path;
-            
-            try
-            {
-                // Get common environment paths
-                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-                string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-                
-                // Replace with environment variables (case-insensitive)
-                if (path.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(userProfile))
-                {
-                    return "%USERPROFILE%" + path.Substring(userProfile.Length);
-                }
-                if (path.StartsWith(appData, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(appData))
-                {
-                    return "%APPDATA%" + path.Substring(appData.Length);
-                }
-                if (path.StartsWith(localAppData, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(localAppData))
-                {
-                    return "%LOCALAPPDATA%" + path.Substring(localAppData.Length);
-                }
-                if (path.StartsWith(documents, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(documents))
-                {
-                    return "%USERPROFILE%\\Documents" + path.Substring(documents.Length);
-                }
-                if (path.StartsWith(desktop, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(desktop))
-                {
-                    return "%USERPROFILE%\\Desktop" + path.Substring(desktop.Length);
-                }
-                if (path.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(programFiles))
-                {
-                    return "%ProgramFiles%" + path.Substring(programFiles.Length);
-                }
-                if (path.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(programFilesX86))
-                {
-                    return "%ProgramFiles(x86)%" + path.Substring(programFilesX86.Length);
-                }
-            }
-            catch
-            {
-                // If anything fails, return original path
-            }
-            
-            return path;
-        }
-        
-        /// <summary>
-        /// Expands environment variables in a path back to full path
-        /// </summary>
-        private string ExpandPath(string path)
-        {
-            if (string.IsNullOrEmpty(path))
-                return path;
-            
-            try
-            {
-                return Environment.ExpandEnvironmentVariables(path);
-            }
-            catch
-            {
-                return path;
-            }
-        }
         
         // ConnectControlsToStyleManager() removed - not needed with StyleManager pattern
         // StyleManager automatically propagates to all controls with Style=Default and Theme=Default
@@ -263,7 +163,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             try
             {
                 // Set form background color based on theme
-                this.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                this.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
                 
                 // Update all panels and controls
                 UpdateAllControlsRecursive(this);
@@ -287,22 +187,11 @@ namespace T7CompilerGUI.Forms.Dialogs
             
             try
             {
-                // Sync form properties
-                if (this.StyleManager != styleManager)
-                {
-                    this.StyleManager = styleManager;
-                }
-                if (this.Theme != styleManager.Theme)
-                {
-                    this.Theme = styleManager.Theme;
-                }
-                if (this.Style != styleManager.Style)
-                {
-                    this.Style = styleManager.Style;
-                }
-                
-                // Sync all controls recursively
-                SyncControlsRecursive(this);
+                // Use helper to sync all controls - handles Theme, Style, UseStyleColors automatically
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
+                // Use PoisonControlHelper to sync all controls recursively
+                // This handles StyleManager, Theme, Style, and UseStyleColors automatically
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
                 
                 // Update theme backgrounds
                 UpdateThemeBackgrounds();
@@ -310,79 +199,6 @@ namespace T7CompilerGUI.Forms.Dialogs
             catch
             {
                 // Silently ignore errors during sync (form might be disposing)
-            }
-        }
-        
-        private void SyncControlsRecursive(Control parent)
-        {
-            if (parent == null || styleManager == null) return;
-            
-            // Check if Controls collection is available
-            if (parent.Controls == null) return;
-            
-            // Create a copy of the collection to avoid modification during iteration
-            Control[] controls = new Control[parent.Controls.Count];
-            parent.Controls.CopyTo(controls, 0);
-            
-            foreach (Control ctrl in controls)
-            {
-                if (ctrl == null) continue;
-                
-                // Sync IPoisonControl controls
-                if (ctrl is IPoisonControl poisonCtrl)
-                {
-                    if (poisonCtrl.StyleManager != styleManager)
-                    {
-                        poisonCtrl.StyleManager = styleManager;
-                    }
-                    
-                    // Ensure Style and Theme are Default to follow StyleManager
-                    var styleProp = ctrl.GetType().GetProperty("Style");
-                    var themeProp = ctrl.GetType().GetProperty("Theme");
-                    
-                    if (styleProp != null && styleProp.CanWrite)
-                    {
-                        var currentStyle = styleProp.GetValue(ctrl);
-                        if (currentStyle == null || currentStyle.ToString() != "Default")
-                        {
-                            styleProp.SetValue(ctrl, ColorStyle.Default);
-                        }
-                    }
-                    
-                    if (themeProp != null && themeProp.CanWrite)
-                    {
-                        var currentTheme = themeProp.GetValue(ctrl);
-                        if (currentTheme == null || currentTheme.ToString() != "Default")
-                        {
-                            themeProp.SetValue(ctrl, ThemeStyle.Default);
-                        }
-                    }
-                    
-                    // Ensure UseStyleColors is enabled
-                    var useStyleColorsProp = ctrl.GetType().GetProperty("UseStyleColors");
-                    if (useStyleColorsProp != null && useStyleColorsProp.CanWrite)
-                    {
-                        useStyleColorsProp.SetValue(ctrl, true);
-                    }
-                    
-                    ctrl.Invalidate();
-                }
-                
-                // Sync IPoisonComponent controls (like menus)
-                if (ctrl is IPoisonComponent poisonComponent)
-                {
-                    if (poisonComponent.StyleManager != styleManager)
-                    {
-                        poisonComponent.StyleManager = styleManager;
-                    }
-                    ctrl.Invalidate();
-                }
-                
-                // Recursively sync child controls
-                if (ctrl.HasChildren)
-                {
-                    SyncControlsRecursive(ctrl);
-                }
             }
         }
         
@@ -396,7 +212,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Update panels background
             if (parent is PoisonPanel panel)
             {
-                panel.BackColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                panel.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
             }
             
             // Create a copy of the collection to avoid modification during iteration
@@ -422,7 +238,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         private void SetupButtonHoverEffectsRecursive(Control parent)
         {
             // Use centralized helper for basic button effects
-            PoisonControlHelper.SetupButtonEffectsRecursive(parent);
+            ReaLTaiizor.Extension.Poison.PoisonControlHelper.SetupButtonEffectsRecursive(parent);
             
             // Then apply custom rainbow effects if needed
             foreach (Control ctrl in parent.Controls)
@@ -463,7 +279,7 @@ namespace T7CompilerGUI.Forms.Dialogs
                 }
                 else if (poisonBtn.Style != ColorStyle.Default)
                 {
-                    styleColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.GetStyleColor(poisonBtn.Style);
+                    styleColor = PoisonPaint.GetStyleColor(poisonBtn.Style);
                 }
                 else
                 {
@@ -473,7 +289,10 @@ namespace T7CompilerGUI.Forms.Dialogs
                 if (isHovered && !isPressed && poisonBtn.Enabled)
                 {
                     // Use the style/rainbow color with transparency for hover overlay
-                    using (SolidBrush brush = new SolidBrush(Color.FromArgb(80, styleColor)))
+                    // Use PoisonPaint to blend style color with background for semi-transparent effect
+                    Color bgColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    Color semiTransparentStyle = ReaLTaiizor.Drawing.Poison.PoisonPaint.BlendColors(bgColor, styleColor, 0.3);
+                    using (SolidBrush brush = new SolidBrush(semiTransparentStyle))
                     {
                         e.Graphics.FillRectangle(brush, poisonBtn.ClientRectangle);
                     }
@@ -481,7 +300,10 @@ namespace T7CompilerGUI.Forms.Dialogs
                 else if (isHovered && isPressed && poisonBtn.Enabled)
                 {
                     // Use a more opaque style/rainbow color for pressed state
-                    using (SolidBrush brush = new SolidBrush(Color.FromArgb(120, styleColor)))
+                    // Use PoisonPaint to blend style color with background for more opaque effect
+                    Color bgColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Form(styleManager.Theme);
+                    Color moreOpaqueStyle = ReaLTaiizor.Drawing.Poison.PoisonPaint.BlendColors(bgColor, styleColor, 0.5);
+                    using (SolidBrush brush = new SolidBrush(moreOpaqueStyle))
                     {
                         e.Graphics.FillRectangle(brush, poisonBtn.ClientRectangle);
                     }
@@ -515,10 +337,10 @@ namespace T7CompilerGUI.Forms.Dialogs
                         );
                         
                         // Get background color to erase original text
-                        Color backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Normal(poisonBtn.Theme);
+                        Color backColor = PoisonPaint.BackColor.Button.Normal(poisonBtn.Theme);
                         if (!poisonBtn.Enabled)
                         {
-                            backColor = ReaLTaiizor.Drawing.Poison.PoisonPaint.BackColor.Button.Disabled(poisonBtn.Theme);
+                            backColor = PoisonPaint.BackColor.Button.Disabled(poisonBtn.Theme);
                         }
                         
                         // Erase original text by filling text area
@@ -601,33 +423,27 @@ namespace T7CompilerGUI.Forms.Dialogs
             base.OnFormClosed(e);
         }
         
-        private void ResetButtonState(object sender)
-        {
-            // Use centralized helper
-            PoisonControlHelper.ResetButtonState(sender);
-        }
         
         private void LoadCurrentPaths()
         {
             // Null check controls before accessing
             if (txtConfigPath != null)
-                txtConfigPath.Text = ShortenPath(ConfigPath ?? "");
+                txtConfigPath.Text = Helpers.PathHelper.ShortenPath(ConfigPath ?? "");
             if (txtTempPath != null)
-                txtTempPath.Text = ShortenPath(TempPath ?? Path.GetTempPath());
+                txtTempPath.Text = Helpers.PathHelper.ShortenPath(TempPath ?? Path.GetTempPath());
             if (txtDllExtractPath != null)
-                txtDllExtractPath.Text = ShortenPath(DllExtractPath ?? "");
+                txtDllExtractPath.Text = Helpers.PathHelper.ShortenPath(DllExtractPath ?? "");
             if (txtAppDataRoaming != null)
-                txtAppDataRoaming.Text = ShortenPath(AppDataRoaming ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+                txtAppDataRoaming.Text = Helpers.PathHelper.ShortenPath(AppDataRoaming ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
         }
         
         private void BtnBrowseAppDataRoaming_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             if (txtAppDataRoaming == null) return;
             
             try
             {
-                string appDataRoamingPath = ExpandPath(txtAppDataRoaming.Text);
+                string appDataRoamingPath = Helpers.PathHelper.ExpandPath(txtAppDataRoaming.Text);
                 if (Directory.Exists(appDataRoamingPath))
                 {
                     Process.Start("explorer.exe", appDataRoamingPath);
@@ -641,12 +457,11 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void BtnBrowseConfig_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             if (txtConfigPath == null) return;
             
             try
             {
-                string configPath = ExpandPath(txtConfigPath.Text);
+                string configPath = Helpers.PathHelper.ExpandPath(txtConfigPath.Text);
                 string configDir = Path.GetDirectoryName(configPath);
                 if (!string.IsNullOrEmpty(configDir) && Directory.Exists(configDir))
                 {
@@ -665,49 +480,37 @@ namespace T7CompilerGUI.Forms.Dialogs
         
         private void BtnBrowseTemp_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             if (txtTempPath == null) return;
             
-            string initialPath = ExpandPath(txtTempPath.Text);
-            string folder = ShowModernFolderDialog("Select temporary file location", initialPath);
+            string initialPath = Helpers.PathHelper.ExpandPath(txtTempPath.Text);
+            string folder = ModernFolderDialog.Show(this, "Select temporary file location", initialPath);
             if (!string.IsNullOrEmpty(folder))
             {
-                txtTempPath.Text = ShortenPath(folder);
+                txtTempPath.Text = Helpers.PathHelper.ShortenPath(folder);
             }
         }
         
         private void BtnBrowseDll_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             if (txtDllExtractPath == null) return;
             
-            string initialPath = ExpandPath(txtDllExtractPath.Text);
-            string folder = ShowModernFolderDialog("Select DLL extract location", initialPath);
+            string initialPath = Helpers.PathHelper.ExpandPath(txtDllExtractPath.Text);
+            string folder = ModernFolderDialog.Show(this, "Select DLL extract location", initialPath);
             if (!string.IsNullOrEmpty(folder))
             {
-                txtDllExtractPath.Text = ShortenPath(folder);
+                txtDllExtractPath.Text = Helpers.PathHelper.ShortenPath(folder);
             }
         }
         
-        private string ShowModernFolderDialog(string title, string initialPath = null)
-        {
-            return ModernFolderDialog.Show(this, title, initialPath);
-        }
-        
-        
         private void BtnCancel_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
             this.DialogResult = DialogResult.Cancel;
         }
-
+        
         private void BtnOK_Click(object sender, EventArgs e)
         {
-            ResetButtonState(sender);
-            
-            // Expand paths before validation and saving
-            string tempPath = txtTempPath != null ? ExpandPath(txtTempPath.Text) : "";
-            string dllExtractPath = txtDllExtractPath != null ? ExpandPath(txtDllExtractPath.Text) : "";
+            string tempPath = txtTempPath != null ? Helpers.PathHelper.ExpandPath(txtTempPath.Text) : "";
+            string dllExtractPath = txtDllExtractPath != null ? Helpers.PathHelper.ExpandPath(txtDllExtractPath.Text) : "";
             
             // Validate paths
             if (!string.IsNullOrWhiteSpace(tempPath) && !Directory.Exists(tempPath))
@@ -748,6 +551,24 @@ namespace T7CompilerGUI.Forms.Dialogs
         {
             if (disposing)
             {
+                // Use PoisonFormHelper for standardized cleanup (disposes tracked resources)
+                ReaLTaiizorExt.PoisonFormHelper.CleanupForm(this);
+                
+                // Dispose timers
+                if (rainbowUpdateTimer != null)
+                {
+                    rainbowUpdateTimer.Stop();
+                    rainbowUpdateTimer.Dispose();
+                    rainbowUpdateTimer = null;
+                }
+                
+                if (syncTimer != null)
+                {
+                    syncTimer.Stop();
+                    syncTimer.Dispose();
+                    syncTimer = null;
+                }
+                
                 // Dispose components (from Designer.cs)
                 if (components != null)
                 {
@@ -774,4 +595,5 @@ namespace T7CompilerGUI.Forms.Dialogs
         }
     }
 }
+
 
