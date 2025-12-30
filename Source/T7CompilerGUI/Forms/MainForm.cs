@@ -73,6 +73,7 @@ namespace T7CompilerGUI.Forms
         private int currentPlatformIndex = 0;
         private int currentGameIndex = 0;
         private int currentInjectGameIndex = 0;
+        private int currentDllGameIndex = 0;
         private List<string> compileSymbolsFromEditor = null; // Symbols from CodeEditorForm
         private bool isLoadingSettings = false;
         private bool isUpdatingProjectFromSelection = false; // Flag to prevent recursive updates during project selection
@@ -104,7 +105,7 @@ namespace T7CompilerGUI.Forms
             // Override colors with rainbow if active
             if (IsRainbowStyleActive() && poisonStyleManager != null)
             {
-                using (SolidBrush rainbowBrush = new SolidBrush(currentRainbowColor))
+                using (SolidBrush rainbowBrush = PoisonPaint.GetStyleBrush(ColorStyle.Rainbow))
                 {
                     // Draw rainbow top border (replaces the style-based border)
                     Rectangle topRect = new Rectangle(0, 0, Width, 5);
@@ -114,7 +115,7 @@ namespace T7CompilerGUI.Forms
                 // Draw rainbow side borders if PoisonBorderStyle is set
                 if (this.PoisonBorderStyle != ReaLTaiizor.Enum.Poison.FormBorderStyle.None)
                 {
-                    using (Pen rainbowPen = new Pen(currentRainbowColor))
+                    using (Pen rainbowPen = PoisonPaint.GetStylePen(ColorStyle.Rainbow))
                     {
                         // Left border
                         e.Graphics.DrawLine(rainbowPen, 0, 5, 0, Height - 1);
@@ -131,7 +132,7 @@ namespace T7CompilerGUI.Forms
         {
             if (IsRainbowStyleActive() && panelLog != null)
             {
-                using (Pen rainbowPen = new Pen(currentRainbowColor, 2))
+                using (Pen rainbowPen = new Pen(PoisonPaint.GetStyleColor(ColorStyle.Rainbow), 2))
                 {
                     // Draw rainbow border around the log panel
                     Rectangle borderRect = panelLog.ClientRectangle;
@@ -1120,6 +1121,7 @@ namespace T7CompilerGUI.Forms
                     }
                     
                     UpdateUI();
+                    UpdateDllLoadButtonState();
                 }
             }
             catch (ObjectDisposedException)
@@ -1216,7 +1218,7 @@ namespace T7CompilerGUI.Forms
             
             // Inject tab tooltips
             poisonToolTip.SetToolTip(txtInjectFile, "Select compiled .gscc file to inject");
-            poisonToolTip.SetToolTip(btnSelectInjectFile, "Browse for compiled file to inject");
+            poisonToolTip.SetToolTip(btnSelectInjectFile, "Browse for compiled file (.gscc/.gsc) or DLL (.dll) to inject");
             poisonToolTip.SetToolTip(txtInjectPath, "Script path in game to replace (e.g., scripts/shared/duplicaterender_mgr.gsc)");
             if (btnInjectGame != null) poisonToolTip.SetToolTip(btnInjectGame, "Select target game for injection");
             poisonToolTip.SetToolTip(chkNoRuntime, "Disable runtime checks during injection");
@@ -1225,6 +1227,11 @@ namespace T7CompilerGUI.Forms
             poisonToolTip.SetToolTip(btnLaunchBO3, "Launch Black Ops 3 (requires Steam)");
             if (btnKillBO3 != null)
                 poisonToolTip.SetToolTip(btnKillBO3, "Kill Black Ops 3 process");
+            
+            // DLL Loader tooltips
+            poisonToolTip.SetToolTip(txtDllFile, "Select DLL file to load into game");
+            if (btnDllGame != null) poisonToolTip.SetToolTip(btnDllGame, "Select target game for DLL loading");
+            poisonToolTip.SetToolTip(btnLoadDll, "Load DLL into game process");
             
             // Settings tab tooltips
             
@@ -1385,6 +1392,21 @@ namespace T7CompilerGUI.Forms
             SetupPlatformMenu();
             SetupDropDownButtonAsComboBox(btnPlatform, platformMenu);
             
+            // Add additional direct handler for platform selection to ensure it updates immediately
+            btnPlatform.SelectedIndexChanged += (s, e) =>
+            {
+                if (btnPlatform.SelectedIndex >= 0 && btnPlatform.SelectedIndex <= 1)
+                {
+                    int newIndex = btnPlatform.SelectedIndex;
+                    if (currentPlatformIndex != newIndex)
+                    {
+                        currentPlatformIndex = newIndex;
+                        btnPlatform.Text = (newIndex == 0) ? "PC" : "PS4";
+                        SaveAllSettings();
+                    }
+                }
+            };
+            
             // Setup Game dropdown button
             SetupGameMenu();
             SetupDropDownButtonAsComboBox(btnGame, gameMenu);
@@ -1392,6 +1414,10 @@ namespace T7CompilerGUI.Forms
             // Setup Inject Game dropdown button
             SetupInjectGameMenu();
             SetupDropDownButtonAsComboBox(btnInjectGame, injectGameMenu);
+            
+            // Setup DLL Game dropdown button
+            SetupDllGameMenu();
+            SetupDropDownButtonAsComboBox(btnDllGame, dllGameMenu);
             
             SetupHotReloadMenu();
             SetupDropDownButtonAsComboBox(btnHotReload, hotReloadMenu);
@@ -1762,6 +1788,55 @@ namespace T7CompilerGUI.Forms
             }
         }
         
+        private void SetupDllGameMenu()
+        {
+            if (dllGameMenu == null || btnDllGame == null) return;
+            
+            dllGameMenu.Items.Clear();
+            if (btnDllGame.BehaveLikeComboBox)
+            {
+                btnDllGame.ClearItems();
+            }
+            
+            var t7Item = new ToolStripMenuItem("T7 (BO3)")
+            {
+                Tag = 0,
+                Checked = false
+            };
+            var t8Item = new ToolStripMenuItem("T8 (BO4)")
+            {
+                Tag = 1,
+                Checked = false
+            };
+            
+            t7Item.Click += (s, e) => dllGameMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(t7Item));
+            t8Item.Click += (s, e) => dllGameMenu_ItemClicked(s, new ToolStripItemClickedEventArgs(t8Item));
+            
+            dllGameMenu.Items.Add(t7Item);
+            dllGameMenu.Items.Add(t8Item);
+            
+            // Add to ComboBox items if enabled
+            if (btnDllGame.BehaveLikeComboBox)
+            {
+                btnDllGame.AddItem("T7 (BO3)");
+                btnDllGame.AddItem("T8 (BO4)");
+            }
+            
+            // Update button text and selected index
+            btnDllGame.Text = (currentDllGameIndex == 0) ? "T7 (BO3)" : "T8 (BO4)";
+            if (btnDllGame.BehaveLikeComboBox)
+            {
+                btnDllGame.SelectedIndex = currentDllGameIndex;
+            }
+            
+            // Connect to style manager
+            if (poisonStyleManager != null)
+            {
+                ReaLTaiizor.Extension.Poison.PoisonControlHelper.ApplyStyleManager(btnDllGame, poisonStyleManager);
+                EnhanceMenuItems(dllGameMenu);
+            }
+        }
+        
         private void SetupHotReloadMenu()
         {
             if (hotReloadMenu == null || btnHotReload == null) return;
@@ -1947,6 +2022,23 @@ namespace T7CompilerGUI.Forms
                 UpdateUI(); // Check if game is running
             }
         }
+        
+        private void dllGameMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+            if (e.ClickedItem is ToolStripMenuItem item && item.Tag is int index)
+            {
+                currentDllGameIndex = index;
+                btnDllGame.Text = item.Text;
+                
+                // Update ComboBox selected index if enabled
+                if (btnDllGame.BehaveLikeComboBox)
+                {
+                    btnDllGame.SelectedIndex = index;
+                }
+                
+                UpdateDllLoadButtonState();
+            }
+        }
                        
         // StyleManager automatically propagates to all controls with Style=Default and Theme=Default
         
@@ -1988,7 +2080,7 @@ namespace T7CompilerGUI.Forms
                         {
                             float percent = (float)progressBar.Value / (float)progressBar.Maximum;
                             int fillWidth = (int)(progressBar.Width * percent);
-                            using (SolidBrush brush = new SolidBrush(currentRainbowColor))
+                            using (SolidBrush brush = PoisonPaint.GetStyleBrush(ColorStyle.Rainbow))
                             {
                                 e.Graphics.FillRectangle(brush, new Rectangle(0, 0, fillWidth, progressBar.Height));
                             }
@@ -2212,8 +2304,9 @@ namespace T7CompilerGUI.Forms
                         }
                         
                         // Draw a subtle border with the style color
-                        using (Pen pen = new Pen(styleColor, 1))
+                        using (Pen pen = PoisonPaint.GetStylePen(styleManager.Style))
                         {
+                            pen.Width = 1;
                             Rectangle borderRect = e.Item.ContentRectangle;
                             borderRect.Width -= 1;
                             borderRect.Height -= 1;
@@ -2924,6 +3017,9 @@ namespace T7CompilerGUI.Forms
 
         private void btnCompile_Click(object sender, EventArgs e)
         {
+            // Validate critical controls before proceeding
+            if (!ReaLTaiizorExt.PoisonFormHelper.ValidateControls(txtProjectFolder, txtOutputFile, btnCompile))
+                return;
             
             if (string.IsNullOrWhiteSpace(txtProjectFolder.Text) || string.IsNullOrWhiteSpace(txtOutputFile.Text))
             {
@@ -2938,15 +3034,15 @@ namespace T7CompilerGUI.Forms
                 return;
             }
 
-            // Check for database file (T7PCV2.db or T7PS4V2.db) - only in exe directory
+            // Check for database file (t7pcv2.db or T7PS4V2.db) - only in exe directory
             string exeDir = Application.StartupPath;
-            string dbPath = Path.Combine(exeDir, "T7PCV2.db");
+            string dbPath = Path.Combine(exeDir, "t7pcv2.db");
             if (!File.Exists(dbPath))
             {
                 dbPath = Path.Combine(exeDir, "T7PS4V2.db");
                 if (!File.Exists(dbPath))
                 {
-                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Database file not found!\n\nChecked location:\n- {exeDir}\n\nPlease ensure T7PCV2.db or T7PS4V2.db exists in the executable directory.", 
+                    ReaLTaiizor.Controls.PoisonMessageBox.Show(this, $"Database file not found!\n\nChecked location:\n- {exeDir}\n\nPlease ensure t7pcv2.db or T7PS4V2.db exists in the executable directory.", 
                                         "Database Missing", MessageBoxButtons.OK, MessageBoxIcon.Error);
                                     return;
                 }
@@ -3112,13 +3208,22 @@ namespace T7CompilerGUI.Forms
                 source = processedSource;
                 Application.DoEvents();
 
-                // Match debug compiler: always use Modes.MP and false for masking
+                // Detect mode from symbols for accurate logging
                 // Mode-specific code is handled by #ifdef directives in the source, not by the compile mode parameter
-                Modes compileMode = Modes.MP;
+                Modes compileMode = Modes.MP; // Default
                 bool useMasking = false;
+                
+                // Determine mode from symbols for display purposes
+                if (conditionalSymbols.Contains("ZM", StringComparer.OrdinalIgnoreCase))
+                    compileMode = Modes.ZM;
+                else if (conditionalSymbols.Contains("MP", StringComparer.OrdinalIgnoreCase))
+                    compileMode = Modes.MP;
+                else if (conditionalSymbols.Contains("SP", StringComparer.OrdinalIgnoreCase))
+                    compileMode = Modes.SP;
                 
                 Platforms platform = Platforms.PC;
                 int platformIndex = GetPlatformIndex();
+                
                 switch (platformIndex)
                 {
                     case 0: platform = Platforms.PC; break; // PC (index 0)
@@ -3437,6 +3542,10 @@ namespace T7CompilerGUI.Forms
         {
             // Button state is automatically reset by PoisonButton.OnClick
             
+            // Validate controls before proceeding
+            if (!ReaLTaiizorExt.PoisonFormHelper.ValidateControls(txtInjectFile))
+                return;
+            
             try
             {
                 // Check if form is disposed
@@ -3451,8 +3560,8 @@ namespace T7CompilerGUI.Forms
             string selectedFile = null;
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
-                dialog.Title = "Select Compiled GSC File to Inject";
-                dialog.Filter = "GSC Compiled Files (*.gscc)|*.gscc|GSC Injection Files (*.gsc)|*.gsc|All Files (*.*)|*.*";
+                dialog.Title = "Select Compiled GSC File or DLL to Inject";
+                dialog.Filter = "All Supported Files (*.gscc;*.gsc;*.dll)|*.gscc;*.gsc;*.dll|GSC Compiled Files (*.gscc)|*.gscc|GSC Injection Files (*.gsc)|*.gsc|DLL Files (*.dll)|*.dll|All Files (*.*)|*.*";
                 dialog.FilterIndex = 1;
                 dialog.RestoreDirectory = true;
                 if (!string.IsNullOrEmpty(initialPath) && Directory.Exists(initialPath))
@@ -3466,16 +3575,32 @@ namespace T7CompilerGUI.Forms
             }
             
             if (!string.IsNullOrEmpty(selectedFile))
+            {
+                // Check if the selected file is a DLL
+                bool isDll = selectedFile.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+                
+                if (isDll)
                 {
+                    // If DLL selected, populate the DLL file path instead
+                    if (txtDllFile != null && !this.IsDisposed && !this.Disposing)
+                    {
+                        txtDllFile.Text = selectedFile;
+                        UpdateDllLoadButtonState();
+                    }
+                }
+                else
+                {
+                    // If GSC file selected, populate the inject file path
                     if (txtInjectFile != null && !this.IsDisposed && !this.Disposing)
-                {
-                txtInjectFile.Text = selectedFile;
-                // Clear selection immediately to prevent text from being highlighted
-                ClearInjectFileSelection();
-                AddToRecentFiles(selectedFile); // Add to recent files
-                    UpdateUI();
+                    {
+                        txtInjectFile.Text = selectedFile;
+                        // Clear selection immediately to prevent text from being highlighted
+                        ClearInjectFileSelection();
+                        AddToRecentFiles(selectedFile); // Add to recent files
+                        UpdateUI();
+                    }
                 }
-                }
+            }
             }
             catch (Exception ex)
             {
@@ -3499,6 +3624,10 @@ namespace T7CompilerGUI.Forms
         private void btnInject_Click(object sender, EventArgs e)
         {
             // Button state is automatically reset by PoisonButton.OnClick
+            
+            // Validate critical controls before proceeding
+            if (!ReaLTaiizorExt.PoisonFormHelper.ValidateControls(txtInjectFile, btnInject))
+                return;
             
             // Determine which game we're targeting
             TreyarchCompiler.Enums.Games game = TreyarchCompiler.Enums.Games.T7;
@@ -3607,6 +3736,145 @@ namespace T7CompilerGUI.Forms
         private void txtInjectPath_TextChanged(object sender, EventArgs e)
         {
             UpdateUI();
+        }
+        
+        private void btnSelectDllFile_Click(object sender, EventArgs e)
+        {
+            if (!ReaLTaiizorExt.PoisonFormHelper.ValidateControls(txtDllFile))
+                return;
+            
+            try
+            {
+                string initialPath = null;
+                if (txtDllFile != null && !string.IsNullOrWhiteSpace(txtDllFile.Text) && File.Exists(txtDllFile.Text))
+                    initialPath = Path.GetDirectoryName(txtDllFile.Text);
+                
+                string selectedFile = null;
+                using (OpenFileDialog dialog = new OpenFileDialog())
+                {
+                    dialog.Title = "Select DLL File to Load";
+                    dialog.Filter = "DLL Files (*.dll)|*.dll|All Files (*.*)|*.*";
+                    dialog.FilterIndex = 1;
+                    dialog.RestoreDirectory = true;
+                    if (!string.IsNullOrEmpty(initialPath) && Directory.Exists(initialPath))
+                    {
+                        dialog.InitialDirectory = initialPath;
+                    }
+                    if (dialog.ShowDialog(this) == DialogResult.OK)
+                    {
+                        selectedFile = dialog.FileName;
+                    }
+                }
+                
+                if (!string.IsNullOrEmpty(selectedFile))
+                {
+                    txtDllFile.Text = selectedFile;
+                    UpdateDllLoadButtonState();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in btnSelectDllFile_Click: {ex.Message}");
+                ReaLTaiizor.Controls.PoisonMessageBox.Show(this,
+                    $"Error opening file dialog: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+        
+        private void btnLoadDll_Click(object sender, EventArgs e)
+        {
+            if (!ReaLTaiizorExt.PoisonFormHelper.ValidateControls(txtDllFile, btnLoadDll))
+                return;
+            
+            string dllPath = txtDllFile.Text;
+            if (string.IsNullOrWhiteSpace(dllPath))
+            {
+                AppendLogText("ERROR: Please select a DLL file.\r\n");
+                return;
+            }
+            
+            // Determine which game we're targeting
+            TreyarchCompiler.Enums.Games game = TreyarchCompiler.Enums.Games.T7;
+            if (currentDllGameIndex == 1)
+                game = TreyarchCompiler.Enums.Games.T8;
+            
+            // Check if game is running
+            if (!IsGameRunning(game))
+            {
+                AppendLogText($"\r\n=== DLL LOADER ERROR ===\r\n");
+                AppendLogText($"Game ({game}) is not running.\r\nPlease start the game before attempting to load DLL.\r\n\r\n");
+                txtLog.SelectionStart = txtLog.Text.Length;
+                txtLog.ScrollToCaret();
+                return;
+            }
+            
+            // Disable button during loading
+            btnLoadDll.Enabled = false;
+            
+            try
+            {
+                // Load DLL using the service
+                Services.DllLoaderService.DllLoadResult result;
+                if (currentDllGameIndex == 0)
+                {
+                    result = Services.DllLoaderService.LoadDllIntoBO3(dllPath, AppendLogText);
+                }
+                else
+                {
+                    result = Services.DllLoaderService.LoadDllIntoBO4(dllPath, AppendLogText);
+                }
+                
+                if (!result.Success)
+                {
+                    AppendLogText($"\r\n=== DLL LOADER FAILED ===\r\n");
+                    if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+                    {
+                        AppendLogText($"{result.ErrorMessage}\r\n");
+                    }
+                    AppendLogText("\r\n");
+                }
+                
+                txtLog.SelectionStart = txtLog.Text.Length;
+                txtLog.ScrollToCaret();
+            }
+            catch (Exception ex)
+            {
+                AppendLogText($"\r\n=== DLL LOADER ERROR ===\r\n");
+                AppendLogText($"Unexpected error: {ex.Message}\r\n\r\n");
+                txtLog.SelectionStart = txtLog.Text.Length;
+                txtLog.ScrollToCaret();
+            }
+            finally
+            {
+                btnLoadDll.Enabled = true;
+                UpdateDllLoadButtonState();
+            }
+        }
+        
+        private void txtDllFile_TextChanged(object sender, EventArgs e)
+        {
+            UpdateDllLoadButtonState();
+        }
+        
+        private void UpdateDllLoadButtonState()
+        {
+            if (btnLoadDll == null || txtDllFile == null) return;
+            
+            bool hasDllFile = !string.IsNullOrWhiteSpace(txtDllFile.Text) && File.Exists(txtDllFile.Text);
+            bool gameRunning = false;
+            
+            if (currentDllGameIndex == 0)
+            {
+                gameRunning = IsGameRunning(TreyarchCompiler.Enums.Games.T7);
+            }
+            else
+            {
+                gameRunning = IsGameRunning(TreyarchCompiler.Enums.Games.T8);
+            }
+            
+            btnLoadDll.Enabled = hasDllFile && gameRunning;
         }
         
         // Check if the game process is running - optimized for smooth operation
@@ -3737,7 +4005,8 @@ namespace T7CompilerGUI.Forms
         {
             if (game != TreyarchCompiler.Enums.Games.T7)
             {
-                AppendLogText("T8 injection not yet implemented in GUI.\r\n");
+                // Removed: User requested to keep only success messages
+                // AppendLogText("T8 injection not yet implemented in GUI.\r\n");
                 return -1;
             }
 
@@ -3751,7 +4020,8 @@ namespace T7CompilerGUI.Forms
                     string preamble = Encoding.ASCII.GetString(buffer.Take(4).ToArray());
                     if (preamble != "GSIC")
                     {
-                        AppendLogText("ERROR: Script is not a valid compiled script.\r\n");
+                        // Removed: User requested to keep only success messages
+                        // AppendLogText("ERROR: Script is not a valid compiled script.\r\n");
                         return -1;
                     }
                     
@@ -3783,7 +4053,8 @@ namespace T7CompilerGUI.Forms
                     
                     if (BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
                     {
-                        AppendLogText("ERROR: Script is not a valid compiled script.\r\n");
+                        // Removed: User requested to keep only success messages
+                        // AppendLogText("ERROR: Script is not a valid compiled script.\r\n");
                         return -1;
                     }
                 }
@@ -3792,8 +4063,9 @@ namespace T7CompilerGUI.Forms
                 ProcessEx bo3 = GetGameProcessEx(TreyarchCompiler.Enums.Games.T7);
                 if (bo3 == null)
                 {
-                    AppendLogText("ERROR: No game process found for Black Ops III.\r\n");
-                    AppendLogText("Make sure the game is running.\r\n");
+                    // Removed: User requested to keep only success messages
+                    // AppendLogText("ERROR: No game process found for Black Ops III.\r\n");
+                    // AppendLogText("Make sure the game is running.\r\n");
                     return -1;
                 }
 
@@ -3872,12 +4144,14 @@ namespace T7CompilerGUI.Forms
                                     if (gsi != null && gsi.Detours.Count > 0)
                                     {
                                         bo3.Call(bo3.GetProcAddress(@"t7cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)entry.lpBuffer);
-                                        AppendLogText($"Registered {gsi.Detours.Count} detours.\r\n");
+                                        // Removed: User requested to keep only success messages
+                                        // AppendLogText($"Registered {gsi.Detours.Count} detours.\r\n");
                                     }
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
-                                    AppendLogText($"ERROR loading runtime: {e.Message}\r\n");
+                                    // Removed: User requested to keep only success messages
+                                    // AppendLogText($"ERROR loading runtime: {e.Message}\r\n");
                                     return 3;
                                 }
                             }
@@ -3892,21 +4166,24 @@ namespace T7CompilerGUI.Forms
                                     
                                     if (!File.Exists(t7cPath))
                                     {
-                                        AppendLogText($"ERROR: t7cinternal.dll not found at {t7cPath}\r\n");
-                                        AppendLogText("Hot reload requires t7cinternal.dll to be present.\r\n");
+                                        // Removed: User requested to keep only success messages
+                                        // AppendLogText($"ERROR: t7cinternal.dll not found at {t7cPath}\r\n");
+                                        // AppendLogText("Hot reload requires t7cinternal.dll to be present.\r\n");
                                         return -1;
                                     }
                                     
                                     // Note: Hot reload requires System.Evasion.ModuleMapper which may not be available
                                     // This is a simplified implementation - full hot reload may need additional dependencies
-                                    AppendLogText($"Hot reload mode: {hot}\r\n");
-                                    AppendLogText("WARNING: Full hot reload implementation requires ModuleMapper.\r\n");
-                                    AppendLogText("Script buffer has been patched, but hotload function call is not yet implemented.\r\n");
-                                    AppendLogText("Consider using normal injection (None) for now.\r\n");
+                                    // Removed: User requested to keep only success messages
+                                    // AppendLogText($"Hot reload mode: {hot}\r\n");
+                                    // AppendLogText("WARNING: Full hot reload implementation requires ModuleMapper.\r\n");
+                                    // AppendLogText("Script buffer has been patched, but hotload function call is not yet implemented.\r\n");
+                                    // AppendLogText("Consider using normal injection (None) for now.\r\n");
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
-                                    AppendLogText($"ERROR during hot reload: {e.Message}\r\n");
+                                    // Removed: User requested to keep only success messages
+                                    // AppendLogText($"ERROR during hot reload: {e.Message}\r\n");
                                     return -1;
                                 }
                             }
@@ -3914,16 +4191,18 @@ namespace T7CompilerGUI.Forms
                             break;
                         }
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
-                        AppendLogText($"ERROR processing entry: {e.Message}\r\n");
+                        // Removed: User requested to keep only success messages
+                        // AppendLogText($"ERROR processing entry: {e.Message}\r\n");
                         continue;
                     }
                 }
 
                 if (!found)
                 {
-                    AppendLogText($"ERROR: Script path '{replacePath}' not found in game's script table.\r\n");
+                    // Removed: User requested to keep only success messages
+                    // AppendLogText($"ERROR: Script path '{replacePath}' not found in game's script table.\r\n");
                     // Clear any partial state
                     llpModifiedSPTStruct = 0;
                     InjectedBuffSize = 0;
@@ -3948,14 +4227,16 @@ namespace T7CompilerGUI.Forms
                         if (resetSuccess)
                         {
                             isParseTreeReset = true;
-                            AppendLogText("Parse tree automatically reset after injection.\r\n");
+                            // Removed: User requested to keep only success messages
+                            // AppendLogText("Parse tree automatically reset after injection.\r\n");
                             UpdateResetParseTreeButton();
                         }
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
-                        AppendLogText($"WARNING: Could not auto-reset parse tree: {e.Message}\r\n");
-                        AppendLogText("You may need to manually reset it using the Reset Tree button.\r\n");
+                        // Removed: User requested to keep only success messages
+                        // AppendLogText($"WARNING: Could not auto-reset parse tree: {e.Message}\r\n");
+                        // AppendLogText("You may need to manually reset it using the Reset Tree button.\r\n");
                     }
                 }
 
@@ -3963,7 +4244,8 @@ namespace T7CompilerGUI.Forms
             }
             catch (Exception ex)
             {
-                AppendLogText($"ERROR during injection: {ex.Message}\r\n");
+                // Removed: User requested to keep only success messages
+                // AppendLogText($"ERROR during injection: {ex.Message}\r\n");
                 if (ex.InnerException != null)
                     AppendLogText($"Inner: {ex.InnerException.Message}\r\n");
                 return -1;
@@ -4293,7 +4575,8 @@ namespace T7CompilerGUI.Forms
 
                 // Save to unified config file (no config folder needed)
                 SaveAllSettings();
-                AppendLogText($"Injection state saved to unified config file.\r\n");
+                // Removed: User requested to remove this message
+                // AppendLogText($"Injection state saved to unified config file.\r\n");
             }
             catch (Exception ex)
             {
@@ -4503,8 +4786,9 @@ namespace T7CompilerGUI.Forms
             }
             
             // Draw border with style color (thicker border to show style)
-            using (Pen pen = new Pen(borderColor, 2))
+            using (Pen pen = PoisonPaint.GetStylePen(poisonStyleManager.Style))
             {
+                pen.Width = 2;
                 e.Graphics.DrawRectangle(pen, new Rectangle(e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1));
             }
             
@@ -4864,8 +5148,9 @@ namespace T7CompilerGUI.Forms
                         if (IsRainbowStyleActive())
                         {
                             // Draw rainbow border for toggle switch
-                            using (Pen rainbowPen = new Pen(currentRainbowColor, 1))
+                            using (Pen rainbowPen = PoisonPaint.GetStylePen(ColorStyle.Rainbow))
                             {
+                                rainbowPen.Width = 1;
                                 Rectangle toggleRect = new Rectangle(
                                     poisonToggle.DisplayStatus ? 30 : 0, 
                                     0, 
@@ -4878,7 +5163,7 @@ namespace T7CompilerGUI.Forms
                             // Draw rainbow fill for checked state
                             if (poisonToggle.Checked)
                             {
-                                using (SolidBrush rainbowBrush = new SolidBrush(currentRainbowColor))
+                                using (SolidBrush rainbowBrush = PoisonPaint.GetStyleBrush(ColorStyle.Rainbow))
                                 {
                                     Rectangle fillRect = new Rectangle(
                                         poisonToggle.DisplayStatus ? 32 : 2, 
@@ -4891,7 +5176,7 @@ namespace T7CompilerGUI.Forms
                             }
                             
                             // Draw rainbow toggle indicator (the sliding part)
-                            using (SolidBrush rainbowBrush = new SolidBrush(currentRainbowColor))
+                            using (SolidBrush rainbowBrush = PoisonPaint.GetStyleBrush(ColorStyle.Rainbow))
                             {
                                 int left = poisonToggle.Checked ? poisonToggle.Width - 10 : (poisonToggle.DisplayStatus ? 30 : 0);
                                 Rectangle indicatorRect = new Rectangle(left, 0, 10, poisonToggle.ClientRectangle.Height);
@@ -4973,8 +5258,9 @@ namespace T7CompilerGUI.Forms
                     {
                         if (IsRainbowStyleActive() && poisonPanel.BorderStyle != BorderStyle.None)
                         {
-                            using (Pen rainbowPen = new Pen(currentRainbowColor, 1))
+                            using (Pen rainbowPen = PoisonPaint.GetStylePen(ColorStyle.Rainbow))
                             {
+                                rainbowPen.Width = 1;
                                 Rectangle borderRect = poisonPanel.ClientRectangle;
                                 borderRect.Width -= 1;
                                 borderRect.Height -= 1;
@@ -4994,8 +5280,9 @@ namespace T7CompilerGUI.Forms
                     {
                         if (IsRainbowStyleActive())
                         {
-                            using (Pen rainbowPen = new Pen(currentRainbowColor, 1))
+                            using (Pen rainbowPen = PoisonPaint.GetStylePen(ColorStyle.Rainbow))
                             {
+                                rainbowPen.Width = 1;
                                 Rectangle borderRect = poisonTextBox.ClientRectangle;
                                 borderRect.Width -= 1;
                                 borderRect.Height -= 1;
@@ -5016,8 +5303,9 @@ namespace T7CompilerGUI.Forms
                         if (IsRainbowStyleActive())
                         {
                             // Draw rainbow border
-                            using (Pen rainbowPen = new Pen(currentRainbowColor, 1))
+                            using (Pen rainbowPen = PoisonPaint.GetStylePen(ColorStyle.Rainbow))
                             {
+                                rainbowPen.Width = 1;
                                 Rectangle borderRect = poisonButton.ClientRectangle;
                                 borderRect.Width -= 1;
                                 borderRect.Height -= 1;
@@ -5053,8 +5341,9 @@ namespace T7CompilerGUI.Forms
                         if (IsRainbowStyleActive())
                         {
                             // Draw rainbow border
-                            using (Pen rainbowPen = new Pen(currentRainbowColor, 1))
+                            using (Pen rainbowPen = PoisonPaint.GetStylePen(ColorStyle.Rainbow))
                             {
+                                rainbowPen.Width = 1;
                                 Rectangle borderRect = poisonDropDown.ClientRectangle;
                                 borderRect.Width -= 1;
                                 borderRect.Height -= 1;
@@ -5145,7 +5434,7 @@ namespace T7CompilerGUI.Forms
                 );
                 
                 // Use rainbow color for border
-                using (SolidBrush borderBrush = new SolidBrush(currentRainbowColor))
+                using (SolidBrush borderBrush = PoisonPaint.GetStyleBrush(ColorStyle.Rainbow))
                 {
                     e.Graphics.FillRectangle(borderBrush, selectedTabBorderRectangle);
                 }
@@ -5429,6 +5718,9 @@ namespace T7CompilerGUI.Forms
                 // All controls connected to StyleManager will update instantly
                 poisonStyleManager.Theme = theme;
                 
+                // Update all registered controls first (dynamically created controls)
+                ReaLTaiizorExt.PoisonControlHelper.UpdateRegisteredControls(poisonStyleManager);
+                
                 // Explicitly call Update() to ensure all controls refresh immediately
                 // (Setting Theme property calls Update() automatically, but we ensure it here)
                 poisonStyleManager.Update();
@@ -5536,6 +5828,9 @@ namespace T7CompilerGUI.Forms
             // All controls connected to StyleManager will update instantly
             poisonStyleManager.Style = style;
             
+            // Update all registered controls first (dynamically created controls)
+            ReaLTaiizorExt.PoisonControlHelper.UpdateRegisteredControls(poisonStyleManager);
+            
             // Force StyleManager to update all controls (critical after disabling rainbow)
             // This ensures all controls get the new style properly
             poisonStyleManager.Update();
@@ -5551,16 +5846,26 @@ namespace T7CompilerGUI.Forms
                 UpdateSettingsColorStyleButton();
                 
             // Use PoisonControlHelper to update theme toggle and color style button
-            if (toggleSettingsTheme != null && poisonStyleManager != null)
+            if (poisonStyleManager != null)
             {
-                ReaLTaiizor.Extension.Poison.PoisonControlHelper.ApplyStyleManager(toggleSettingsTheme, poisonStyleManager);
-                toggleSettingsTheme.Invalidate();
-            }
-            
-            if (btnSettingsColorStyle != null && poisonStyleManager != null)
-            {
-                ReaLTaiizor.Extension.Poison.PoisonControlHelper.ApplyStyleManager(btnSettingsColorStyle, poisonStyleManager);
-                btnSettingsColorStyle.Invalidate();
+                var controlsToUpdate = new List<Control>();
+                if (toggleSettingsTheme != null) controlsToUpdate.Add(toggleSettingsTheme);
+                if (btnSettingsColorStyle != null) controlsToUpdate.Add(btnSettingsColorStyle);
+                
+                if (controlsToUpdate.Any())
+                {
+                    // Use batch operation to apply StyleManager to multiple controls at once
+                    ReaLTaiizor.Extension.Poison.PoisonControlHelper.ApplyStyleManagerToControls(
+                        poisonStyleManager,
+                        controlsToUpdate.ToArray()
+                    );
+                    
+                    // Invalidate each control
+                    foreach (var control in controlsToUpdate)
+                    {
+                        control.Invalidate();
+                    }
+                }
             }
             
             // Force all controls to refresh with new style

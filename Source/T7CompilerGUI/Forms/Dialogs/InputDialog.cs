@@ -30,6 +30,8 @@ namespace T7CompilerGUI.Forms.Dialogs
                 // Use PoisonFormHelper for standardized form initialization
                 // This handles StyleManager application, button effects, and form icon loading
                 ReaLTaiizor.Extension.Poison.PoisonFormHelper.InitializeForm(this, styleManager);
+                // Setup as modal dialog
+                ReaLTaiizor.Extension.Poison.PoisonFormHelper.SetupAsDialog(this, styleManager);
             }
             
             txtInput.Focus();

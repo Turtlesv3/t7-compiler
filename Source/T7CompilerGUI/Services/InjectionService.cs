@@ -67,7 +67,8 @@ namespace T7CompilerGUI.Services
                     string preamble = Encoding.ASCII.GetString(buffer.Take(4).ToArray());
                     if (preamble == "GSIC")
                     {
-                        log?.Invoke("Detected GSIC file (with detours)\r\n");
+                        // Removed: User requested to keep only success messages
+                        // log?.Invoke("Detected GSIC file (with detours)\r\n");
                         // GSIC files can be injected but may require special handling
                         return (true, null, buffer);
                     }
@@ -96,8 +97,6 @@ namespace T7CompilerGUI.Services
             if (result.Success)
             {
                 log("\r\n=== INJECTION SUCCESS ===\r\n");
-                log("Script injected successfully!\r\n");
-                log("Injection state saved. You can reset the parse tree even after closing the app.\r\n\r\n");
             }
             else
             {

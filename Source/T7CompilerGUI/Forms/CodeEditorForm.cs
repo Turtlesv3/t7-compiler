@@ -367,6 +367,9 @@ namespace T7CompilerGUI.Forms
                 // Update all open code editors (custom controls) - these need manual theme updates
                 UpdateAllEditorsTheme();
 
+                // Update all registered controls first (dynamically created file buttons)
+                ReaLTaiizorExt.PoisonControlHelper.UpdateRegisteredControls(styleManager);
+                
                 // Update all file buttons (dynamically created) - ensure they're connected to StyleManager
                 UpdateAllFileButtonsTheme();
 
@@ -3408,6 +3411,13 @@ namespace T7CompilerGUI.Forms
                 closeButton.ForeColor = PoisonPaint.ForeColor.Button.Normal(currentTheme);
             };
             closeButton.Name = Path.GetFileName(filePath).Replace(".gsc", "").Replace(".txt", "").Replace(' ', '_');
+            
+            // Register dynamically created buttons for automatic StyleManager updates
+            if (styleManager != null)
+            {
+                ReaLTaiizorExt.PoisonControlHelper.RegisterControl(fileButton, styleManager);
+                ReaLTaiizorExt.PoisonControlHelper.RegisterControl(closeButton, styleManager);
+            }
 
             buttonContainer.Controls.Add(closeButton);
             buttonContainer.Controls.Add(fileButton);

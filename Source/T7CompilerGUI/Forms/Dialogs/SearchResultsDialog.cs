@@ -62,48 +62,66 @@ namespace T7CompilerGUI.Forms.Dialogs
                 // Use PoisonFormHelper for standardized form initialization
                 // This handles StyleManager application, button effects, and form icon loading
                 ReaLTaiizor.Extension.Poison.PoisonFormHelper.InitializeForm(this, styleManager);
+                // Setup as modal dialog and center on parent
+                ReaLTaiizor.Extension.Poison.PoisonFormHelper.SetupAsDialog(this, styleManager);
             }
             
+            SetupListView();
             PopulateResults();
+        }
+        
+        private void SetupListView()
+        {
+            if (lvwResults == null) return;
+            
+            // Clear existing columns
+            lvwResults.Columns.Clear();
+            
+            // Add columns
+            lvwResults.Columns.Add("File", 150);
+            lvwResults.Columns.Add("Line", 60);
+            lvwResults.Columns.Add("Preview", 340);
+            
+            // Apply StyleManager if available
+            if (styleManager != null)
+            {
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(lvwResults, styleManager);
+            }
         }
         
         private void PopulateResults()
         {
-            if (lstResults == null)
+            if (lvwResults == null)
                 return;
                 
-            lstResults.Items.Clear();
+            lvwResults.Items.Clear();
             
             foreach (var result in results)
             {
-                lstResults.Items.Add(result);
+                ListViewItem item = new ListViewItem(Path.GetFileName(result.FilePath));
+                item.SubItems.Add(result.LineNumber.ToString());
+                string preview = result.LineText.Trim();
+                if (preview.Length > 60)
+                    preview = preview.Substring(0, 57) + "...";
+                item.SubItems.Add(preview);
+                item.Tag = result;
+                lvwResults.Items.Add(item);
             }
             
             lblResultsCount.Text = $"Found {results.Count} result(s)";
             
-            if (lstResults.Items.Count > 0)
+            if (lvwResults.Items.Count > 0)
             {
-                lstResults.SelectedIndex = 0;
-            }
-        }
-        
-        private void ApplyPoisonStyling()
-        {
-            if (styleManager == null) return;
-            
-            // ListBox doesn't support StyleManager, so set colors manually
-            if (lstResults != null)
-            {
-                lstResults.BackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
-                lstResults.ForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
+                lvwResults.Items[0].Selected = true;
+                lvwResults.Items[0].Focused = true;
             }
         }
         
         private void BtnGoTo_Click(object sender, EventArgs e)
         {
-            if (lstResults.SelectedItem != null)
+            if (lvwResults.SelectedItems.Count > 0 && lvwResults.SelectedItems[0].Tag is SearchResult result)
             {
-                SelectedResult = lstResults.SelectedItem as SearchResult;
+                SelectedResult = result;
                 this.DialogResult = DialogResult.OK;
                 this.Close();
             }
@@ -115,7 +133,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.Close();
         }
         
-        private void LstResults_DoubleClick(object sender, EventArgs e)
+        private void LvwResults_DoubleClick(object sender, EventArgs e)
         {
             BtnGoTo_Click(sender, e);
         }

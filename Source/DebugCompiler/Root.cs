@@ -146,12 +146,37 @@ namespace DebugCompiler
         static string GetEmbeddedVersion()
         {
             var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "DebugCompiler.version";
+            // This project embeds `Properties\\version` as an EmbeddedResource (see DebugCompiler.csproj).
+            // Depending on build tooling, the fully-qualified resource name can vary, so we:
+            // - Prefer the known expected name
+            // - Otherwise, search resources for a trailing ".version"
+            // - Fall back to assembly metadata instead of crashing
 
-            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
-            using (StreamReader reader = new StreamReader(stream))
+            string resourceName = "DebugCompiler.Properties.version";
+            Stream stream = assembly.GetManifestResourceStream(resourceName);
+
+            if (stream == null)
             {
-                return reader.ReadToEnd().Trim().ToLower();
+                resourceName = assembly
+                    .GetManifestResourceNames()
+                    .FirstOrDefault(n => n.EndsWith(".version", StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrWhiteSpace(resourceName))
+                    stream = assembly.GetManifestResourceStream(resourceName);
+            }
+
+            if (stream == null)
+            {
+                // Last-resort: use file version metadata so the tool still runs.
+                var info = FileVersionInfo.GetVersionInfo(assembly.Location);
+                var v = info?.ProductVersion ?? info?.FileVersion ?? "0.0.0.0";
+                return v.Trim().ToLowerInvariant();
+            }
+
+            using (stream)
+            using (var reader = new StreamReader(stream))
+            {
+                return reader.ReadToEnd().Trim().ToLowerInvariant();
             }
         }
 

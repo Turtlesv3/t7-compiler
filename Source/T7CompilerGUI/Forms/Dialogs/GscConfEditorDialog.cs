@@ -60,6 +60,12 @@ namespace T7CompilerGUI.Forms.Dialogs
             if (styleManager != null)
             {
                 ReaLTaiizorExt.PoisonFormHelper.InitializeForm(this, styleManager);
+                // Setup as modal dialog and center on parent
+                ReaLTaiizorExt.PoisonFormHelper.SetupAsDialog(this, styleManager);
+                if (parentForm != null)
+                {
+                    ReaLTaiizorExt.PoisonFormHelper.CenterForm(this, parentForm);
+                }
             }
             
             // Subscribe to StyleManager updates to keep in sync
@@ -119,6 +125,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             // Controls are now created in InitializeComponent (Designer file)
             // This method just wires up event handlers and sets dynamic properties
             // StyleManager is applied by PoisonFormHelper.InitializeForm() in constructor
+            
+            // Setup DataGridView for symbols
+            SetupSymbolsDataGridView();
             
             // Set dynamic text properties - preserve Designer text and append dynamic content
             // Get base text from Designer and append filename
@@ -181,23 +190,74 @@ namespace T7CompilerGUI.Forms.Dialogs
             lblOtherSymbols.Text = $"{symbolsBaseText.TrimEnd()} - Found {allSymbols.Count}:";
             
             // Don't set BackColor/ForeColor here - let StyleManager handle it via SyncAllControlsWithStyleManager
-            // The listbox colors are set in SyncAllControlsWithStyleManager which is called periodically
+            // The DataGridView colors are set in SyncAllControlsWithStyleManager which is called periodically
             
-            // Clear listbox before adding items to prevent duplicates
-            lstOtherSymbols.Items.Clear();
-            lstOtherSymbols.Items.AddRange(allSymbols.ToArray());
+            // Clear DataGridView before adding items to prevent duplicates
+            dgvOtherSymbols.Rows.Clear();
             
-            // Only attach event handler once (check if already attached)
-            lstOtherSymbols.ItemCheck -= LstOtherSymbols_ItemCheck;
-            lstOtherSymbols.ItemCheck += LstOtherSymbols_ItemCheck;
+            // Add symbols to DataGridView (symbol first, then checkbox)
+            foreach (string symbol in allSymbols)
+            {
+                dgvOtherSymbols.Rows.Add(symbol, false); // symbol name first, unchecked by default
+            }
             
             // Button event handlers are now wired up in Designer
             // Position buttons using Anchor property set in Designer
         }
         
-        private void LstOtherSymbols_ItemCheck(object sender, ItemCheckEventArgs e)
+        private void SetupSymbolsDataGridView()
         {
-            HasChanges = true;
+            if (dgvOtherSymbols == null) return;
+            
+            // Clear existing columns
+            dgvOtherSymbols.Columns.Clear();
+            
+            // Add symbol name column first (left side)
+            DataGridViewTextBoxColumn symbolColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "Symbol",
+                HeaderText = "Symbol",
+                ReadOnly = true,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+            };
+            dgvOtherSymbols.Columns.Add(symbolColumn);
+            
+            // Add checkbox column second (right side)
+            DataGridViewCheckBoxColumn checkColumn = new DataGridViewCheckBoxColumn
+            {
+                Name = "Checked",
+                HeaderText = "",
+                Width = 50,
+                ReadOnly = false
+            };
+            dgvOtherSymbols.Columns.Add(checkColumn);
+            
+            // Wire up cell value changed event
+            dgvOtherSymbols.CellValueChanged += DgvOtherSymbols_CellValueChanged;
+            dgvOtherSymbols.CurrentCellDirtyStateChanged += DgvOtherSymbols_CurrentCellDirtyStateChanged;
+            
+            // Apply StyleManager if available
+            if (styleManager != null)
+            {
+                ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(dgvOtherSymbols, styleManager);
+            }
+        }
+        
+        private void DgvOtherSymbols_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            // Commit checkbox changes immediately
+            if (dgvOtherSymbols.IsCurrentCellDirty && dgvOtherSymbols.CurrentCell is DataGridViewCheckBoxCell)
+            {
+                dgvOtherSymbols.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        }
+        
+        private void DgvOtherSymbols_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.ColumnIndex == 1 && e.RowIndex >= 0) // Checkbox column is now second (index 1)
+            {
+                HasChanges = true;
+            }
         }
         
         private void ScanProjectForSymbols()
@@ -361,18 +421,21 @@ namespace T7CompilerGUI.Forms.Dialogs
                     }
                 }
                 
-                // Check the symbols in the listbox - check if they're in gsc.conf
+                // Check the symbols in the DataGridView - check if they're in gsc.conf
                 // This works like the code editor: symbols in gsc.conf are checked/enabled
-                // Ensure listbox is ready before trying to check items
-                if (lstOtherSymbols != null && lstOtherSymbols.Items.Count > 0)
+                // Ensure DataGridView is ready before trying to check items
+                if (dgvOtherSymbols != null && dgvOtherSymbols.Rows.Count > 0)
                 {
-                    for (int i = 0; i < lstOtherSymbols.Items.Count; i++)
+                    foreach (DataGridViewRow row in dgvOtherSymbols.Rows)
                     {
-                        string item = lstOtherSymbols.Items[i].ToString();
-                        // Check if this symbol is in gsc.conf (case-insensitive comparison)
-                        // symbolsFromConf uses case-insensitive comparison, so this will work correctly
-                        bool isChecked = symbolsFromConf.Any(s => s.Equals(item, StringComparison.OrdinalIgnoreCase));
-                        lstOtherSymbols.SetItemChecked(i, isChecked);
+                        if (row.Cells["Symbol"].Value != null)
+                        {
+                            string symbol = row.Cells["Symbol"].Value.ToString();
+                            // Check if this symbol is in gsc.conf (case-insensitive comparison)
+                            // symbolsFromConf uses case-insensitive comparison, so this will work correctly
+                            bool isChecked = symbolsFromConf.Any(s => s.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+                            row.Cells["Checked"].Value = isChecked;
+                        }
                     }
                 }
                 
@@ -433,15 +496,18 @@ namespace T7CompilerGUI.Forms.Dialogs
                         symbols.Add("SP"); // Default to uppercase
                 }
                 
-                // Add other symbols from checked listbox (including DEBUG, killstreaks, serious, XBOX, etc.)
-                // Preserve original case from the listbox items
-                foreach (string item in lstOtherSymbols.CheckedItems)
+                // Add other symbols from checked DataGridView rows (including DEBUG, killstreaks, serious, XBOX, etc.)
+                // Preserve original case from the DataGridView items
+                foreach (DataGridViewRow row in dgvOtherSymbols.Rows)
+                {
+                    if (row.Cells["Checked"].Value is bool isChecked && isChecked && row.Cells["Symbol"].Value != null)
                     {
-                    string trimmed = item.ToString().Trim();
+                        string trimmed = row.Cells["Symbol"].Value.ToString().Trim();
                         if (!string.IsNullOrEmpty(trimmed) && 
                             !symbols.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
                         {
-                        symbols.Add(trimmed); // Preserve original case
+                            symbols.Add(trimmed); // Preserve original case
+                        }
                     }
                 }
                 
@@ -522,17 +588,10 @@ namespace T7CompilerGUI.Forms.Dialogs
                 // This handles StyleManager, Theme, Style, and UseStyleColors automatically
                 ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
                 
-                // Update listbox colors (CheckedListBox doesn't support StyleManager, so we set colors manually)
-                // But only if they're not already set correctly to avoid unnecessary updates
-                if (lstOtherSymbols != null && styleManager != null)
+                // Update DataGridView StyleManager (PoisonDataGridView supports StyleManager automatically)
+                if (dgvOtherSymbols != null && styleManager != null)
                 {
-                    var expectedBackColor = PoisonPaint.BackColor.Form(styleManager.Theme);
-                    var expectedForeColor = PoisonPaint.ForeColor.Label.Normal(styleManager.Theme);
-                    
-                    if (lstOtherSymbols.BackColor != expectedBackColor)
-                        lstOtherSymbols.BackColor = expectedBackColor;
-                    if (lstOtherSymbols.ForeColor != expectedForeColor)
-                        lstOtherSymbols.ForeColor = expectedForeColor;
+                    ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(dgvOtherSymbols, styleManager);
                 }
             }
             catch

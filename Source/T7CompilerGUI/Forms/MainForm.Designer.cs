@@ -53,6 +53,14 @@ namespace T7CompilerGUI.Forms
         private PoisonButton btnResetParseTree;
         private PoisonButton btnLaunchBO3;
         private PoisonButton btnKillBO3;
+        
+        // DLL Loader controls
+        private ReaLTaiizor.Controls.PoisonLabel lblDllFile;
+        private PoisonTextBox txtDllFile;
+        private ReaLTaiizor.Controls.PoisonDropDownButton btnDllGame;
+        private ReaLTaiizor.Controls.PoisonContextMenuStrip dllGameMenu;
+        private PoisonButton btnLoadDll;
+        
         private ReaLTaiizor.Controls.PoisonPanel panelLog;
         private ReaLTaiizor.Controls.PoisonProgressSpinner progressSpinner;
         private ReaLTaiizor.Controls.PoisonProgressBar progressBar;
@@ -120,6 +128,7 @@ namespace T7CompilerGUI.Forms
             this.platformMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.gameMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.injectGameMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
+            this.dllGameMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.settingsColorStyleMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.mainFormContextMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
             this.recentProjectsMenu = new ReaLTaiizor.Controls.PoisonContextMenuStrip(this.components);
@@ -159,6 +168,10 @@ namespace T7CompilerGUI.Forms
             this.btnResetParseTree = new ReaLTaiizor.Controls.PoisonButton();
             this.btnLaunchBO3 = new ReaLTaiizor.Controls.PoisonButton();
             this.btnKillBO3 = new ReaLTaiizor.Controls.PoisonButton();
+            this.lblDllFile = new ReaLTaiizor.Controls.PoisonLabel();
+            this.txtDllFile = new ReaLTaiizor.Controls.PoisonTextBox();
+            this.btnDllGame = new ReaLTaiizor.Controls.PoisonDropDownButton();
+            this.btnLoadDll = new ReaLTaiizor.Controls.PoisonButton();
             this.tabSettings = new ReaLTaiizor.Controls.PoisonTabPage();
             this.lblSettingsTheme = new ReaLTaiizor.Controls.PoisonLabel();
             this.toggleSettingsTheme = new ReaLTaiizor.Controls.PoisonToggle();
@@ -236,6 +249,13 @@ namespace T7CompilerGUI.Forms
             this.injectGameMenu.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(0)))), ((int)(((byte)(0)))));
             this.injectGameMenu.Name = "injectGameMenu";
             this.injectGameMenu.Size = new System.Drawing.Size(61, 4);
+            // 
+            // dllGameMenu
+            // 
+            this.dllGameMenu.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
+            this.dllGameMenu.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(0)))), ((int)(((byte)(0)))));
+            this.dllGameMenu.Name = "dllGameMenu";
+            this.dllGameMenu.Size = new System.Drawing.Size(61, 4);
             // 
             // settingsColorStyleMenu
             // 
@@ -340,7 +360,7 @@ namespace T7CompilerGUI.Forms
             this.tabControl.HotTrack = true;
             this.tabControl.Location = new System.Drawing.Point(23, 55);
             this.tabControl.Name = "tabControl";
-            this.tabControl.SelectedIndex = 0;
+            this.tabControl.SelectedIndex = 1;
             this.tabControl.Size = new System.Drawing.Size(614, 189);
             this.tabControl.TabIndex = 22;
             this.tabControl.UseSelectable = true;
@@ -585,6 +605,10 @@ namespace T7CompilerGUI.Forms
             this.tabInject.Controls.Add(this.btnResetParseTree);
             this.tabInject.Controls.Add(this.btnLaunchBO3);
             this.tabInject.Controls.Add(this.btnKillBO3);
+            this.tabInject.Controls.Add(this.lblDllFile);
+            this.tabInject.Controls.Add(this.txtDllFile);
+            this.tabInject.Controls.Add(this.btnDllGame);
+            this.tabInject.Controls.Add(this.btnLoadDll);
             this.tabInject.HorizontalScrollbarBarColor = true;
             this.tabInject.HorizontalScrollbarHighlightOnWheel = false;
             this.tabInject.HorizontalScrollbarInvisible = true;
@@ -658,7 +682,7 @@ namespace T7CompilerGUI.Forms
             // lblHotReload
             // 
             this.lblHotReload.AutoSize = true;
-            this.lblHotReload.Location = new System.Drawing.Point(160, 92);
+            this.lblHotReload.Location = new System.Drawing.Point(125, 90);
             this.lblHotReload.Name = "lblHotReload";
             this.lblHotReload.Size = new System.Drawing.Size(78, 19);
             this.lblHotReload.TabIndex = 9;
@@ -669,7 +693,7 @@ namespace T7CompilerGUI.Forms
             // 
             this.btnHotReload.AutoSize = true;
             this.btnHotReload.ContextMenuStrip = this.hotReloadMenu;
-            this.btnHotReload.Location = new System.Drawing.Point(244, 92);
+            this.btnHotReload.Location = new System.Drawing.Point(209, 88);
             this.btnHotReload.Name = "btnHotReload";
             this.btnHotReload.SelectedItem = null;
             this.btnHotReload.Size = new System.Drawing.Size(64, 23);
@@ -837,6 +861,80 @@ namespace T7CompilerGUI.Forms
             this.btnKillBO3.UseStyleColors = true;
             this.btnKillBO3.Click += new System.EventHandler(this.btnKillBO3_Click);
             // 
+            // lblDllFile
+            // 
+            this.lblDllFile.AutoSize = true;
+            this.lblDllFile.Location = new System.Drawing.Point(85, 124);
+            this.lblDllFile.Name = "lblDllFile";
+            this.lblDllFile.Size = new System.Drawing.Size(57, 19);
+            this.lblDllFile.TabIndex = 13;
+            this.lblDllFile.Text = "DLL File:";
+            this.lblDllFile.UseStyleColors = true;
+            // 
+            // txtDllFile
+            // 
+            this.txtDllFile.AllowDrop = true;
+            this.txtDllFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            // 
+            // 
+            // 
+            this.txtDllFile.CustomButton.Image = null;
+            this.txtDllFile.CustomButton.Location = new System.Drawing.Point(240, 2);
+            this.txtDllFile.CustomButton.Name = "";
+            this.txtDllFile.CustomButton.Size = new System.Drawing.Size(17, 17);
+            this.txtDllFile.CustomButton.Style = ReaLTaiizor.Enum.Poison.ColorStyle.Blue;
+            this.txtDllFile.CustomButton.TabIndex = 1;
+            this.txtDllFile.CustomButton.Theme = ReaLTaiizor.Enum.Poison.ThemeStyle.Light;
+            this.txtDllFile.CustomButton.UseSelectable = true;
+            this.txtDllFile.CustomButton.Visible = false;
+            this.txtDllFile.Lines = new string[0];
+            this.txtDllFile.Location = new System.Drawing.Point(148, 119);
+            this.txtDllFile.MaxLength = 32767;
+            this.txtDllFile.Name = "txtDllFile";
+            this.txtDllFile.PasswordChar = '\0';
+            this.txtDllFile.ReadOnly = true;
+            this.txtDllFile.ScrollBars = System.Windows.Forms.ScrollBars.None;
+            this.txtDllFile.SelectedText = "";
+            this.txtDllFile.SelectionLength = 0;
+            this.txtDllFile.SelectionStart = 0;
+            this.txtDllFile.ShortcutsEnabled = true;
+            this.txtDllFile.Size = new System.Drawing.Size(260, 22);
+            this.txtDllFile.TabIndex = 14;
+            this.txtDllFile.UseSelectable = true;
+            this.txtDllFile.UseStyleColors = true;
+            this.txtDllFile.WaterMarkColor = System.Drawing.Color.FromArgb(((int)(((byte)(109)))), ((int)(((byte)(109)))), ((int)(((byte)(109)))));
+            this.txtDllFile.WaterMarkFont = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Pixel);
+            this.txtDllFile.TextChanged += new System.EventHandler(this.txtDllFile_TextChanged);
+            // 
+            // btnDllGame
+            // 
+            this.btnDllGame.AutoSize = true;
+            this.btnDllGame.ContextMenuStrip = this.dllGameMenu;
+            this.btnDllGame.Location = new System.Drawing.Point(0, 120);
+            this.btnDllGame.Name = "btnDllGame";
+            this.btnDllGame.SelectedItem = null;
+            this.btnDllGame.Size = new System.Drawing.Size(79, 23);
+            this.btnDllGame.SplitMenuStrip = this.dllGameMenu;
+            this.btnDllGame.TabIndex = 17;
+            this.btnDllGame.Text = "T7 (BO3)";
+            this.btnDllGame.UseSelectable = true;
+            this.btnDllGame.UseStyleColors = true;
+            // 
+            // btnLoadDll
+            // 
+            this.btnLoadDll.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnLoadDll.Enabled = false;
+            this.btnLoadDll.Highlight = true;
+            this.btnLoadDll.Location = new System.Drawing.Point(414, 118);
+            this.btnLoadDll.Name = "btnLoadDll";
+            this.btnLoadDll.Size = new System.Drawing.Size(87, 24);
+            this.btnLoadDll.TabIndex = 18;
+            this.btnLoadDll.Text = "Load DLL";
+            this.btnLoadDll.UseSelectable = true;
+            this.btnLoadDll.UseStyleColors = true;
+            this.btnLoadDll.Click += new System.EventHandler(this.btnLoadDll_Click);
+            // 
             // tabSettings
             // 
             this.tabSettings.Controls.Add(this.lblSettingsTheme);
@@ -944,7 +1042,7 @@ namespace T7CompilerGUI.Forms
             this.txtSettingsDefaultOutputPath.MaxLength = 32767;
             this.txtSettingsDefaultOutputPath.Name = "txtSettingsDefaultOutputPath";
             this.txtSettingsDefaultOutputPath.PasswordChar = '\0';
-            this.txtSettingsDefaultOutputPath.WaterMark = "Select output folder...";
+            this.txtSettingsDefaultOutputPath.PromptText = "Select output folder...";
             this.txtSettingsDefaultOutputPath.ScrollBars = System.Windows.Forms.ScrollBars.None;
             this.txtSettingsDefaultOutputPath.SelectedText = "";
             this.txtSettingsDefaultOutputPath.SelectionLength = 0;
@@ -1175,7 +1273,7 @@ namespace T7CompilerGUI.Forms
             this.txtLogSearch.MaxLength = 32767;
             this.txtLogSearch.Name = "txtLogSearch";
             this.txtLogSearch.PasswordChar = '\0';
-            this.txtLogSearch.WaterMark = "Search log...";
+            this.txtLogSearch.PromptText = "Search log...";
             this.txtLogSearch.ScrollBars = System.Windows.Forms.ScrollBars.None;
             this.txtLogSearch.SelectedText = "";
             this.txtLogSearch.SelectionLength = 0;
@@ -1221,7 +1319,6 @@ namespace T7CompilerGUI.Forms
             this.ShadowType = ReaLTaiizor.Enum.Poison.FormShadowType.AeroShadow;
             this.StyleManager = this.poisonStyleManager;
             this.Text = "T7 GSC Compiler";
-            // ResizeBegin and ResizeEnd handlers removed - controls handle their own rendering automatically
             this.DragDrop += new System.Windows.Forms.DragEventHandler(this.MainForm_DragDrop);
             this.DragEnter += new System.Windows.Forms.DragEventHandler(this.MainForm_DragEnter);
             ((System.ComponentModel.ISupportInitialize)(this.poisonStyleManager)).EndInit();

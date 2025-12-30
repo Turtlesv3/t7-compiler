@@ -19,7 +19,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         private PoisonRadioButton rdoZM;
         private PoisonRadioButton rdoSP;
         private PoisonLabel lblOtherSymbols;
-        private System.Windows.Forms.CheckedListBox lstOtherSymbols;
+        private ReaLTaiizor.Controls.PoisonDataGridView dgvOtherSymbols;
         private PoisonLabel lblInfo;
         private PoisonPanel buttonPanel;
         private PoisonButton btnCancel;
@@ -45,7 +45,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.rdoZM = new ReaLTaiizor.Controls.PoisonRadioButton();
             this.rdoSP = new ReaLTaiizor.Controls.PoisonRadioButton();
             this.lblOtherSymbols = new ReaLTaiizor.Controls.PoisonLabel();
-            this.lstOtherSymbols = new System.Windows.Forms.CheckedListBox();
+            this.dgvOtherSymbols = new ReaLTaiizor.Controls.PoisonDataGridView();
             this.lblInfo = new ReaLTaiizor.Controls.PoisonLabel();
             this.buttonPanel = new ReaLTaiizor.Controls.PoisonPanel();
             this.btnOK = new ReaLTaiizor.Controls.PoisonButton();
@@ -63,7 +63,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.mainPanel.Controls.Add(this.rdoZM);
             this.mainPanel.Controls.Add(this.rdoSP);
             this.mainPanel.Controls.Add(this.lblOtherSymbols);
-            this.mainPanel.Controls.Add(this.lstOtherSymbols);
+            this.mainPanel.Controls.Add(this.dgvOtherSymbols);
             this.mainPanel.Controls.Add(this.lblInfo);
             this.mainPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.mainPanel.HorizontalScrollbar = true;
@@ -145,14 +145,23 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.lblOtherSymbols.Text = "Additional Symbols:";
             this.lblOtherSymbols.UseStyleColors = true;
             // 
-            // lstOtherSymbols
+            // dgvOtherSymbols
             // 
-            this.lstOtherSymbols.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.lstOtherSymbols.CheckOnClick = true;
-            this.lstOtherSymbols.Location = new System.Drawing.Point(13, 132);
-            this.lstOtherSymbols.Name = "lstOtherSymbols";
-            this.lstOtherSymbols.Size = new System.Drawing.Size(241, 137);
-            this.lstOtherSymbols.TabIndex = 8;
+            this.dgvOtherSymbols.AllowUserToAddRows = false;
+            this.dgvOtherSymbols.AllowUserToDeleteRows = false;
+            this.dgvOtherSymbols.AllowUserToResizeColumns = false;
+            this.dgvOtherSymbols.AllowUserToResizeRows = false;
+            this.dgvOtherSymbols.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
+            this.dgvOtherSymbols.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvOtherSymbols.Location = new System.Drawing.Point(13, 132);
+            this.dgvOtherSymbols.MultiSelect = false;
+            this.dgvOtherSymbols.Name = "dgvOtherSymbols";
+            this.dgvOtherSymbols.ReadOnly = false;
+            this.dgvOtherSymbols.RowHeadersVisible = false;
+            this.dgvOtherSymbols.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvOtherSymbols.Size = new System.Drawing.Size(241, 137);
+            this.dgvOtherSymbols.TabIndex = 8;
+            this.dgvOtherSymbols.UseStyleColors = true;
             // 
             // lblInfo
             // 

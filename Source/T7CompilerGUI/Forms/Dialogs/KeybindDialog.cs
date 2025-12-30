@@ -99,6 +99,16 @@ namespace T7CompilerGUI.Forms.Dialogs
             
             this.Load += KeybindDialog_Load;
             
+            // Setup as modal dialog and center on parent
+            if (styleManager != null)
+            {
+                ReaLTaiizorExt.PoisonFormHelper.SetupAsDialog(this, styleManager);
+                if (parentForm != null)
+                {
+                    ReaLTaiizorExt.PoisonFormHelper.CenterForm(this, parentForm);
+                }
+            }
+            
             // Setup rainbow update timer if parent form is available
             SetupRainbowUpdateTimer();
             
@@ -203,6 +213,14 @@ namespace T7CompilerGUI.Forms.Dialogs
                 panel.Controls.Add(row.txtKeybind);
                 panel.Controls.Add(row.btnChange);
                 
+                // Register controls for automatic StyleManager updates
+                if (styleManager != null)
+                {
+                    ReaLTaiizorExt.PoisonControlHelper.RegisterControl(row.lblAction, styleManager);
+                    ReaLTaiizorExt.PoisonControlHelper.RegisterControl(row.txtKeybind, styleManager);
+                    ReaLTaiizorExt.PoisonControlHelper.RegisterControl(row.btnChange, styleManager);
+                }
+                
                 keybindRows[kvp.Value.Action] = row;
                 
                 // Setup hover and pressed effects
@@ -239,6 +257,9 @@ namespace T7CompilerGUI.Forms.Dialogs
             
             try
             {
+                // Update all registered controls first (dynamically created controls)
+                ReaLTaiizorExt.PoisonControlHelper.UpdateRegisteredControls(styleManager);
+                
                 // Use helper to sync all controls - handles Theme, Style, UseStyleColors automatically
                 ReaLTaiizorExt.PoisonControlHelper.ApplyStyleManager(this, styleManager);
             }

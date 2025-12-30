@@ -282,21 +282,35 @@ namespace System
 #endif
 
                     // Check and / or load DLL
-                    IntPtr hModule = GetLoadedModuleAddress(DllName);
-                    if (hModule == IntPtr.Zero)
+                    ProcessModuleEx sModule = null;
+                    PointerEx hModule = GetLoadedModuleAddress(DllName);
+                    if (!hModule)
                     {
 #if DEBUG
                         DLog($"Unresolved: {DllName}, Loading into memory...");
 #endif
-                        hModule = LoadAndRegisterDllRemote(DllName).BaseAddress;
-                        if (hModule == IntPtr.Zero)
+                        sModule = LoadAndRegisterDllRemote(DllName);
+                        if (sModule == null || !sModule.BaseAddress)
                         {
                             throw new Exception(DSTR(DSTR_MODULE_FILE_NOT_FOUND, DllName));
                         }
+                        hModule = sModule.BaseAddress;
                     }
-
-                    // Locate the module by its base address
-                    ProcessModuleEx sModule = FindModuleByAddress(hModule);
+                    else
+                    {
+                        // Locate the module by its base address
+                        sModule = FindModuleByAddress(hModule);
+                        if (sModule == null)
+                        {
+                            // Module was loaded but not found in Modules collection - refresh and try again
+                            Refresh();
+                            sModule = FindModuleByAddress(hModule);
+                            if (sModule == null)
+                            {
+                                throw new Exception($"Module loaded at 0x{hModule:X} but not found in Modules collection. Module may not be properly registered.");
+                            }
+                        }
+                    }
 
 #if DEBUG
                     DLog($"Resolved Module: {sModule.ModuleName}:{sModule.BaseAddress:X}, {sModule.ModulePath}");

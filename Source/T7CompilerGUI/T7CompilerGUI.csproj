@@ -114,6 +114,7 @@
     </PackageReference>
     <PackageReference Include="Vanara.PInvoke.Shell32" Version="4.2.1" />
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -128,6 +129,10 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Memory">
+      <HintPath>..\..\packages\System.Memory.4.6.3\lib\net462\System.Memory.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <!-- WPF references for AvalonEdit -->
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
@@ -256,6 +261,7 @@
     <Compile Include="Services\CompilationService.cs" />
     <Compile Include="Services\CompilationErrorParser.cs" />
     <Compile Include="Services\InjectionService.cs" />
+    <Compile Include="Services\DllLoaderService.cs" />
     <Compile Include="Services\RecentItemsManager.cs" />
     <Compile Include="Services\SettingsManager.cs" />
   </ItemGroup>
@@ -392,6 +398,30 @@
     <!-- Wait a brief moment for the process to fully close and release file locks -->
     <Exec Command="timeout /t 1 /nobreak &gt;nul 2&gt;&amp;1" ContinueOnError="true" IgnoreExitCode="true" Condition="'$(TaskKillExitCode)' == '0'" />
     <Message Text="Closed T7GUI process if it was running" Importance="normal" Condition="'$(TaskKillExitCode)' == '0'" />
+  </Target>
+  <!-- Verify that External.dll and dependencies are available for embedding -->
+  <!-- This runs before Costura to ensure DLLs are in the output directory -->
+  <Target Name="VerifyExternalDlls" BeforeTargets="AfterCompile">
+    <PropertyGroup>
+      <ExternalDllPath>$(SolutionDir)Builds\External\Release\External.dll</ExternalDllPath>
+      <ExternalDepsPath>$(SolutionDir)Builds\External\Release</ExternalDepsPath>
+    </PropertyGroup>
+    <!-- Check if External.dll exists -->
+    <Error Condition="!Exists('$(ExternalDllPath)')" Text="External.dll not found at $(ExternalDllPath). Please build the External project first." />
+    <!-- Copy External.dll and dependencies to output directory so Costura can embed them -->
+    <ItemGroup>
+      <ExternalDlls Include="$(ExternalDepsPath)\External.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\Iced.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\Irony.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\System.Buffers.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\System.Collections.Immutable.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\System.Memory.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\System.Numerics.Vectors.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\System.Reflection.Metadata.dll" />
+      <ExternalDlls Include="$(ExternalDepsPath)\System.Runtime.CompilerServices.Unsafe.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ExternalDlls)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" ContinueOnError="false" Condition="Exists('%(RootDir)%(Directory)%(Filename)%(Extension)')" />
+    <Message Text="Copied External.dll and dependencies to $(OutDir) for Costura embedding" Importance="normal" />
   </Target>
   <!-- Copy GUI to __depot\build\t7gui on Release builds (only .exe since everything is embedded) -->
   <!-- Run after Costura finishes embedding DLLs -->

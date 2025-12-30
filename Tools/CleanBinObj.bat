@@ -38,8 +38,15 @@ if exist "!SEARCH_DIR!\*.sln" (
 
 REM Move up one level
 for %%P in ("!SEARCH_DIR!\..") do set "PARENT_DIR=%%~fP"
-if not defined PARENT_DIR goto :NOT_FOUND
+
+REM Check if we've reached the root (can't go up anymore)
 if "!PARENT_DIR!"=="!SEARCH_DIR!" goto :NOT_FOUND
+
+REM Check if PARENT_DIR is a drive root (e.g., C:\)
+set "PARENT_LEN=!PARENT_DIR!"
+set "PARENT_LEN=!PARENT_LEN:~3!"
+if "!PARENT_LEN!"=="" goto :NOT_FOUND
+
 set "SEARCH_DIR=!PARENT_DIR!"
 goto :SEARCH_UP
 

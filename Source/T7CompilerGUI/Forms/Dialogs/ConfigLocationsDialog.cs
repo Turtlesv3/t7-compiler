@@ -73,6 +73,12 @@ namespace T7CompilerGUI.Forms.Dialogs
             if (styleManager != null)
             {
                 ReaLTaiizorExt.PoisonFormHelper.InitializeForm(this, styleManager);
+                // Setup as modal dialog and center on parent
+                ReaLTaiizorExt.PoisonFormHelper.SetupAsDialog(this, styleManager);
+                if (parentForm != null)
+                {
+                    ReaLTaiizorExt.PoisonFormHelper.CenterForm(this, parentForm);
+                }
             }
             
             // Setup rainbow update timer if parent form is available

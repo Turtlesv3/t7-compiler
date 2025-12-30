@@ -1,5 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
-  <Costura DisableCleanup='false' IgnoreSatelliteAssemblies='true' IncludeDebugSymbols='false' />
+  <Costura DisableCleanup='false' IgnoreSatelliteAssemblies='true' IncludeDebugSymbols='false'>
+    <!-- Exclude system assemblies that should not be embedded -->
+    <!-- Costura will automatically include all other referenced assemblies (External.dll and its dependencies) -->
+    <ExcludeAssemblies>
+      System
+      System.Core
+      System.Data
+      System.Drawing
+      System.Windows.Forms
+      System.Xml
+      System.Xml.Linq
+      Microsoft.CSharp
+      PresentationCore
+      PresentationFramework
+      WindowsBase
+      System.Xaml
+      WindowsFormsIntegration
+      System.Net.Http
+      System.Deployment
+      System.IO.Compression.FileSystem
+      mscorlib
+    </ExcludeAssemblies>
+  </Costura>
 </Weavers>
 

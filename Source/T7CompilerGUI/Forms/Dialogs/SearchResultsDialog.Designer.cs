@@ -12,7 +12,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         private System.ComponentModel.IContainer components = null;
 
         private PoisonLabel lblResultsCount;
-        private System.Windows.Forms.ListBox lstResults;
+        private ReaLTaiizor.Controls.PoisonListView lvwResults;
         private PoisonButton btnGoTo;
         private PoisonButton btnCancel;
 
@@ -28,7 +28,7 @@ namespace T7CompilerGUI.Forms.Dialogs
         private void InitializeComponent()
         {
             this.lblResultsCount = new ReaLTaiizor.Controls.PoisonLabel();
-            this.lstResults = new System.Windows.Forms.ListBox();
+            this.lvwResults = new ReaLTaiizor.Controls.PoisonListView();
             this.btnGoTo = new ReaLTaiizor.Controls.PoisonButton();
             this.btnCancel = new ReaLTaiizor.Controls.PoisonButton();
             this.SuspendLayout();
@@ -42,14 +42,20 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.lblResultsCount.Text = "Found 0 result(s)";
             this.lblResultsCount.UseStyleColors = true;
             // 
-            // lstResults
+            // lvwResults
             // 
-            this.lstResults.FormattingEnabled = true;
-            this.lstResults.Location = new System.Drawing.Point(23, 76);
-            this.lstResults.Name = "lstResults";
-            this.lstResults.Size = new System.Drawing.Size(550, 277);
-            this.lstResults.TabIndex = 1;
-            this.lstResults.DoubleClick += new System.EventHandler(this.LstResults_DoubleClick);
+            this.lvwResults.FullRowSelect = true;
+            this.lvwResults.GridLines = true;
+            this.lvwResults.HideSelection = false;
+            this.lvwResults.Location = new System.Drawing.Point(23, 76);
+            this.lvwResults.MultiSelect = false;
+            this.lvwResults.Name = "lvwResults";
+            this.lvwResults.Size = new System.Drawing.Size(550, 277);
+            this.lvwResults.TabIndex = 1;
+            this.lvwResults.UseCompatibleStateImageBehavior = false;
+            this.lvwResults.UseStyleColors = true;
+            this.lvwResults.View = System.Windows.Forms.View.Details;
+            this.lvwResults.DoubleClick += new System.EventHandler(this.LvwResults_DoubleClick);
             // 
             // btnGoTo
             // 
@@ -83,7 +89,7 @@ namespace T7CompilerGUI.Forms.Dialogs
             this.ClientSize = new System.Drawing.Size(600, 410);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnGoTo);
-            this.Controls.Add(this.lstResults);
+            this.Controls.Add(this.lvwResults);
             this.Controls.Add(this.lblResultsCount);
             this.MaximizeBox = false;
             this.MinimizeBox = false;

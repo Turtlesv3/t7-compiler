@@ -190,7 +190,10 @@ namespace T7CompilerGUI.Utils
 
             tb.Append(InPlace[SourcePosition++]);
 
-            while (SourcePosition < InPlace.Length && char.IsLetterOrDigit(InPlace[SourcePosition]))
+            // Allow underscores anywhere in the token (matches DebugCompiler + typical C-like identifier rules).
+            // Without this, tokens like `_renderMenu` get split into `_render` and `Menu`,
+            // which can lead to "unknown variable '_render'" style errors after preprocessing.
+            while (SourcePosition < InPlace.Length && (char.IsLetterOrDigit(InPlace[SourcePosition]) || InPlace[SourcePosition] == '_'))
                 tb.Append(InPlace[SourcePosition++]);
 
             Token = tb.ToString().ToLower();

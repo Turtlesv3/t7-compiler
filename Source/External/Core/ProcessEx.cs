@@ -382,11 +382,83 @@ namespace System
         /// <returns></returns>
         public PointerEx GetProcAddress(string moduleName, string functionName)
         {
-            ProcessModuleExportEx moduleExport = this[moduleName].GetExportedFunction(functionName);
+            var module = this[moduleName];
+            if (module == null)
+            {
+                throw new Exception($"Module '{moduleName}' not found in process. Make sure the module is loaded and registered.");
+            }
+            ProcessModuleExportEx moduleExport = module.GetExportedFunction(functionName);
             while(moduleExport.Forwarder != null)
             {
                 var forwardedData = moduleExport.Forwarder.Split('.');
-                var targetModule = this[$"{forwardedData[0]}.dll"];
+                string targetModuleName = $"{forwardedData[0]}.dll";
+                
+                // Resolve API Set DLLs to their actual host DLL
+                if (targetModuleName.StartsWith("api-", StringComparison.OrdinalIgnoreCase) || 
+                    targetModuleName.StartsWith("ext-", StringComparison.OrdinalIgnoreCase))
+                {
+                    string resolved = EnvironmentEx.ResolveAPISet(targetModuleName);
+                    if (resolved != null)
+                    {
+                        targetModuleName = resolved;
+                    }
+                }
+                
+                // Try to find the module
+                var targetModule = this[targetModuleName];
+                
+                // If not found, try to load it
+                if (targetModule == null)
+                {
+                    PointerEx moduleAddress = GetLoadedModuleAddress(targetModuleName);
+                    if (!moduleAddress)
+                    {
+                        // Try to load the module
+                        try
+                        {
+                            var loadedModule = LoadAndRegisterDllRemote(targetModuleName);
+                            if (loadedModule != null && loadedModule.BaseAddress)
+                            {
+                                targetModule = loadedModule;
+                            }
+                        }
+                        catch
+                        {
+                            // If loading fails, try without the .dll extension
+                            if (targetModuleName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                            {
+                                string nameWithoutExt = targetModuleName.Substring(0, targetModuleName.Length - 4);
+                                PointerEx altAddress = GetLoadedModuleAddress(nameWithoutExt);
+                                if (!altAddress)
+                                {
+                                    try
+                                    {
+                                        var altModule = LoadAndRegisterDllRemote(nameWithoutExt);
+                                        if (altModule != null && altModule.BaseAddress)
+                                        {
+                                            targetModule = altModule;
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                else
+                                {
+                                    targetModule = FindModuleByAddress(altAddress);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        targetModule = FindModuleByAddress(moduleAddress);
+                    }
+                }
+                
+                if (targetModule == null)
+                {
+                    throw new Exception($"Forwarded module '{forwardedData[0]}.dll' (resolved to '{targetModuleName}') not found in process and could not be loaded.");
+                }
+                
                 moduleExport = forwardedData[1].StartsWith("#") ? targetModule.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : targetModule.GetExportedFunction(forwardedData[1]);
             }
             return moduleExport.AbsoluteAddress;
